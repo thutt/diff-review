@@ -1,0 +1,60 @@
+# Copyright (c) 2025  Logic Magicians Software.
+# All Rights Reserved.
+# Licensed under Gnu GPL V3.
+#
+import os
+import sys
+import traceback
+
+import drgit
+import dropts
+import drutil
+
+def process_command_line():
+    parser  = dropts.configure_parser()
+    options = parser.parse_args()
+
+    if options.arg_scm == "git":
+        options.scm = drgit.Git()
+    else:
+        drutil.fatal("Uhandled SCM instantiation.")
+
+    options.review_dir = os.path.join(options.arg_review_dir,
+                                      options.arg_review_name)
+    options.review_base_dir = os.path.join(options.review_dir, "base.d")
+    options.review_modi_dir = os.path.join(options.review_dir, "modi.d")
+
+    drutil.mktree(options.review_dir)
+    drutil.mktree(options.review_base_dir)
+    drutil.mktree(options.review_modi_dir)
+
+    return options
+
+
+def main():
+    try:
+        options = process_command_line()
+
+
+    except KeyboardInterrupt:
+        return 0
+
+    except NotImplementedError as exc:
+        print("")
+        print(traceback.format_exc())
+        return 1;
+
+    except drutil.FatalError as exc:
+        print("fatal: %s" % (exc))
+        return 1
+
+    except Exception as e:
+        print("internal error: unexpected exception\n%s" % str(e))
+        print("")
+        print(traceback.format_exc())
+
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())
