@@ -1,0 +1,50 @@
+#!/bin/bash
+# Copyright (c) 2025  Logic Magicians Software.
+# All Rights Reserved.
+# Licensed under Gnu GPL V3.
+#
+# This wrapper script facilitates invoking the self-review Python
+# script.
+#
+set -o errexit;
+set -o nounset;
+set -o pipefail;
+
+SCRIPT="${BASH_SOURCE[0]}"
+SCRIPT_DIR=$(dirname "${SCRIPT}");
+
+
+function fatal ()
+{
+    local msg="${1}";
+    
+    echo "fatal: ${msg}";
+    exit 10;
+}
+
+
+function main()
+{
+    local python=$(which python3);
+    local options="-b -B -E";
+    local dr="$(readlink -f ${SCRIPT_DIR}/dr.d/dr.py)";
+
+    if [ -z "${python}" ] ; then
+        cat <<EOF
+
+No Python 3 interpreter was found on the path.
+Put a Python 3 interpreter on the path to execute this tool.
+
+EOF
+        fatal "No Python 3 interpreter on \${PATH}.";
+    fi;
+
+    if [ -r "${dr}" ] ; then
+        exec ${python} ${options} "${dr}" "${@}";
+    else
+        fatal "Unable to read '${dr}'";
+    fi;
+}
+
+main ${@};
+
