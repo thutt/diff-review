@@ -1,4 +1,4 @@
-# Copyright (c) 2025  Logic Magicians Software.
+# Copyright (c) 2025  Logic Magicians Software (Taylor Hutt).
 # All Rights Reserved.
 # Licensed under Gnu GPL V3.
 #
@@ -97,11 +97,11 @@ Return Code:
     o.add_argument("-c",
                    help     = ("Select a change, using the SCM's change "
                                "identifier, that you want to 'diff'."),
-                   action   = "append",
-                   default  = [],
+                   action   = "store",
+                   default  = None,
                    metavar  = "<change id>",
-                   required = True,
-                   dest     = "arg_changeid")
+                   required = False,
+                   dest     = "arg_change_id")
 
     o.add_argument("--scm",
                    help     = ("Choose the SCM that holds the data you want "
@@ -111,6 +111,14 @@ Return Code:
                    choices  = [ "git" ],
                    required = True,
                    dest     = "arg_scm")
+
+    o.add_argument("--git-path",
+                   help     = ("Allows overriding default path for git."),
+                   action   = "store",
+                   default  = "/usr/bin/git",
+                   metavar  = "<path of git executable>",
+                   required = False,
+                   dest     = "arg_git_path")
 
     o = parser.add_argument_group("Output Options")
     o.add_argument("-R", "--review-directory",

@@ -1,4 +1,4 @@
-# Copyright (c) 2025  Logic Magicians Software.
+# Copyright (c) 2025  Logic Magicians Software (Taylor Hutt).
 # All Rights Reserved.
 # Licensed under Gnu GPL V3.
 #
@@ -11,6 +11,10 @@ class FatalError(Exception):
 
 def fatal(msg):
     raise FatalError(msg)
+
+
+def warning(msg):
+    print("warning: %s" % (msg))
 
 
 def mktree(p):
