@@ -36,6 +36,6 @@ def output(review_name, scm):
 
     quit  = tkinter.Button(frm, text="Quit", command=root.destroy)
     quit.configure(bg="red", fg="white")
-    quit.grid(column=1, row=row)
+    quit.grid(column=1, row=row, sticky="nsew")
 
     root.mainloop()
