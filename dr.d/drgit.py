@@ -15,16 +15,23 @@ class ChangedFile(drscm.ChangedFile):
         super().__init__(git_path, base_dir, modi_dir, cid, rel_path)
 
     def previous_revision_id(self):
-        cmd = [ self.scm_path_, "log", "--oneline",
-                "-1",           # Limit to 1 commit.
-                "--", self.rel_path_ ]
+        sha = [ ]
+        if self.revision_ is not None:
+            sha = [ "%s^" % (self.revision_) ]
+
+        cmd = ([ self.scm_path_, "log", "--oneline", "-1" ] +
+               sha +
+               [ "--", self.rel_path_ ])
+
         (stdout, stderr, rc) = drutil.execute(cmd)
 
         if rc == 0:
             sha = stdout[0].split(' ')[0] # Example: 'd90e8f0 Initial commit'
+            if sha == "":                 # Empty sha means no previous commit.
+                sha = None
             return sha
         else:
-            fatal("Unable to execute '%s'." % (' '.join(cmd)))
+            drutil.fatal("Unable to execute '%s'." % (' '.join(cmd)))
 
     def output_name(self, dest_dir):
         return os.path.join(dest_dir, self.rel_path_)
@@ -48,7 +55,7 @@ class ChangedFile(drscm.ChangedFile):
             self.create_output_dir(out_name)
             self.write_file(out_name, stdout)
         else:
-            fatal("Unable to execute '%s'." % (' '.join(cmd)))
+            drutil.fatal("Unable to execute '%s'." % (' '.join(cmd)))
 
     def copy_previous_revision(self, dest_dir):
         self.copy_revision(dest_dir, self.previous_revision_id())
@@ -65,9 +72,25 @@ class ChangedFile(drscm.ChangedFile):
             pass
 
 
-class Untracked(ChangedFile):
+class Committed(ChangedFile):
     def __init__(self, git_path, base_dir, modi_dir, cid, rel_path):
         super().__init__(git_path, base_dir, modi_dir, cid, rel_path)
+
+    def action(self):
+        return "committed"
+
+    def copy_file(self, review_base_dir, review_modi_dir):
+        if self.previous_revision_id() is not None:
+            self.copy_previous_revision(review_base_dir)
+        else:
+            self.copy_empty_file(review_base_dir)
+
+        self.copy_revision(review_modi_dir, self.revision_)
+
+
+class Untracked(ChangedFile):
+    def __init__(self, git_path, base_dir, modi_dir, rel_path):
+        super().__init__(git_path, base_dir, modi_dir, None, rel_path)
 
     def action(self):
         return "untracked"
@@ -81,8 +104,8 @@ class Untracked(ChangedFile):
 
 
 class Unstaged(ChangedFile):
-    def __init__(self, git_path, base_dir, modi_dir, cid, relative_pathname):
-        super().__init__(git_path, base_dir, modi_dir, cid, relative_pathname)
+    def __init__(self, git_path, base_dir, modi_dir, relative_pathname):
+        super().__init__(git_path, base_dir, modi_dir, None, relative_pathname)
 
     def action(self):
         return "unstaged"
@@ -93,8 +116,8 @@ class Unstaged(ChangedFile):
 
 
 class Staged(ChangedFile):
-    def __init__(self, git_path, base_dir, modi_dir, cid, relative_pathname):
-        super().__init__(git_path, base_dir, modi_dir, cid, relative_pathname)
+    def __init__(self, git_path, base_dir, modi_dir, relative_pathname):
+        super().__init__(git_path, base_dir, modi_dir, None, relative_pathname)
 
     def action(self):
         return "staged"
@@ -105,8 +128,8 @@ class Staged(ChangedFile):
 
 
 class Deleted(ChangedFile):
-    def __init__(self, git_path, base_dir, modi_dir, cid, rel_path):
-        super().__init__(git_path, base_dir, modi_dir, cid, rel_path)
+    def __init__(self, git_path, base_dir, modi_dir, rel_path):
+        super().__init__(git_path, base_dir, modi_dir, None, rel_path)
 
     def action(self):
         return "deleted"
@@ -117,8 +140,8 @@ class Deleted(ChangedFile):
 
 
 class Added(ChangedFile):
-    def __init__(self, git_path, base_dir, modi_dir, cid, rel_path):
-        super().__init__(git_path, base_dir, modi_dir, cid, rel_path)
+    def __init__(self, git_path, base_dir, modi_dir, rel_path):
+        super().__init__(git_path, base_dir, modi_dir, None, rel_path)
 
     def action(self):
         return "added"
@@ -132,8 +155,8 @@ class Added(ChangedFile):
 
 
 class NotYetSupportedState(ChangedFile):
-    def __init__(self, git_path, base_dir, modi_dir, cid, rel_path, idx, wrk):
-        super().__init__(git_path, base_dir, modi_dir, cid, rel_path)
+    def __init__(self, git_path, base_dir, modi_dir, rel_path, idx, wrk):
+        super().__init__(git_path, base_dir, modi_dir, None, rel_path)
         self.idx_ = idx
         self.wrk_ = wrk
 
@@ -161,19 +184,19 @@ class Git(drscm.SCM):
             # Unstaged files take precendence over all others.
             return Unstaged(self.scm_path_, 
                             self.review_base_dir_, self.review_modi_dir_,
-                            None, rel_path)
+                            rel_path)
         elif (idx_ch == 'A') and (wrk_ch == ' '):
             return Added(self.scm_path_,
                          self.review_base_dir_, self.review_modi_dir_,
-                         None, rel_path)
+                         rel_path)
         elif (idx_ch == 'M') and wrk_ch == ' ':
             return Staged(self.scm_path_,
                           self.review_base_dir_, self.review_modi_dir_,
-                          None, rel_path)
+                          rel_path)
         elif (idx_ch == '?') or (wrk_ch == '?'):
             return Untracked(self.scm_path_,
                              self.review_base_dir_, self.review_modi_dir_,
-                             None, rel_path)
+                             rel_path)
         else:
             drutil.warning("unhandled state: index: %c  tree: %c  path: %s" %
                            (idx_ch, wrk_ch, rel_path))
@@ -209,6 +232,31 @@ class Git(drscm.SCM):
 
         return result
 
+    def commit_status(self):
+        #
+        # Show previous commit SHA of a file:
+        #  git log --oneline -1 1de3ace^ -- dr.d/dropts.py
+        #
+        # Show files in a commit:
+        #  git diff-tree --no-commit-id --name-only 0cf31e7 -r
+        #
+        cmd = [ self.scm_path_, "diff-tree", "--no-commit-id",
+                "--name-only", "-r", self.change_id_ ]
+        (stdout, stderr, rc) = drutil.execute(cmd)
+        if rc == 0:
+            result = [ ]
+            for rel_path in stdout:
+                if len(rel_path) == 0:
+                    break
+                c = Committed(self.scm_path_,
+                              self.review_base_dir_, self.review_modi_dir_,
+                              self.change_id_, rel_path)
+                result.append(c)
+            return result
+        else:
+            drutil.fatal("Unable to execute '%s'." % (' '.join(cmd)))
+            
+
     def dossier(self):
         if self.change_id_ is None:
             # Unstaged and staged files.
@@ -216,10 +264,5 @@ class Git(drscm.SCM):
         else:
             # Committed SHA.
             #
-            # Show previous commit SHA of a file:
-            #  git log --oneline -1 1de3ace^ -- dr.d/dropts.py
-            #
-            # Show files in a commit:
-            #  git diff-tree --no-commit-id --name-only 0cf31e7 -r
-            #
-            raise NotImplementedError("git committed changes: not implemented")
+            self.dossier_ = self.commit_status()
+
