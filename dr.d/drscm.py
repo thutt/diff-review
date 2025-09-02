@@ -3,6 +3,7 @@
 # Licensed under Gnu GPL V3.
 #
 import inspect
+import json
 import os
 
 # ChangedFile is an abstract class that must be extended for an
@@ -95,7 +96,6 @@ class SCM(object):
         else:
             drutil.fatal("Unhandled path to SCM tool.")
 
-
     def generate_dossier_(self):
         raise NotImplementedError("%s: not implemented" % (self.qualid_()))
 
@@ -106,4 +106,21 @@ class SCM(object):
     def generate(self, options):
         self.generate_dossier_()
         self.copy_files()
+
+        info = {
+            'root'  : self.review_dir_,
+            'base'  : self.review_base_dir_,
+            'modi'  : self.review_modi_dir_,
+            'files' : [ ]
+        }
+        for f in self.dossier_:
+            finfo = {
+                'action'   : f.action(),
+                'rel_path' : f.rel_path_
+            }
+            info['files'].append(finfo)
+
+        fname = os.path.join(self.review_dir_, "diff.json")
+        with open(fname, "w") as fp:
+            json.dump(info, fp, indent = 2)
             
