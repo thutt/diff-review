@@ -11,8 +11,8 @@ import drutil
 
 
 class ChangedFile(drscm.ChangedFile):
-    def __init__(self, git_path, cid, rel_path):
-        super().__init__(git_path, cid, rel_path)
+    def __init__(self, git_path, base_dir, modi_dir, cid, rel_path):
+        super().__init__(git_path, base_dir, modi_dir, cid, rel_path)
 
     def previous_revision_id(self):
         cmd = [ self.scm_path_, "log", "--oneline",
@@ -66,8 +66,11 @@ class ChangedFile(drscm.ChangedFile):
 
 
 class Untracked(ChangedFile):
-    def __init__(self, git_path, cid, rel_path):
-        super().__init__(git_path, cid, rel_path)
+    def __init__(self, git_path, base_dir, modi_dir, cid, rel_path):
+        super().__init__(git_path, base_dir, modi_dir, cid, rel_path)
+
+    def action(self):
+        return "untracked"
 
     def previous_revision_id(self):
         return None             # No previous revision.
@@ -78,8 +81,11 @@ class Untracked(ChangedFile):
 
 
 class Unstaged(ChangedFile):
-    def __init__(self, git_path, cid, relative_pathname):
-        super().__init__(git_path, cid, relative_pathname)
+    def __init__(self, git_path, base_dir, modi_dir, cid, relative_pathname):
+        super().__init__(git_path, base_dir, modi_dir, cid, relative_pathname)
+
+    def action(self):
+        return "unstaged"
 
     def copy_file(self, review_base_dir, review_modi_dir):
         self.copy_previous_revision(review_base_dir)
@@ -87,8 +93,11 @@ class Unstaged(ChangedFile):
 
 
 class Staged(ChangedFile):
-    def __init__(self, git_path, cid, relative_pathname):
-        super().__init__(git_path, cid, relative_pathname)
+    def __init__(self, git_path, base_dir, modi_dir, cid, relative_pathname):
+        super().__init__(git_path, base_dir, modi_dir, cid, relative_pathname)
+
+    def action(self):
+        return "staged"
 
     def copy_file(self, review_base_dir, review_modi_dir):
         self.copy_previous_revision(review_base_dir)
@@ -96,8 +105,11 @@ class Staged(ChangedFile):
 
 
 class Deleted(ChangedFile):
-    def __init__(self, git_path, cid, rel_path):
-        super().__init__(git_path, cid, rel_path)
+    def __init__(self, git_path, base_dir, modi_dir, cid, rel_path):
+        super().__init__(git_path, base_dir, modi_dir, cid, rel_path)
+
+    def action(self):
+        return "deleted"
 
     def copy_file(self, review_base_dir, review_modi_dir):
         self.copy_previous_revision(review_base_dir)
@@ -105,8 +117,11 @@ class Deleted(ChangedFile):
 
 
 class Added(ChangedFile):
-    def __init__(self, git_path, cid, rel_path):
-        super().__init__(git_path, cid, rel_path)
+    def __init__(self, git_path, base_dir, modi_dir, cid, rel_path):
+        super().__init__(git_path, base_dir, modi_dir, cid, rel_path)
+
+    def action(self):
+        return "added"
 
     def previous_revision_id(self):
         return None             # No previous revision.
@@ -117,10 +132,13 @@ class Added(ChangedFile):
 
 
 class NotYetSupportedState(ChangedFile):
-    def __init__(self, git_path, cid, rel_path, idx, wrk):
-        super().__init__(git_path, cid, rel_path)
+    def __init__(self, git_path, base_dir, modi_dir, cid, rel_path, idx, wrk):
+        super().__init__(git_path, base_dir, modi_dir, cid, rel_path)
         self.idx_ = idx
         self.wrk_ = wrk
+
+    def action(self):
+        return "UNKNOWN"
 
     def previous_revision_id(self):
         return None  # Previous revision unknown -- unsupported state.
@@ -136,22 +154,34 @@ class Git(drscm.SCM):
 
     def status_parse_action(self, idx_ch, wrk_ch, rel_path):
         if (idx_ch == 'D') or (wrk_ch == 'D'):
-            return Deleted(self.scm_path_, None, rel_path)
-        elif (idx_ch == 'M') and (wrk_ch == ' '):
-            return Staged(self.scm_path_, None, rel_path)
-        elif ((idx_ch == ' ') and (wrk_ch == 'M') or
-              (idx_ch == 'M') and (wrk_ch == 'M')):
-            return Unstaged(self.scm_path_, None, rel_path)
-        elif (idx_ch == 'A'):
-            return Added(self.scm_path_, None, rel_path)
+            return Deleted(self.scm_path_,
+                           self.review_base_dir_, self.review_modi_dir_,
+                           None, rel_path)
+        elif (idx_ch in (' ', 'A', 'M')) and (wrk_ch == 'M'):
+            # Unstaged files take precendence over all others.
+            return Unstaged(self.scm_path_, 
+                            self.review_base_dir_, self.review_modi_dir_,
+                            None, rel_path)
+        elif (idx_ch == 'A') and (wrk_ch == ' '):
+            return Added(self.scm_path_,
+                         self.review_base_dir_, self.review_modi_dir_,
+                         None, rel_path)
+        elif (idx_ch == 'M') and wrk_ch == ' ':
+            return Staged(self.scm_path_,
+                          self.review_base_dir_, self.review_modi_dir_,
+                          None, rel_path)
         elif (idx_ch == '?') or (wrk_ch == '?'):
-            return Untracked(self.scm_path_, None, rel_path)
+            return Untracked(self.scm_path_,
+                             self.review_base_dir_, self.review_modi_dir_,
+                             None, rel_path)
         else:
             drutil.warning("unhandled state: index: %c  tree: %c  path: %s" %
                            (idx_ch, wrk_ch, rel_path))
-            return NotYetSupportedState(self.scm_path_, None, rel_path,
+            return NotYetSupportedState(self.scm_path_,
+                                        self.review_base_dir,
+                                        self.review_modi_dir,
+                                        None, rel_path,
                                         idx_ch, wrk_ch)
-
 
     def client_status(self):
         # See the 'man git-status' for the meaning of the first two
@@ -179,11 +209,17 @@ class Git(drscm.SCM):
 
         return result
 
-
     def dossier(self):
         if self.change_id_ is None:
             # Unstaged and staged files.
             self.dossier_ = self.client_status()
         else:
             # Committed SHA.
-            assert(False)
+            #
+            # Show previous commit SHA of a file:
+            #  git log --oneline -1 1de3ace^ -- dr.d/dropts.py
+            #
+            # Show files in a commit:
+            #  git diff-tree --no-commit-id --name-only 0cf31e7 -r
+            #
+            raise NotImplementedError("git committed changes: not implemented")

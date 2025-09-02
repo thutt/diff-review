@@ -28,13 +28,18 @@ class ChangedFile(object):
         return "%s.%s" % (type(self).__name__,
                           inspect.stack()[1].function)
 
-    def __init__(self, scm_path, cid, relative_pathname):
+    def __init__(self, scm_path, base_dir, modi_dir, cid, relative_pathname):
         assert((cid is None) or
                isinstance(cid, str)) # Change identifier
 
         self.scm_path_ = scm_path
+        self.base_dir_ = base_dir
+        self.modi_dir_ = modi_dir
         self.rel_path_ = relative_pathname
         self.revision_ = cid
+
+    def action(self):
+        raise NotImplementedError("%s: not implemented" % (self.qualid_()))
 
     def copy_file(self, review_base_dir, review_modi_dir):
         raise NotImplementedError("%s: not implemented" % (self.qualid_()))

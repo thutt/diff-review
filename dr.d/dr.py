@@ -38,7 +38,7 @@ def main():
 
         options.scm.dossier()
         options.scm.copy_files()
-        drtk.output(options)
+        drtk.output(options.arg_review_name, options.scm)
 
     except KeyboardInterrupt:
         return 0
