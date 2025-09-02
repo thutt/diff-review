@@ -257,7 +257,7 @@ class Git(drscm.SCM):
             drutil.fatal("Unable to execute '%s'." % (' '.join(cmd)))
             
 
-    def dossier(self):
+    def generate_dossier_(self):
         if self.change_id_ is None:
             # Unstaged and staged files.
             self.dossier_ = self.client_status()

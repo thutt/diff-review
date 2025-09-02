@@ -96,10 +96,14 @@ class SCM(object):
             drutil.fatal("Unhandled path to SCM tool.")
 
 
-    def dossier(self, options):
+    def generate_dossier_(self):
         raise NotImplementedError("%s: not implemented" % (self.qualid_()))
-
 
     def copy_files(self):
         for change in self.dossier_:
             change.copy_file(self.review_base_dir_, self.review_modi_dir_)
+
+    def generate(self, options):
+        self.generate_dossier_()
+        self.copy_files()
+            

@@ -36,8 +36,7 @@ def main():
     try:
         options = process_command_line()
 
-        options.scm.dossier()
-        options.scm.copy_files()
+        options.scm.generate(options)
         drtk.output(options.arg_review_name, options.scm)
 
     except KeyboardInterrupt:
