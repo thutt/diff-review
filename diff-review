@@ -27,7 +27,7 @@ function main()
 {
     local python=$(which python3);
     local options="-b -B -E";
-    local dr="$(readlink -f ${SCRIPT_DIR}/dr.d/dr.py)";
+    local dr="$(readlink -f ${SCRIPT_DIR}/scripts.d/dr.d/dr.py)";
 
     if [ -z "${python}" ] ; then
         cat <<EOF

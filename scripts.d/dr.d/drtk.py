@@ -23,7 +23,7 @@ def output(review_name, scm):
     frm.grid()
 
     for f in scm.dossier_:
-        base   = os.path.join(f.base_dir_, f.rel_path_)
+        base   = os.path.join(f.base_dir_, f.org_rel_path_)
         modi   = os.path.join(f.modi_dir_, f.rel_path_)
         label  = tkinter.Label(frm, text=f.action())
         button = tkinter.Button(frm, text=f.rel_path_)

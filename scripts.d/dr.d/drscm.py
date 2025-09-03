@@ -33,11 +33,12 @@ class ChangedFile(object):
         assert((cid is None) or
                isinstance(cid, str)) # Change identifier
 
-        self.scm_path_ = scm_path
-        self.base_dir_ = base_dir
-        self.modi_dir_ = modi_dir
-        self.rel_path_ = relative_pathname
-        self.revision_ = cid
+        self.scm_path_     = scm_path
+        self.base_dir_     = base_dir
+        self.modi_dir_     = modi_dir
+        self.rel_path_     = relative_pathname
+        self.org_rel_path_ = relative_pathname
+        self.revision_     = cid
 
     def action(self):
         raise NotImplementedError("%s: not implemented" % (self.qualid_()))
@@ -105,6 +106,7 @@ class SCM(object):
 
     def generate(self, options):
         self.generate_dossier_()
+
         self.copy_files()
 
         info = {
@@ -116,7 +118,8 @@ class SCM(object):
         for f in self.dossier_:
             finfo = {
                 'action'   : f.action(),
-                'rel_path' : f.rel_path_
+                'rel_path' : f.rel_path_,
+                'org_rel_path' : f.org_rel_path_ # Original path (consider: rename)
             }
             info['files'].append(finfo)
 

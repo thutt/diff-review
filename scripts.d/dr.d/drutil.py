@@ -17,6 +17,10 @@ def warning(msg):
     print("warning: %s" % (msg))
 
 
+def TODO(msg):
+    print("TODO: %s" % (msg))
+
+
 def mktree(p):
     if not os.path.exists(p):
         os.makedirs(p)
@@ -44,6 +48,6 @@ def execute(cmd):
     # stdout block becomes a list of lines.  For Windows, delete
     # carriage-return so that regexes will match '$' correctly.
     #
-    return (stdout.replace("\r", "").split("\n"),
-            stderr.replace("\r", "").split("\n"),
+    return (stdout[:-1].replace("\r", "").split("\n"),
+            stderr[:-1].replace("\r", "").split("\n"),
             rc)
