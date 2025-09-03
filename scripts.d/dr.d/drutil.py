@@ -26,9 +26,12 @@ def mktree(p):
         os.makedirs(p)
 
 
-def execute(cmd):
+def execute(verbose, cmd):
     assert(isinstance(cmd, list))
     assert(os.path.exists(cmd[0]))
+
+    if verbose:
+        print("EXEC: '%s'" % (' '.join(cmd)))
 
     p = subprocess.Popen(cmd,
                          shell    = False,

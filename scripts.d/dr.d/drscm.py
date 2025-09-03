@@ -29,11 +29,13 @@ class ChangedFile(object):
         return "%s.%s" % (type(self).__name__,
                           inspect.stack()[1].function)
 
-    def __init__(self, scm_path, base_dir, modi_dir, cid, relative_pathname):
+    def __init__(self, scm_path, verbose, base_dir, modi_dir,
+                 cid, relative_pathname):
         assert((cid is None) or
                isinstance(cid, str)) # Change identifier
 
         self.scm_path_     = scm_path
+        self.verbose_      = verbose
         self.base_dir_     = base_dir
         self.modi_dir_     = modi_dir
         self.rel_path_     = relative_pathname
@@ -91,6 +93,7 @@ class SCM(object):
         self.review_base_dir_ = options.review_base_dir
         self.review_modi_dir_ = options.review_modi_dir
         self.dossier_         = None
+        self.verbose_         = options.arg_verbose
 
         if options.arg_scm == "git":
             self.scm_path_ = options.arg_git_path

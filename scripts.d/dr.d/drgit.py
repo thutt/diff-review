@@ -11,13 +11,13 @@ import drutil
 
 
 class ChangedFile(drscm.ChangedFile):
-    def __init__(self, git_path, base_dir, modi_dir, cid, rel_path):
-        super().__init__(git_path, base_dir, modi_dir, cid, rel_path)
+    def __init__(self, git_path, verbose, base_dir, modi_dir, cid, rel_path):
+        super().__init__(git_path, verbose, base_dir, modi_dir, cid, rel_path)
 
     def current_revision_id(self, rel_path):
         cmd = [ self.scm_path_, "log", "--oneline", "-1", "--", rel_path ]
 
-        (stdout, stderr, rc) = drutil.execute(cmd)
+        (stdout, stderr, rc) = drutil.execute(self.verbose_, cmd)
 
         if rc == 0:
             sha = stdout[0].split(' ')[0] # Example: 'd90e8f0 Initial commit'
@@ -36,7 +36,7 @@ class ChangedFile(drscm.ChangedFile):
                sha +
                [ "--", self.rel_path_ ])
 
-        (stdout, stderr, rc) = drutil.execute(cmd)
+        (stdout, stderr, rc) = drutil.execute(self.verbose_, cmd)
 
         if rc == 0:
             sha = stdout[0].split(' ')[0] # Example: 'd90e8f0 Initial commit'
@@ -61,7 +61,7 @@ class ChangedFile(drscm.ChangedFile):
 
     def copy_revision(self, dest_dir, rel_path, sha):
         cmd = [ self.scm_path_, "show", "%s:%s" % (sha, rel_path) ]
-        (stdout, stderr, rc) = drutil.execute(cmd)
+        (stdout, stderr, rc) = drutil.execute(self.verbose_, cmd)
 
         if rc == 0:
             out_name = self.output_name(dest_dir, rel_path)
@@ -86,8 +86,8 @@ class ChangedFile(drscm.ChangedFile):
 
 
 class Committed(ChangedFile):
-    def __init__(self, git_path, base_dir, modi_dir, cid, rel_path):
-        super().__init__(git_path, base_dir, modi_dir, cid, rel_path)
+    def __init__(self, git_path, verbose, base_dir, modi_dir, cid, rel_path):
+        super().__init__(git_path, verbose, base_dir, modi_dir, cid, rel_path)
 
     def action(self):
         return "committed"
@@ -102,8 +102,8 @@ class Committed(ChangedFile):
 
 
 class Untracked(ChangedFile):
-    def __init__(self, git_path, base_dir, modi_dir, rel_path):
-        super().__init__(git_path, base_dir, modi_dir, None, rel_path)
+    def __init__(self, git_path, verbose, base_dir, modi_dir, rel_path):
+        super().__init__(git_path, verbose, base_dir, modi_dir, None, rel_path)
 
     def action(self):
         return "untracked"
@@ -120,8 +120,8 @@ class Untracked(ChangedFile):
 
 
 class Unstaged(ChangedFile):
-    def __init__(self, git_path, base_dir, modi_dir, relative_pathname):
-        super().__init__(git_path, base_dir, modi_dir, None, relative_pathname)
+    def __init__(self, git_path, verbose, base_dir, modi_dir, relative_pathname):
+        super().__init__(git_path, verbose, base_dir, modi_dir, None, relative_pathname)
 
     def action(self):
         return "unstaged"
@@ -132,8 +132,8 @@ class Unstaged(ChangedFile):
 
 
 class Staged(ChangedFile):
-    def __init__(self, git_path, base_dir, modi_dir, relative_pathname):
-        super().__init__(git_path, base_dir, modi_dir, None, relative_pathname)
+    def __init__(self, git_path, verbose, base_dir, modi_dir, relative_pathname):
+        super().__init__(git_path, verbose, base_dir, modi_dir, None, relative_pathname)
 
     def action(self):
         return "staged"
@@ -144,9 +144,9 @@ class Staged(ChangedFile):
 
 
 class Rename(Staged):
-    def __init__(self, git_path, base_dir, modi_dir,
+    def __init__(self, git_path, verbose, base_dir, modi_dir,
                  org_rel_path, new_rel_path):
-        super().__init__(git_path, base_dir, modi_dir, new_rel_path)
+        super().__init__(git_path, verbose, base_dir, modi_dir, new_rel_path)
         self.org_rel_path_ = org_rel_path
         self.org_sha_      = self.current_revision_id(org_rel_path)
 
@@ -163,8 +163,8 @@ class Rename(Staged):
         self.copy_current_file(review_modi_dir)
 
 class Deleted(ChangedFile):
-    def __init__(self, git_path, base_dir, modi_dir, rel_path):
-        super().__init__(git_path, base_dir, modi_dir, None, rel_path)
+    def __init__(self, git_path, verbose, base_dir, modi_dir, rel_path):
+        super().__init__(git_path, verbose, base_dir, modi_dir, None, rel_path)
 
     def action(self):
         return "deleted"
@@ -175,8 +175,8 @@ class Deleted(ChangedFile):
 
 
 class Added(ChangedFile):
-    def __init__(self, git_path, base_dir, modi_dir, rel_path):
-        super().__init__(git_path, base_dir, modi_dir, None, rel_path)
+    def __init__(self, git_path, verbose, base_dir, modi_dir, rel_path):
+        super().__init__(git_path, verbose, base_dir, modi_dir, None, rel_path)
 
     def action(self):
         return "added"
@@ -190,8 +190,8 @@ class Added(ChangedFile):
 
 
 class NotYetSupportedState(ChangedFile):
-    def __init__(self, git_path, base_dir, modi_dir, rel_path, idx, wrk):
-        super().__init__(git_path, base_dir, modi_dir, None, rel_path)
+    def __init__(self, git_path, verbose, base_dir, modi_dir, rel_path, idx, wrk):
+        super().__init__(git_path, verbose, base_dir, modi_dir, None, rel_path)
         self.idx_ = idx
         self.wrk_ = wrk
 
@@ -212,7 +212,7 @@ class Git(drscm.SCM):
 
     def status_parse_action(self, idx_ch, wrk_ch, rel_path):
         if (idx_ch == 'D') or (wrk_ch == 'D'):
-            return Deleted(self.scm_path_,
+            return Deleted(self.scm_path_, self.verbose_,
                            self.review_base_dir_, self.review_modi_dir_,
                            rel_path)
         elif (idx_ch in (' ', 'A', 'M')) and (wrk_ch == 'M'):
@@ -221,7 +221,7 @@ class Git(drscm.SCM):
             # Rename (idx_ch == 'R') is a special case that cannot be
             # processed by Unstaged.
             #
-            return Unstaged(self.scm_path_,
+            return Unstaged(self.scm_path_, self.verbose_,
                             self.review_base_dir_, self.review_modi_dir_,
                             rel_path)
         elif (idx_ch == 'R') and (wrk_ch in (' ', 'M')):
@@ -233,25 +233,25 @@ class Git(drscm.SCM):
             parts    =  rel_path.split(' ')
             org_rel_path = parts[0]
             rel_path     = parts[2]
-            return Rename(self.scm_path_,
+            return Rename(self.scm_path_, self.verbose_,
                           self.review_base_dir_, self.review_modi_dir_,
                           org_rel_path, rel_path)
         elif (idx_ch == 'A') and (wrk_ch == ' '):
-            return Added(self.scm_path_,
+            return Added(self.scm_path_, self.verbose_,
                          self.review_base_dir_, self.review_modi_dir_,
                          rel_path)
         elif (idx_ch == 'M') and wrk_ch == ' ':
-            return Staged(self.scm_path_,
+            return Staged(self.scm_path_, self.verbose_,
                           self.review_base_dir_, self.review_modi_dir_,
                           rel_path)
         elif (idx_ch == '?') or (wrk_ch == '?'):
-            return Untracked(self.scm_path_,
+            return Untracked(self.scm_path_, self.verbose_,
                              self.review_base_dir_, self.review_modi_dir_,
                              rel_path)
         else:
             drutil.warning("unhandled state: index: %c  tree: %c  path: %s" %
                            (idx_ch, wrk_ch, rel_path))
-            return NotYetSupportedState(self.scm_path_,
+            return NotYetSupportedState(self.scm_path_, self.verbose_,
                                         self.review_base_dir_,
                                         self.review_modi_dir_,
                                         None, rel_path,
@@ -265,7 +265,7 @@ class Git(drscm.SCM):
         # The second character refers to the working tree (unstaged changes).
         #
         cmd = [ self.scm_path_, "status", "--short" ]
-        (stdout, stderr, rc) = drutil.execute(cmd)
+        (stdout, stderr, rc) = drutil.execute(self.verbose_, cmd)
 
         if rc == 0:
             result = [ ]
@@ -290,20 +290,19 @@ class Git(drscm.SCM):
         #
         cmd = [ self.scm_path_, "diff-tree", "--no-commit-id",
                 "--name-only", "-r", self.change_id_ ]
-        (stdout, stderr, rc) = drutil.execute(cmd)
+        (stdout, stderr, rc) = drutil.execute(self.verbose_, cmd)
         if rc == 0:
             result = [ ]
             for rel_path in stdout:
                 if len(rel_path) == 0:
                     break
-                c = Committed(self.scm_path_,
+                c = Committed(self.scm_path_, self.verbose_,
                               self.review_base_dir_, self.review_modi_dir_,
                               self.change_id_, rel_path)
                 result.append(c)
             return result
         else:
             drutil.fatal("Unable to execute '%s'." % (' '.join(cmd)))
-
 
     def generate_dossier_(self):
         if self.change_id_ is None:
