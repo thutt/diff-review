@@ -214,7 +214,7 @@ class Git(drscm.SCM):
         if (idx_ch == 'D') or (wrk_ch == 'D'):
             return Deleted(self.scm_path_,
                            self.review_base_dir_, self.review_modi_dir_,
-                           None, rel_path)
+                           rel_path)
         elif (idx_ch in (' ', 'A', 'M')) and (wrk_ch == 'M'):
             # Unstaged files take precendence over all others.
             #

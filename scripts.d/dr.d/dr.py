@@ -9,7 +9,6 @@ import traceback
 import drgit
 import dropts
 import drutil
-import drtk
 
 def process_command_line():
     parser  = dropts.configure_parser()
@@ -32,12 +31,29 @@ def process_command_line():
     return options
 
 
+def report(options):
+    print("\ndiff-review:  %s\n"  % (os.path.join(options.arg_review_dir,
+                                                  options.arg_review_name)))
+
+    action_width = 0;
+    for f in options.scm.dossier_:
+        action_width = max(action_width, len(f.action()))
+
+    for f in options.scm.dossier_:
+        print("  %*s   %s" % (action_width, f.action(), f.rel_path_))
+    
+    print("\nTkDiff:  view-review -R %s  -r %s" % (options.arg_review_dir,
+                                                   options.arg_review_name))
+    print("\n")
+
+
 def main():
     try:
         options = process_command_line()
 
         options.scm.generate(options)
-        drtk.output(options.arg_review_name, options.scm)
+
+        report(options)
 
     except KeyboardInterrupt:
         return 0
