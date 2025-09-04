@@ -48,7 +48,7 @@ class ChangedFile(object):
     def copy_file(self, review_base_dir, review_modi_dir):
         raise NotImplementedError("%s: not implemented" % (self.qualid_()))
 
-    # previous_revision:
+    # previous_revision_id:
     #
     #   Returns the change id, on the same branch, at which
     #   self.rel_path_ was last revised.  If there is no previous
