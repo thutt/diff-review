@@ -2,6 +2,7 @@
 # All Rights Reserved.
 # Licensed under Gnu GPL V3.
 #
+import inspect
 import os
 import shutil
 
@@ -11,8 +12,14 @@ import drutil
 
 
 class ChangedFile(drscm.ChangedFile):
+    # For internal use only.
+    def qualid_(self):
+        return "%s.%s" % (type(self).__name__,
+                          inspect.stack()[1].function)
+
     def __init__(self, git_path, verbose, base_dir, modi_dir, cid, rel_path):
         super().__init__(git_path, verbose, base_dir, modi_dir, cid, rel_path)
+
 
     def current_revision_id(self, rel_path):
         cmd = [ self.scm_path_, "log", "--oneline", "-1", "--", rel_path ]
@@ -25,9 +32,13 @@ class ChangedFile(drscm.ChangedFile):
                 sha = None
             return sha
         else:
-            drutil.fatal("Unable to execute '%s'." % (' '.join(cmd)))
+            drutil.fatal("%s: Unable to execute '%s'." %
+                         (self.qualid_(), ' '.join(cmd)))
 
     def previous_revision_id(self):
+        # When reviewing a change to a file that is not-yet-committed,
+        # the previous revision is the most recent commit.
+        #
         sha = [ ]
         if self.revision_ is not None:
             sha = [ "%s^" % (self.revision_) ]
@@ -44,7 +55,8 @@ class ChangedFile(drscm.ChangedFile):
                 sha = None
             return sha
         else:
-            drutil.fatal("Unable to execute '%s'." % (' '.join(cmd)))
+            drutil.fatal("%s: Unable to execute '%s'." %
+                         (self.qualid_(), ' '.join(cmd)))
 
     def output_name(self, dest_dir, rel_path):
         return os.path.join(dest_dir, rel_path)
@@ -68,7 +80,8 @@ class ChangedFile(drscm.ChangedFile):
             self.create_output_dir(out_name)
             self.write_file(out_name, stdout)
         else:
-            drutil.fatal("Unable to execute '%s'." % (' '.join(cmd)))
+            drutil.fatal("%s: Unable to execute '%s'." %
+                         (self.qualid_(), ' '.join(cmd)))
 
     def copy_previous_revision(self, dest_dir):
         self.copy_revision(dest_dir, self.rel_path_, self.previous_revision_id())
@@ -276,14 +289,15 @@ class Git(drscm.SCM):
                 action   = self.status_parse_action(i_ch, w_ch, rel_path)
                 result.append(action)
         else:
-            drutil.fatal("Unable to execute '%s'." % (' '.join(cmd)))
+            drutil.fatal("%s: Unable to execute '%s'." %
+                         (self.qualid_(), ' '.join(cmd)))
 
         return result
 
     def commit_status(self):
         #
-        # Show previous commit SHA of a file:
-        #  git log --oneline -1 1de3ace^ -- dr.d/dropts.py
+        # Show current & previous commit SHA of a file:
+        #  git log --follow --oneline -2 1de3ace -- dr.d/dropts.py
         #
         # Show files in a commit:
         #  git diff-tree --no-commit-id --name-only 0cf31e7 -r
@@ -302,7 +316,8 @@ class Git(drscm.SCM):
                 result.append(c)
             return result
         else:
-            drutil.fatal("Unable to execute '%s'." % (' '.join(cmd)))
+            drutil.fatal("%s: Unable to execute '%s'." %
+                         (self.qualid_(), ' '.join(cmd)))
 
     def generate_dossier_(self):
         if self.change_id_ is None:
