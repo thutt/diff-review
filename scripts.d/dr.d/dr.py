@@ -40,7 +40,7 @@ def report(options):
         action_width = max(action_width, len(f.action()))
 
     for f in options.scm.dossier_:
-        print("  %*s   %s" % (action_width, f.action(), f.rel_path_))
+        print("  %*s   %s" % (action_width, f.action(), f.curr_rel_path_))
     
     print("\nTkDiff:  view-review -R %s  -r %s" % (options.arg_review_dir,
                                                    options.arg_review_name))

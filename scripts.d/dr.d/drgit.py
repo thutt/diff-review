@@ -17,12 +17,12 @@ class ChangedFile(drscm.ChangedFile):
         return "%s.%s" % (type(self).__name__,
                           inspect.stack()[1].function)
 
-    def __init__(self, git_path, verbose, base_dir, modi_dir, cid, rel_path):
-        super().__init__(git_path, verbose, base_dir, modi_dir, cid, rel_path)
+    def __init__(self, git_path, verbose, base_dir, modi_dir, cid, curr_rel_path):
+        super().__init__(git_path, verbose, base_dir, modi_dir, cid, curr_rel_path)
 
 
-    def current_revision_id(self, rel_path):
-        cmd = [ self.scm_path_, "log", "--oneline", "-1", "--", rel_path ]
+    def current_revision_id(self, curr_rel_path):
+        cmd = [ self.scm_path_, "log", "--oneline", "-1", "--", curr_rel_path ]
 
         (stdout, stderr, rc) = drutil.execute(self.verbose_, cmd)
 
@@ -45,7 +45,7 @@ class ChangedFile(drscm.ChangedFile):
 
         cmd = ([ self.scm_path_, "log", "--oneline", "-1" ] +
                sha +
-               [ "--", self.rel_path_ ])
+               [ "--", self.curr_rel_path_ ])
 
         (stdout, stderr, rc) = drutil.execute(self.verbose_, cmd)
 
@@ -71,12 +71,12 @@ class ChangedFile(drscm.ChangedFile):
             for l in stdout:
                 fp.write("%s\n" % (l))
 
-    def copy_revision(self, dest_dir, rel_path, sha):
-        cmd = [ self.scm_path_, "show", "%s:%s" % (sha, rel_path) ]
+    def copy_revision(self, dest_dir, curr_rel_path, sha):
+        cmd = [ self.scm_path_, "show", "%s:%s" % (sha, curr_rel_path) ]
         (stdout, stderr, rc) = drutil.execute(self.verbose_, cmd)
 
         if rc == 0:
-            out_name = self.output_name(dest_dir, rel_path)
+            out_name = self.output_name(dest_dir, curr_rel_path)
             self.create_output_dir(out_name)
             self.write_file(out_name, stdout)
         else:
@@ -84,23 +84,23 @@ class ChangedFile(drscm.ChangedFile):
                          (self.qualid_(), ' '.join(cmd)))
 
     def copy_previous_revision(self, dest_dir):
-        self.copy_revision(dest_dir, self.rel_path_, self.previous_revision_id())
+        self.copy_revision(dest_dir, self.curr_rel_path_, self.previous_revision_id())
 
     def copy_current_file(self, dest_dir):
-        out_name = self.output_name(dest_dir, self.rel_path_)
+        out_name = self.output_name(dest_dir, self.curr_rel_path_)
         self.create_output_dir(out_name)
-        shutil.copyfile(self.rel_path_, out_name)
+        shutil.copyfile(self.curr_rel_path_, out_name)
 
     def copy_empty_file(self, dest_dir):
-        out_name = self.output_name(dest_dir, self.rel_path_)
+        out_name = self.output_name(dest_dir, self.curr_rel_path_)
         self.create_output_dir(out_name)
         with open(out_name, "w") as fp:
             pass
 
 
 class Committed(ChangedFile):
-    def __init__(self, git_path, verbose, base_dir, modi_dir, cid, rel_path):
-        super().__init__(git_path, verbose, base_dir, modi_dir, cid, rel_path)
+    def __init__(self, git_path, verbose, base_dir, modi_dir, cid, curr_rel_path):
+        super().__init__(git_path, verbose, base_dir, modi_dir, cid, curr_rel_path)
 
     def action(self):
         return "committed"
@@ -111,12 +111,12 @@ class Committed(ChangedFile):
         else:
             self.copy_empty_file(review_base_dir)
 
-        self.copy_revision(review_modi_dir, self.rel_path_, self.revision_)
+        self.copy_revision(review_modi_dir, self.curr_rel_path_, self.revision_)
 
 
 class Untracked(ChangedFile):
-    def __init__(self, git_path, verbose, base_dir, modi_dir, rel_path):
-        super().__init__(git_path, verbose, base_dir, modi_dir, None, rel_path)
+    def __init__(self, git_path, verbose, base_dir, modi_dir, curr_rel_path):
+        super().__init__(git_path, verbose, base_dir, modi_dir, None, curr_rel_path)
 
     def action(self):
         return "untracked"
@@ -125,7 +125,7 @@ class Untracked(ChangedFile):
         return None             # No previous revision.
 
     def copy_file(self, review_base_dir, review_modi_dir):
-        if not os.path.isdir(self.rel_path_):
+        if not os.path.isdir(self.curr_rel_path_):
             self.copy_empty_file(review_base_dir)
             self.copy_current_file(review_modi_dir)
         else:
@@ -156,12 +156,12 @@ class Staged(ChangedFile):
         self.copy_current_file(review_modi_dir)
 
 
-class Rename(Staged):
+class Rename(ChangedFile):
     def __init__(self, git_path, verbose, base_dir, modi_dir,
-                 org_rel_path, new_rel_path):
+                 orig_rel_path, new_rel_path):
         super().__init__(git_path, verbose, base_dir, modi_dir, new_rel_path)
-        self.org_rel_path_ = org_rel_path
-        self.org_sha_      = self.current_revision_id(org_rel_path)
+        self.orig_rel_path_ = orig_rel_path
+        self.org_sha_      = self.current_revision_id(orig_rel_path)
 
     def action(self):
         return "rename"
@@ -172,12 +172,12 @@ class Rename(Staged):
         #  The last version of the original needs to be copied out.
         #  The current version of the new name also needs to be copied.
         self.copy_revision(review_base_dir,
-                           self.org_rel_path_, self.org_sha_)
+                           self.orig_rel_path_, self.org_sha_)
         self.copy_current_file(review_modi_dir)
 
 class Deleted(ChangedFile):
-    def __init__(self, git_path, verbose, base_dir, modi_dir, rel_path):
-        super().__init__(git_path, verbose, base_dir, modi_dir, None, rel_path)
+    def __init__(self, git_path, verbose, base_dir, modi_dir, curr_rel_path):
+        super().__init__(git_path, verbose, base_dir, modi_dir, None, curr_rel_path)
 
     def action(self):
         return "deleted"
@@ -188,8 +188,8 @@ class Deleted(ChangedFile):
 
 
 class Added(ChangedFile):
-    def __init__(self, git_path, verbose, base_dir, modi_dir, rel_path):
-        super().__init__(git_path, verbose, base_dir, modi_dir, None, rel_path)
+    def __init__(self, git_path, verbose, base_dir, modi_dir, curr_rel_path):
+        super().__init__(git_path, verbose, base_dir, modi_dir, None, curr_rel_path)
 
     def action(self):
         return "added"
@@ -203,8 +203,8 @@ class Added(ChangedFile):
 
 
 class NotYetSupportedState(ChangedFile):
-    def __init__(self, git_path, verbose, base_dir, modi_dir, rel_path, idx, wrk):
-        super().__init__(git_path, verbose, base_dir, modi_dir, None, rel_path)
+    def __init__(self, git_path, verbose, base_dir, modi_dir, curr_rel_path, idx, wrk):
+        super().__init__(git_path, verbose, base_dir, modi_dir, None, curr_rel_path)
         self.idx_ = idx
         self.wrk_ = wrk
 
@@ -244,11 +244,11 @@ class Git(drscm.SCM):
             #  dr.d/dr.py -> scripts.d/dr.d/dr.py
             #
             parts    =  rel_path.split(' ')
-            org_rel_path = parts[0]
+            orig_rel_path = parts[0]
             rel_path     = parts[2]
             return Rename(self.scm_path_, self.verbose_,
                           self.review_base_dir_, self.review_modi_dir_,
-                          org_rel_path, rel_path)
+                          orig_rel_path, rel_path)
         elif (idx_ch == 'A') and (wrk_ch == ' '):
             return Added(self.scm_path_, self.verbose_,
                          self.review_base_dir_, self.review_modi_dir_,

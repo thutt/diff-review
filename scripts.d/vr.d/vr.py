@@ -100,13 +100,14 @@ def generate(review_name, dossier):
     modi_dir = dossier["modi"]
     for f in dossier['files']:
         action   = f["action"]
-        rel_base = f["org_rel_path"]
-        rel_modi = f["rel_path"]
+        rel_base = f["orig_rel_path"]
+        rel_modi = f["curr_rel_path"]
 
         base   = os.path.join(base_dir, rel_base)
         modi   = os.path.join(modi_dir, rel_modi)
+
         label  = tkinter.Label(frm, text=action)
-        button = tkinter.Button(frm, text=modi)
+        button = tkinter.Button(frm, text=rel_modi)
         lamb   = lambda button=button, b=base, m=modi: tkdiff(button, b, m)
         button.configure(command=lamb)
 
