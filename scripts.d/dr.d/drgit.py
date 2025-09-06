@@ -2,7 +2,6 @@
 # All Rights Reserved.
 # Licensed under Gnu GPL V3.
 #
-import inspect
 import os
 import shutil
 
@@ -10,267 +9,334 @@ import drscm
 import drutil
 
 
-
 class ChangedFile(drscm.ChangedFile):
-    # For internal use only.
-    def qualid_(self):
-        return "%s.%s" % (type(self).__name__,
-                          inspect.stack()[1].function)
+    def __init__(self, scm):
+        super().__init__(scm)
 
-    def __init__(self, git_path, verbose, base_dir, modi_dir, cid, curr_rel_path):
-        super().__init__(git_path, verbose, base_dir, modi_dir, cid, curr_rel_path)
-
-
-    def current_revision_id(self, curr_rel_path):
-        cmd = [ self.scm_path_, "log", "--oneline", "-1", "--", curr_rel_path ]
-
-        (stdout, stderr, rc) = drutil.execute(self.verbose_, cmd)
-
-        if rc == 0:
-            sha = stdout[0].split(' ')[0] # Example: 'd90e8f0 Initial commit'
-            if sha == "":                 # Empty sha means no previous commit.
-                sha = None
-            return sha
-        else:
-            drutil.fatal("%s: Unable to execute '%s'." %
-                         (self.qualid_(), ' '.join(cmd)))
-
-    def previous_revision_id(self):
-        # When reviewing a change to a file that is not-yet-committed,
-        # the previous revision is the most recent commit.
-        #
-        sha = [ ]
-        if self.revision_ is not None:
-            sha = [ "%s^" % (self.revision_) ]
-
-        cmd = ([ self.scm_path_, "log", "--oneline", "-1" ] +
-               sha +
-               [ "--", self.curr_rel_path_ ])
-
-        (stdout, stderr, rc) = drutil.execute(self.verbose_, cmd)
-
-        if rc == 0:
-            sha = stdout[0].split(' ')[0] # Example: 'd90e8f0 Initial commit'
-            if sha == "":                 # Empty sha means no previous commit.
-                sha = None
-            return sha
-        else:
-            drutil.fatal("%s: Unable to execute '%s'." %
-                         (self.qualid_(), ' '.join(cmd)))
-
-    def output_name(self, dest_dir, rel_path):
-        return os.path.join(dest_dir, rel_path)
-
-    def create_output_dir(self, out_name):
-        out_dir = os.path.dirname(out_name)
-        if not os.path.exists(out_dir):
-            drutil.mktree(out_dir)
-
-    def write_file(self, out_name, stdout):
+    def write_file(self, out_name, contents):
+        assert(isinstance(contents, list))
         with open(out_name, "w") as fp:
-            for l in stdout:
+            for l in contents:
                 fp.write("%s\n" % (l))
 
-    def copy_revision(self, dest_dir, curr_rel_path, sha):
-        cmd = [ self.scm_path_, "show", "%s:%s" % (sha, curr_rel_path) ]
-        (stdout, stderr, rc) = drutil.execute(self.verbose_, cmd)
+    def get_most_recent_commit(self, file_info):
+        assert(isinstance(file_info, drscm.FileInfo))
+
+        sha = [ ]
+        if file_info.chg_id_ is not None:
+            # This simplifies generating difffs for committed changes:
+            #
+            #   When the SHA of a commit is provided, use the SHA of
+            #   the previous commit as the latest.
+            #
+            sha = [ "%s^" % (file_info.chg_id_) ]
+
+        cmd = ([ self.scm_.scm_path_,
+                 "log", "--oneline", "-1" ] +
+               sha +
+               [ "--", file_info.rel_path_ ])
+
+        (stdout, stderr, rc) = drutil.execute(self.scm_.verbose_, cmd)
 
         if rc == 0:
-            out_name = self.output_name(dest_dir, curr_rel_path)
-            self.create_output_dir(out_name)
-            self.write_file(out_name, stdout)
+            sha = stdout[0].split(' ')[0] # Example: 'd90e8f0 Initial commit'
+            if sha == "":                 # Empty sha means no previous commit.
+                sha = None
+            return sha
         else:
             drutil.fatal("%s: Unable to execute '%s'." %
                          (self.qualid_(), ' '.join(cmd)))
 
-    def copy_previous_revision(self, dest_dir):
-        self.copy_revision(dest_dir, self.curr_rel_path_, self.previous_revision_id())
+    def copy_to_review_directory_(self, dest_dir, file_info):
+        assert(isinstance(file_info, drscm.FileInfo))
+        assert(not file_info.empty()) # Empty handled by caller.
 
-    def copy_current_file(self, dest_dir):
-        out_name = self.output_name(dest_dir, self.curr_rel_path_)
-        self.create_output_dir(out_name)
-        shutil.copyfile(self.curr_rel_path_, out_name)
+        if file_info.chg_id_ is not None:
+            cmd = [ self.scm_.scm_path_,
+                    "show", "%s:%s" % (file_info.chg_id_,
+                                       file_info.rel_path_) ]
+            (stdout, stderr, rc) = drutil.execute(self.scm_.verbose_, cmd)
 
-    def copy_empty_file(self, dest_dir):
-        out_name = self.output_name(dest_dir, self.curr_rel_path_)
-        self.create_output_dir(out_name)
-        with open(out_name, "w") as fp:
-            pass
-
-
-class Committed(ChangedFile):
-    def __init__(self, git_path, verbose, base_dir, modi_dir, cid, curr_rel_path):
-        super().__init__(git_path, verbose, base_dir, modi_dir, cid, curr_rel_path)
-
-    def action(self):
-        return "committed"
-
-    def copy_file(self, review_base_dir, review_modi_dir):
-        if self.previous_revision_id() is not None:
-            self.copy_previous_revision(review_base_dir)
+            if rc == 0:
+                out_name = self.output_name(dest_dir, file_info)
+                self.create_output_dir(out_name)
+                self.write_file(out_name, stdout)
+            else:
+                drutil.fatal("%s: Unable to execute '%s'." %
+                             (self.qualid_(), ' '.join(cmd)))
         else:
-            self.copy_empty_file(review_base_dir)
+            out_name = self.output_name(dest_dir, file_info)
+            self.create_output_dir(out_name)
+            shutil.copyfile(file_info.rel_path_, out_name)
 
-        self.copy_revision(review_modi_dir, self.curr_rel_path_, self.revision_)
+
+class Uncommitted(ChangedFile):
+    def __init__(self, scm):
+        super().__init__(scm)
+
+    def find_and_set_base_file_info(self, file_info):
+        assert(isinstance(file_info, drscm.FileInfo))
+        sha = self.get_most_recent_commit(file_info)
+        self.set_base_file_info(drscm.FileInfo(file_info.rel_path_, sha))
 
 
 class Untracked(ChangedFile):
-    def __init__(self, git_path, verbose, base_dir, modi_dir, curr_rel_path):
-        super().__init__(git_path, verbose, base_dir, modi_dir, None, curr_rel_path)
+    def __init__(self, scm, modi_rel_path):
+        super().__init__(scm)
+        self.set_modi_file_info(drscm.FileInfo(modi_rel_path, None))
+        self.set_base_file_info(drscm.FileInfoEmpty(modi_rel_path))
 
     def action(self):
         return "untracked"
 
-    def previous_revision_id(self):
-        return None             # No previous revision.
-
-    def copy_file(self, review_base_dir, review_modi_dir):
-        if not os.path.isdir(self.curr_rel_path_):
-            self.copy_empty_file(review_base_dir)
-            self.copy_current_file(review_modi_dir)
+    def update_review_directory(self):
+        # Untracked directories are ignored.  Untracked directories
+        # only show up if there are files in them.
+        #
+        if not os.path.isdir(self.modi_file_info_.rel_path_):
+            self.copy_to_review_directory(self.scm_.review_base_dir_,
+                                          self.base_file_info_)
+            self.copy_to_review_directory(self.scm_.review_modi_dir_,
+                                          self.modi_file_info_)
         else:
-            drutil.TODO("Ignoring untracked directories.")
+            drutil.TODO("Ignoring untracked directories (%s)." %
+                        (self.modi_file_info_.rel_path_))
 
 
-class Unstaged(ChangedFile):
-    def __init__(self, git_path, verbose, base_dir, modi_dir, relative_pathname):
-        super().__init__(git_path, verbose, base_dir, modi_dir, None, relative_pathname)
+class Unstaged(Uncommitted):
+    def __init__(self, scm, modi_rel_path):
+        super().__init__(scm)
+        self.set_modi_file_info(drscm.FileInfo(modi_rel_path, None))
+        self.find_and_set_base_file_info(self.modi_file_info_)
 
     def action(self):
         return "unstaged"
 
-    def copy_file(self, review_base_dir, review_modi_dir):
-        self.copy_previous_revision(review_base_dir)
-        self.copy_current_file(review_modi_dir)
 
-
-class Staged(ChangedFile):
-    def __init__(self, git_path, verbose, base_dir, modi_dir, relative_pathname):
-        super().__init__(git_path, verbose, base_dir, modi_dir, None, relative_pathname)
+class Staged(Uncommitted):
+    def __init__(self, scm, modi_rel_path):
+        super().__init__(scm)
+        self.set_modi_file_info(drscm.FileInfo(modi_rel_path, None))
+        self.find_and_set_base_file_info(self.modi_file_info_)
 
     def action(self):
         return "staged"
 
-    def copy_file(self, review_base_dir, review_modi_dir):
-        self.copy_previous_revision(review_base_dir)
-        self.copy_current_file(review_modi_dir)
 
-
-class Rename(ChangedFile):
-    def __init__(self, git_path, verbose, base_dir, modi_dir,
-                 orig_rel_path, new_rel_path):
-        super().__init__(git_path, verbose, base_dir, modi_dir, new_rel_path)
-        self.orig_rel_path_ = orig_rel_path
-        self.org_sha_      = self.current_revision_id(orig_rel_path)
+class Rename(Uncommitted):
+    def __init__(self, scm, base_rel_path, modi_rel_path):
+        super().__init__(scm)
+        file_info = drscm.FileInfo(base_rel_path, None)
+        sha = self.get_most_recent_commit(file_info)
+        self.set_base_file_info(drscm.FileInfo(base_rel_path, sha))
+        self.set_modi_file_info(drscm.FileInfo(modi_rel_path, None))
 
     def action(self):
         return "rename"
 
-    def copy_file(self, review_base_dir, review_modi_dir):
-        # Copying instances of a renamed file is different:
-        #
-        #  The last version of the original needs to be copied out.
-        #  The current version of the new name also needs to be copied.
-        self.copy_revision(review_base_dir,
-                           self.orig_rel_path_, self.org_sha_)
-        self.copy_current_file(review_modi_dir)
 
-class Deleted(ChangedFile):
-    def __init__(self, git_path, verbose, base_dir, modi_dir, curr_rel_path):
-        super().__init__(git_path, verbose, base_dir, modi_dir, None, curr_rel_path)
+class Deleted(Uncommitted):
+    def __init__(self, scm, modi_rel_path):
+        super().__init__(scm)
+        self.set_modi_file_info(drscm.FileInfoEmpty(modi_rel_path))
+        self.find_and_set_base_file_info(drscm.FileInfo(modi_rel_path, None))
 
     def action(self):
         return "deleted"
 
-    def copy_file(self, review_base_dir, review_modi_dir):
-        self.copy_previous_revision(review_base_dir)
-        self.copy_empty_file(review_modi_dir)
 
-
-class Added(ChangedFile):
-    def __init__(self, git_path, verbose, base_dir, modi_dir, curr_rel_path):
-        super().__init__(git_path, verbose, base_dir, modi_dir, None, curr_rel_path)
+class Added(Uncommitted):
+    def __init__(self, scm, modi_rel_path):
+        super().__init__(scm)
+        self.set_modi_file_info(drscm.FileInfo(modi_rel_path, None))
+        self.set_base_file_info(drscm.FileInfoEmpty(modi_rel_path))
 
     def action(self):
         return "added"
 
-    def previous_revision_id(self):
-        return None             # No previous revision.
 
-    def copy_file(self, review_base_dir, review_modi_dir):
-        self.copy_empty_file(review_base_dir)
-        self.copy_current_file(review_modi_dir)
+class Committed(ChangedFile):
+    def action_add(self, commit_sha, rel_path):
+        self.action_ = "add"
+        self.set_modi_file_info(drscm.FileInfo(rel_path, commit_sha))
+        self.set_base_file_info(drscm.FileInfoEmpty(rel_path))
+
+    def action_broken_pair(self):
+        raise NotImplementedError("%s: B not implemented" % (self.qualid_()))
+
+    def action_copy(self):
+        raise NotImplementedError("%s: C not implemented" % (self.qualid_()))
+
+    def action_delete(self, rel_path, base_sha):
+        self.action_ = "delete"
+        self.set_base_file_info(drscm.FileInfo(rel_path, base_sha))
+        self.set_modi_file_info(drscm.FileInfoEmpty(rel_path))
+
+    def action_modify(self, rel_path, base_sha, modi_sha):
+        self.action_ = "modify"
+        self.set_base_file_info(drscm.FileInfo(rel_path, base_sha))
+        self.set_modi_file_info(drscm.FileInfo(rel_path, modi_sha))
+
+    def action_rename(self, base_rel_path, base_sha, modi_rel_path, modi_sha):
+        self.action_ = "rename"
+        self.set_base_file_info(drscm.FileInfo(base_rel_path, base_sha))
+        self.set_modi_file_info(drscm.FileInfo(modi_rel_path, modi_sha))
+
+    def action_type_change(self):
+        raise NotImplementedError("%s: T not implemented" % (self.qualid_()))
+
+    def action_unmerged(self):
+        raise NotImplementedError("%s: U not implemented" % (self.qualid_()))
+
+    def action_unknown(self):
+        raise NotImplementedError("%s: X not implemented" % (self.qualid_()))
+
+    def set_files_based_on_action(self, modi_rel_path, base_sha, modi_sha):
+        if base_sha is None:
+            # If there is no original sha, this is an add.
+            self.action_add(modi_sha, modi_rel_path)
+            return
+        else:
+            cmd = ([ self.scm_.scm_path_,
+                     "diff", "--name-status", "-C",
+                     "%s" % (base_sha),
+                     "%s" % (modi_sha) ])
+
+            (stdout, stderr, rc) = drutil.execute(self.scm_.verbose_, cmd)
+            if rc == 0:
+                for l in stdout:
+                    l = ' '.join(l.split()) # Compress internal whitespace.
+                    fields = l.split()
+                    if modi_rel_path in fields:
+                        action = fields[0][0]
+                        assert(action in ('A', 'B', 'C', 'D', 'M',
+                                          'R', 'T', 'U', 'X'))
+                        if action == 'A':   # Add
+                            # fields: ['A', 'file-to-delete']
+                            self.action_add(modi_sha, fields[1])
+                            return
+
+                        elif action == 'B': # Pairing broken
+                            # It is not known how to create this record.
+                            self.action_broken_pair()
+                            return
+
+                        elif action == 'C': # Copy
+                            # It is not known how to create this record.
+                            self.action_copy()
+                            return
+
+                        elif action == 'D': # Delete
+                            # fields: ['D', 'file-to-delete']
+                            self.action_delete()
+                            return
+
+                        elif action == 'M': # Modified
+                            # fields: ['M', 'diff-review']
+                            self.action_modify(fields[1], base_sha, modi_sha)
+                            return
+
+                        elif action == 'R': # Renamed
+                            # fields: ['R100', 'dr.d/dr.py', 'scripts.d/dr.d/dr.py']
+                            self.action_rename(fields[1], base_sha,
+                                               fields[2], modi_sha)
+                            return
+
+                        elif action == 'T': # Type change
+                            # It is not known how to create this record.
+                            self.action_type_change()
+                            return
+
+                        elif action == 'U': # Unmerged
+                            # It is not known how to create this record.
+                            self.action_unmerged()
+                            return
+
+                        elif action == 'X': # Unknown
+                            # It is not known how to create this record.
+                            self.action_unknown()
+                            return
+
+                drutil.fatal("%s: '%s' not found in '%s'" %
+                             (self.qualid_(), modi_rel_path, ' '.join(cmd)))
+
+            else:
+                drutil.fatal("%s: Unable to execute '%s'." %
+                             (self.qualid_(), ' '.join(cmd)))
+
+    def __init__(self, scm, modi_rel_path, chg_id):
+        super().__init__(scm)
+        self.action_ = None
+
+        # Get previous commit for this current file.
+        modi_file = drscm.FileInfo(modi_rel_path, chg_id)
+        base_sha = self.get_most_recent_commit(modi_file)
+        # base_sha is None -> file added in this change.
+
+        self.set_files_based_on_action(modi_rel_path, base_sha, chg_id)
+
+    def action(self):
+        return self.action_
 
 
 class NotYetSupportedState(ChangedFile):
-    def __init__(self, git_path, verbose, base_dir, modi_dir, curr_rel_path, idx, wrk):
-        super().__init__(git_path, verbose, base_dir, modi_dir, None, curr_rel_path)
+    def __init__(self, modi_rel_path):
+        super().__init__()
         self.idx_ = idx
         self.wrk_ = wrk
 
+        self.set_modi_file_info(drscm.FileInfo(modi_rel_path, None))
+        self.set_base_file_info(drscm.FileInfoEmpty(modi_rel_path))
+
     def action(self):
         return "%c%c" % (self.idx_, self.wrk_)
-
-    def previous_revision_id(self):
-        return None  # Previous revision unknown -- unsupported state.
-
-    def copy_file(self, review_base_dir, review_modi_dir):
-        self.copy_empty_file(review_base_dir)
-        self.copy_current_file(review_modi_dir)
 
 
 class Git(drscm.SCM):
     def __init__(self, options):
         super().__init__(options)
 
-    def status_parse_action(self, idx_ch, wrk_ch, rel_path):
+
+# GitStaged:
+#
+#  An interface to Git that facilitates reviewing uncommitted chagnes.
+#
+class GitStaged(Git):
+    def __init__(self, options):
+        super().__init__(options)
+
+    def parse_action(self, idx_ch, wrk_ch, rel_path):
         if (idx_ch == 'D') or (wrk_ch == 'D'):
-            return Deleted(self.scm_path_, self.verbose_,
-                           self.review_base_dir_, self.review_modi_dir_,
-                           rel_path)
+            action = Deleted(self, rel_path)
         elif (idx_ch in (' ', 'A', 'M')) and (wrk_ch == 'M'):
-            # Unstaged files take precendence over all others.
-            #
             # Rename (idx_ch == 'R') is a special case that cannot be
             # processed by Unstaged.
             #
-            return Unstaged(self.scm_path_, self.verbose_,
-                            self.review_base_dir_, self.review_modi_dir_,
-                            rel_path)
+            action = Unstaged(self, rel_path)
         elif (idx_ch == 'R') and (wrk_ch in (' ', 'M')):
             # The file has been renamed.
             # rel_path is of the form:
             #
             #  dr.d/dr.py -> scripts.d/dr.d/dr.py
             #
-            parts    =  rel_path.split(' ')
-            orig_rel_path = parts[0]
-            rel_path     = parts[2]
-            return Rename(self.scm_path_, self.verbose_,
-                          self.review_base_dir_, self.review_modi_dir_,
-                          orig_rel_path, rel_path)
+            parts         =  rel_path.split(' ')
+            base_rel_path = parts[0]
+            modi_rel_path = parts[2]
+            action        = Rename(self, base_rel_path, modi_rel_path)
         elif (idx_ch == 'A') and (wrk_ch == ' '):
-            return Added(self.scm_path_, self.verbose_,
-                         self.review_base_dir_, self.review_modi_dir_,
-                         rel_path)
+            action =  Added(self, rel_path)
         elif (idx_ch == 'M') and wrk_ch == ' ':
-            return Staged(self.scm_path_, self.verbose_,
-                          self.review_base_dir_, self.review_modi_dir_,
-                          rel_path)
+            action = Staged(self, rel_path)
         elif (idx_ch == '?') or (wrk_ch == '?'):
-            return Untracked(self.scm_path_, self.verbose_,
-                             self.review_base_dir_, self.review_modi_dir_,
-                             rel_path)
+            action = Untracked(self, rel_path)
         else:
             drutil.warning("unhandled state: index: %c  tree: %c  path: %s" %
                            (idx_ch, wrk_ch, rel_path))
-            return NotYetSupportedState(self.scm_path_, self.verbose_,
-                                        self.review_base_dir_,
-                                        self.review_modi_dir_,
-                                        None, rel_path,
-                                        idx_ch, wrk_ch)
+            action = NotYetSupportedState(self)
 
-    def client_status(self):
+        return action;
+
+    def generate_dossier_(self):
         # See the 'man git-status' for the meaning of the first two
         # characters for each line of output.
         #
@@ -286,7 +352,7 @@ class Git(drscm.SCM):
                 i_ch     = l[0]
                 w_ch     = l[1]
                 rel_path = l[3:]
-                action   = self.status_parse_action(i_ch, w_ch, rel_path)
+                action   = self.parse_action(i_ch, w_ch, rel_path)
                 result.append(action)
         else:
             drutil.fatal("%s: Unable to execute '%s'." %
@@ -294,11 +360,16 @@ class Git(drscm.SCM):
 
         return result
 
-    def commit_status(self):
-        #
-        # Show current & previous commit SHA of a file:
-        #  git log --follow --oneline -2 1de3ace -- dr.d/dropts.py
-        #
+
+# GitCommitted:
+#
+#  An interface to Git that facilitates reviewing committed chagnes.
+#
+class GitCommitted(Git):
+    def __init__(self, options):
+        super().__init__(options)
+
+    def generate_dossier_(self):
         # Show files in a commit:
         #  git diff-tree --no-commit-id --name-only 0cf31e7 -r
         #
@@ -308,22 +379,9 @@ class Git(drscm.SCM):
         if rc == 0:
             result = [ ]
             for rel_path in stdout:
-                if len(rel_path) == 0:
-                    break
-                c = Committed(self.scm_path_, self.verbose_,
-                              self.review_base_dir_, self.review_modi_dir_,
-                              self.change_id_, rel_path)
+                c = Committed(self, rel_path, self.change_id_)
                 result.append(c)
             return result
         else:
             drutil.fatal("%s: Unable to execute '%s'." %
                          (self.qualid_(), ' '.join(cmd)))
-
-    def generate_dossier_(self):
-        if self.change_id_ is None:
-            # Unstaged and staged files.
-            self.dossier_ = self.client_status()
-        else:
-            # Committed SHA.
-            #
-            self.dossier_ = self.commit_status()

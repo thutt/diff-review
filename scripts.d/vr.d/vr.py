@@ -100,8 +100,8 @@ def generate(review_name, dossier):
     modi_dir = dossier["modi"]
     for f in dossier['files']:
         action   = f["action"]
-        rel_base = f["orig_rel_path"]
-        rel_modi = f["curr_rel_path"]
+        rel_base = f["base_rel_path"]
+        rel_modi = f["modi_rel_path"]
 
         base   = os.path.join(base_dir, rel_base)
         modi   = os.path.join(modi_dir, rel_modi)

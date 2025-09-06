@@ -6,6 +6,46 @@ import inspect
 import json
 import os
 
+import drutil
+
+# FileInfo & FileInfoEmpty
+#
+#   These two classes provide references to files in the source
+#   client.  A FileInfo instance refers to a file on-disk, or in the
+#   SCM.
+#
+#   A FileInfoEmptyFile instance refers to a file that doesn't
+#   actually exist, but is needed to provide the diffing tool with a
+#   on-disk file to compare against.  When a file represented by this
+#   class is copied, an empty file will be created.  An empty file
+#   does not has an associated SCM change id.
+#
+#   inv: FileInfo.rel_path_ is not None
+#   inv: FileInfo.chg_id_ is     None   -> On-disk disk file.
+#   inv: FileInfo.chg_id_ is not None   -> In-SCM file.
+#
+#   inv: not FileInfo.empty() -> File contents specified by rel_path_ and
+#                                chg_id_
+#   inv: FileInfo.empty()     -> File contents are empty file
+#
+class FileInfo(object):
+    def __init__(self, rel_path, chg_id):
+        assert(rel_path is not None)
+        self.rel_path_ = rel_path
+        self.chg_id_   = chg_id
+
+    def empty(self):
+        return False
+
+
+class FileInfoEmpty(FileInfo):
+    def __init__(self, rel_path):
+        super().__init__(rel_path, None)
+
+    def empty(self):
+        return True
+
+
 # ChangedFile is an abstract class that must be extended for an
 # implementation.  It is used to encapsulate the state of files
 # on-disk and in the SCM.  This is used to determine the operations
@@ -29,55 +69,65 @@ class ChangedFile(object):
         return "%s.%s" % (type(self).__name__,
                           inspect.stack()[1].function)
 
-    def __init__(self, scm_path, verbose, base_dir, modi_dir,
-                 cid, relative_pathname):
-        assert((cid is None) or
-               isinstance(cid, str)) # Change identifier
+    def __init__(self, scm):
+        assert(isinstance(scm, SCM))
+        self.scm_ = scm
 
-        self.scm_path_      = scm_path
-        self.verbose_       = verbose
-        self.base_dir_      = base_dir
-        self.modi_dir_      = modi_dir
-        self.curr_rel_path_ = relative_pathname
-        self.orig_rel_path_ = relative_pathname
-        self.revision_      = cid
+        # inv: modi_file_info_ is not None
+        # inv: base_file_info_ is not None
+        #
+        # An untracked file will have a name, but no change info.
+        #
+        # A deleted file will have no current file name, nor change
+        # info.  These will be empty FileInfo instances.
+        #
+        self.modi_file_info_   = None
+        self.base_file_info_   = None
+
+    def set_base_file_info(self, file_info):
+        assert(isinstance(file_info, FileInfo))
+        self.base_file_info_ = file_info
+
+    def set_modi_file_info(self, file_info):
+        assert(isinstance(file_info, FileInfo))
+        self.modi_file_info_ = file_info
+
+    def output_name(self, dest_dir, file_info):
+        assert(isinstance(file_info, FileInfo))
+        return os.path.join(dest_dir, file_info.rel_path_)
+
+    def create_output_dir(self, out_name):
+        out_dir = os.path.dirname(out_name)
+        if not os.path.exists(out_dir):
+            drutil.mktree(out_dir)
 
     def action(self):
         raise NotImplementedError("%s: not implemented" % (self.qualid_()))
 
-    def copy_file(self, review_base_dir, review_modi_dir):
-        raise NotImplementedError("%s: not implemented" % (self.qualid_()))
+    def copy_to_review_directory(self, dest_dir, file_info):
+        assert(isinstance(file_info, FileInfo))
+        if not file_info.empty():
+            self.copy_to_review_directory_(dest_dir, file_info)
+        else:
+            out_name = self.output_name(dest_dir, file_info)
+            self.create_output_dir(out_name)
+            with open(out_name, "w") as fp:
+                pass
 
-    # previous_revision_id:
-    #
-    #   Returns the change id, on the same branch, at which
-    #   self.curr_rel_path_ was last revised.  If there is no previous
-    #   revision, None is returned.
-    #
-    def previous_revision_id(self):
-        raise NotImplementedError("%s: not implemented" % (self.qualid_()))
-
-    # copy_previous_revision:
-    #
-    #   Copies the previous version of the file from the SCM to the
-    #   directory indicated by 'dest_dir'.
-    #
-    # pre: os.path.exists(dest_dir)
-    #
-    def copy_previous_revision(self, dest_dir):
-        raise NotImplementedError("%s: not implemented" % (self.qualid_()))
-
-    # copy_current_revision:
-    #
-    #   Copies the current version of the file from the SCM to the
-    #   directory indicated by 'dest_dir'.
-    #
-    # pre: os.path.exists(dest_dir)
-    #
-    def copy_current_revision(self, dest_dir):
-        raise NotImplementedError("%s: not implemented" % (self.qualid_()))
+    def update_review_directory(self):
+        self.copy_to_review_directory(self.scm_.review_base_dir_,
+                                      self.base_file_info_)
+        self.copy_to_review_directory(self.scm_.review_modi_dir_,
+                                      self.modi_file_info_)
 
 
+# SCM
+#
+#  This is an abstract class that is used as an interface to the SCM.
+#
+#  The generate_dossier_ method must be implemented by an SCM
+#  interface, and it must return a list of ChangedFile instances.
+#
 class SCM(object):
     # qualid: Produces a qualified identifier using the class
     #         instance name and the calling functions name.
@@ -103,15 +153,22 @@ class SCM(object):
     def generate_dossier_(self):
         raise NotImplementedError("%s: not implemented" % (self.qualid_()))
 
-    def copy_files(self):
-        for change in self.dossier_:
-            change.copy_file(self.review_base_dir_, self.review_modi_dir_)
+    def generate_dossier(self):
+        self.dossier_ = self.generate_dossier_()
+
+    def update_files_in_review_directory(self):
+        for changed_file in self.dossier_:
+            changed_file.update_review_directory()
 
     def generate(self, options):
-        self.generate_dossier_()
+        self.generate_dossier()
+        self.update_files_in_review_directory()
 
-        self.copy_files()
-
+        # Create a JSON dictionary that contains information about the
+        # files written to the review directory.  This is used by the
+        # 'view-review' program to display the review file-selection
+        # menu.
+        #
         info = {
             'root'  : self.review_dir_,
             'base'  : self.review_base_dir_,
@@ -119,14 +176,16 @@ class SCM(object):
             'files' : [ ]
         }
         for f in self.dossier_:
+            assert(f.modi_file_info_ is not None)
+            assert(f.base_file_info_ is not None)
+
             finfo = {
                 'action'        : f.action(),
-                'curr_rel_path' : f.curr_rel_path_,
-                'orig_rel_path' : f.orig_rel_path_ # Original path (consider: rename)
+                'modi_rel_path' : f.modi_file_info_.rel_path_,
+                'base_rel_path' : f.base_file_info_.rel_path_,
             }
             info['files'].append(finfo)
 
         fname = os.path.join(self.review_dir_, "diff.json")
         with open(fname, "w") as fp:
             json.dump(info, fp, indent = 2)
-            

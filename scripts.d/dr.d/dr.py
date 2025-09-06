@@ -20,7 +20,10 @@ def process_command_line():
     options.review_modi_dir = os.path.join(options.review_dir, "modi.d")
 
     if options.arg_scm == "git":
-        options.scm = drgit.Git(options)
+        if options.arg_change_id is None:
+            options.scm = drgit.GitStaged(options)
+        else:
+            options.scm = drgit.GitCommitted(options)
     else:
         drutil.fatal("Uhandled SCM instantiation.")
 
@@ -40,8 +43,9 @@ def report(options):
         action_width = max(action_width, len(f.action()))
 
     for f in options.scm.dossier_:
-        print("  %*s   %s" % (action_width, f.action(), f.curr_rel_path_))
-    
+        print("  %*s   %s" % (action_width, f.action(),
+                              f.modi_file_info_.rel_path_))
+
     print("\nTkDiff:  view-review -R %s  -r %s" % (options.arg_review_dir,
                                                    options.arg_review_name))
     print("\n")
