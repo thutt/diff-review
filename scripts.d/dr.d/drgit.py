@@ -136,7 +136,7 @@ class Untracked(ChangedFile):
                         (self.modi_file_info_.rel_path_))
 
 
-class Unstaged(Uncommitted):
+class UncommittedUnstaged(Uncommitted):
     def __init__(self, scm, modi_rel_path):
         super().__init__(scm)
         self.set_modi_file_info(drscm.FileInfo(modi_rel_path, None))
@@ -146,7 +146,7 @@ class Unstaged(Uncommitted):
         return "unstaged"
 
 
-class Staged(Uncommitted):
+class UncommittedStaged(Uncommitted):
     def __init__(self, scm, modi_rel_path):
         super().__init__(scm)
         self.set_modi_file_info(drscm.FileInfo(modi_rel_path, None))
@@ -156,7 +156,7 @@ class Staged(Uncommitted):
         return "staged"
 
 
-class Rename(Uncommitted):
+class UncommittedRename(Uncommitted):
     def __init__(self, scm, base_rel_path, modi_rel_path):
         super().__init__(scm)
         file_info = drscm.FileInfo(base_rel_path, None)
@@ -168,7 +168,7 @@ class Rename(Uncommitted):
         return "rename"
 
 
-class Deleted(Uncommitted):
+class UncommittedDelete(Uncommitted):
     def __init__(self, scm, modi_rel_path):
         super().__init__(scm)
         self.set_modi_file_info(drscm.FileInfoEmpty(modi_rel_path))
@@ -178,7 +178,7 @@ class Deleted(Uncommitted):
         return "delete"
 
 
-class Added(Uncommitted):
+class UncommittedAdd(Uncommitted):
     def __init__(self, scm, modi_rel_path):
         super().__init__(scm)
         self.set_modi_file_info(drscm.FileInfo(modi_rel_path, None))
@@ -263,12 +263,12 @@ class GitStaged(Git):
 
     def parse_action(self, idx_ch, wrk_ch, rel_path):
         if (idx_ch == 'D') or (wrk_ch == 'D'):
-            action = Deleted(self, rel_path)
+            action = UncommittedDelete(self, rel_path)
         elif (idx_ch in (' ', 'A', 'M')) and (wrk_ch == 'M'):
             # Rename (idx_ch == 'R') is a special case that cannot be
-            # processed by Unstaged.
+            # processed by UncommittedUnstaged.
             #
-            action = Unstaged(self, rel_path)
+            action = UncommittedUnstaged(self, rel_path)
         elif (idx_ch == 'R') and (wrk_ch in (' ', 'M')):
             # The file has been renamed.
             # rel_path is of the form:
@@ -278,11 +278,11 @@ class GitStaged(Git):
             parts         =  rel_path.split(' ')
             base_rel_path = parts[0]
             modi_rel_path = parts[2]
-            action        = Rename(self, base_rel_path, modi_rel_path)
+            action        = UncommittedRename(self, base_rel_path, modi_rel_path)
         elif (idx_ch == 'A') and (wrk_ch == ' '):
-            action =  Added(self, rel_path)
+            action =  UncommittedAdd(self, rel_path)
         elif (idx_ch == 'M') and wrk_ch == ' ':
-            action = Staged(self, rel_path)
+            action = UncommittedStaged(self, rel_path)
         elif (idx_ch == '?') or (wrk_ch == '?'):
             action = Untracked(self, rel_path)
         else:
