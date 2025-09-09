@@ -48,9 +48,17 @@ def execute(verbose, cmd):
         stderr = ''
     rc = p.returncode
 
+    if len(stdout) > 0:
+        stdout = stdout[:-1].replace("\r", "").split("\n")
+    else:
+        stdout = [ ]
+    if len(stderr) > 0:
+        stderr = stderr[:-1].replace("\r", "").split("\n"),
+    else:
+        stderr = [ ]
+
+
     # stdout block becomes a list of lines.  For Windows, delete
     # carriage-return so that regexes will match '$' correctly.
     #
-    return (stdout[:-1].replace("\r", "").split("\n"),
-            stderr[:-1].replace("\r", "").split("\n"),
-            rc)
+    return (stdout, stderr, rc)

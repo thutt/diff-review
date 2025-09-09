@@ -35,19 +35,25 @@ def process_command_line():
 
 
 def report(options):
-    print("\ndiff-review:  %s\n"  % (os.path.join(options.arg_review_dir,
-                                                  options.arg_review_name)))
+    if options.scm.dossier_ is not None:
+        print("\ndiff-review:  %s\n"  % (os.path.join(options.arg_review_dir,
+                                                      options.arg_review_name)))
 
-    action_width = 0;
-    for f in options.scm.dossier_:
-        action_width = max(action_width, len(f.action()))
+        action_width = 0;
+        for f in options.scm.dossier_:
+            action_width = max(action_width, len(f.action()))
 
-    for f in options.scm.dossier_:
-        print("  %*s   %s" % (action_width, f.action(),
-                              f.modi_file_info_.rel_path_))
+        for f in options.scm.dossier_:
+            print("  %*s   %s" % (action_width, f.action(),
+                                  f.modi_file_info_.rel_path_))
 
-    print("\nTkDiff:  view-review -R %s  -r %s" % (options.arg_review_dir,
-                                                   options.arg_review_name))
+        print("\nTkDiff:  view-review -R %s  -r %s" % (options.arg_review_dir,
+                                                       options.arg_review_name))
+    else:
+        if options.arg_change_id is None:
+            print("No unstaged changes in client to review.")
+        else:
+            print("No files found in provided change ID.")
     print("\n")
 
 

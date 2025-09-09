@@ -142,7 +142,7 @@ class SCM(object):
         self.review_dir_      = options.review_dir
         self.review_base_dir_ = options.review_base_dir
         self.review_modi_dir_ = options.review_modi_dir
-        self.dossier_         = None
+        self.dossier_         = None # None -> no change to review.
         self.verbose_         = options.arg_verbose
 
         if options.arg_scm == "git":
@@ -162,30 +162,31 @@ class SCM(object):
 
     def generate(self, options):
         self.generate_dossier()
-        self.update_files_in_review_directory()
+        if self.dossier_ is not None:
+            self.update_files_in_review_directory()
 
-        # Create a JSON dictionary that contains information about the
-        # files written to the review directory.  This is used by the
-        # 'view-review' program to display the review file-selection
-        # menu.
-        #
-        info = {
-            'root'  : self.review_dir_,
-            'base'  : self.review_base_dir_,
-            'modi'  : self.review_modi_dir_,
-            'files' : [ ]
-        }
-        for f in self.dossier_:
-            assert(f.modi_file_info_ is not None)
-            assert(f.base_file_info_ is not None)
-
-            finfo = {
-                'action'        : f.action(),
-                'modi_rel_path' : f.modi_file_info_.rel_path_,
-                'base_rel_path' : f.base_file_info_.rel_path_,
+            # Create a JSON dictionary that contains information about the
+            # files written to the review directory.  This is used by the
+            # 'view-review' program to display the review file-selection
+            # menu.
+            #
+            info = {
+                'root'  : self.review_dir_,
+                'base'  : self.review_base_dir_,
+                'modi'  : self.review_modi_dir_,
+                'files' : [ ]
             }
-            info['files'].append(finfo)
+            for f in self.dossier_:
+                assert(f.modi_file_info_ is not None)
+                assert(f.base_file_info_ is not None)
 
-        fname = os.path.join(self.review_dir_, "diff.json")
-        with open(fname, "w") as fp:
-            json.dump(info, fp, indent = 2)
+                finfo = {
+                    'action'        : f.action(),
+                    'modi_rel_path' : f.modi_file_info_.rel_path_,
+                    'base_rel_path' : f.base_file_info_.rel_path_,
+                }
+                info['files'].append(finfo)
+
+            fname = os.path.join(self.review_dir_, "diff.json")
+            with open(fname, "w") as fp:
+                json.dump(info, fp, indent = 2)
