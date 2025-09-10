@@ -2,6 +2,7 @@
 # All Rights Reserved.
 # Licensed under Gnu GPL V3.
 #
+import inspect
 import os
 import subprocess
 
@@ -62,3 +63,12 @@ def execute(verbose, cmd):
     # carriage-return so that regexes will match '$' correctly.
     #
     return (stdout, stderr, rc)
+
+
+def qualid_():
+    stack = inspect.stack()
+    caller = stack[1]
+    function = caller.function
+    module   = os.path.basename(caller.filename).split('.')[0]
+    return "%s.%s" % (module, function)
+

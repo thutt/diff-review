@@ -8,20 +8,122 @@ import shutil
 import drscm
 import drutil
 
+def git_is_blob(scm, file_info):
+    # Check that the SHA for this file references a blob (file
+    # contents), or is an empty file.
+
+    if not file_info.empty() and file_info.chg_id_ is not None:
+        cmd = [ scm.scm_path_,
+                "cat-file", "-t", file_info.chg_id_ ]
+        (stdout, stderr, rc) = drutil.execute(scm.verbose_, cmd)
+
+        if rc == 0:
+            return stdout[0] == "blob"
+        else:
+            drutil.fatal("%s: Unable to execute '%s'." %
+                         (drutil.qualid_(), ' '.join(cmd)))
+    else:
+        return True
+
+
+def git_get_file_contents(scm, file_info):
+    cmd = [ scm.scm_path_, "show", file_info.chg_id_ ]
+    (stdout, stderr, rc) = drutil.execute(scm.verbose_, cmd)
+
+    if rc == 0:
+        return stdout
+    else:
+        drutil.fatal("%s: Unable to execute '%s'." %
+                     (drutil.qualid_(), ' '.join(cmd)))
+
+
+def git_get_blob_from_commit_sha(scm, file_info, sha):
+    cmd = [ scm.scm_path_, "ls-tree", sha, file_info.rel_path_ ]
+    (stdout, stderr, rc) = drutil.execute(scm.verbose_, cmd)
+
+    if rc == 0:
+        # 100644 blob b41ff3f4aea3d7ab6e3fd0efd36fc19267fd43a8    scripts.d/dr.d/drgit.py
+        line   = ' '.join(stdout[0].split()) # Compress internal whitespace
+        fields = line.split()
+        return fields[2]
+    else:
+        drutil.fatal("%s: Unable to execute '%s'." %
+                     (drutil.qualid_(), ' '.join(cmd)))
+
+
+def git_get_most_recent_commit_blob(scm, file_info):
+    assert(isinstance(file_info, drscm.FileInfo))
+    assert(file_info.chg_id_ is None) # A known SHA should already be blob.
+
+    sha = [ ]
+    cmd = ([ scm.scm_path_, "log", "--oneline", "-1" ] +
+           sha +
+           [ "--", file_info.rel_path_ ])
+
+    (stdout, stderr, rc) = drutil.execute(scm.verbose_, cmd)
+
+    if rc == 0:
+        sha = stdout[0].split(' ')[0] # Example: 'd90e8f0 Initial commit'
+        if sha == "":                 # Empty sha means no previous commit.
+            return None
+
+        # Now get the blob of the desired file from the commit.
+        # This simplifies copy to the review directory for
+        # previous revisions of uncommitted changes, and committed changes.
+        return git_get_blob_from_commit_sha(scm, file_info, sha)
+    else:
+        drutil.fatal("%s: Unable to execute '%s'." %
+                     (drutil.qualid_(), ' '.join(cmd)))
+
+
+def git_diff_tree(scm, 
+                  beg_sha, # Not included in range
+                  end_sha):
+    cmd = [ scm.scm_path_, "diff-tree",
+            "--root",             # Show initial commit as creation event.
+            "--ignore-submodules",
+            "-M",                 # Find renames.
+            "-r", "%s..%s" % (beg_sha, end_sha) ]
+    (stdout, stderr, rc) = drutil.execute(scm.verbose_, cmd)
+    if rc == 0:
+        return stdout
+    else:
+        drutil.fatal("%s: Unable to execute '%s'." %
+                     (drutil.qualid_(), ' '.join(cmd)))
+
+
+def git_rev_parse(scm, chg_id):
+    assert(isinstance(chg_id, str))
+    cmd = [ scm.scm_path_, "rev-parse", chg_id ]
+    (stdout, stderr, rc) = drutil.execute(scm.verbose_, cmd)
+
+    if rc == 0:
+        return stdout
+    else:
+        drutil.fatal("%s: Unable to execute '%s'." %
+                     (drutil.qualid_(), ' '.join(cmd)))
+
+
+def git_get_status_short(scm):
+    cmd = [ scm.scm_path_, "status",
+            "--ignore-submodules", "--renames", "--short" ]
+    (stdout, stderr, rc) = drutil.execute(scm.verbose_, cmd)
+
+    if rc == 0:
+        return stdout
+    else:
+        drutil.fatal("%s: Unable to execute '%s'." %
+                     (drutil.qualid_(), ' '.join(cmd)))
+
 
 class ChangedFile(drscm.ChangedFile):
     def __init__(self, scm, action, base_file, modi_file):
         super().__init__(scm)
         self.action_ = action
-        
-        assert(isinstance(modi_file,drscm. FileInfo))
+        assert(isinstance(modi_file, drscm.FileInfo))
         self.modi_file_info_ = modi_file
 
         assert(isinstance(base_file, drscm.FileInfo))
-        if not base_file.empty() and base_file.chg_id_ is None:
-            sha       = self.get_most_recent_commit_blob(modi_file)
-            base_file = drscm.FileInfo(base_file.rel_path_, sha)
-
         self.base_file_info_ = base_file
 
     def action(self):
@@ -33,71 +135,8 @@ class ChangedFile(drscm.ChangedFile):
             for l in contents:
                 fp.write("%s\n" % (l))
 
-    def get_blob_from_commit_sha(self, file_info, sha):
-        cmd = [ self.scm_.scm_path_, "ls-tree", sha, file_info.rel_path_ ]
-        (stdout, stderr, rc) = drutil.execute(self.scm_.verbose_, cmd)
-
-        if rc == 0:
-            # 100644 blob b41ff3f4aea3d7ab6e3fd0efd36fc19267fd43a8    scripts.d/dr.d/drgit.py
-            line   = ' '.join(stdout[0].split()) # Compress internal whitespace
-            fields = line.split()
-            return fields[2]
-        else:
-            drutil.fatal("%s: Unable to execute '%s'." %
-                         (self.qualid_(), ' '.join(cmd)))
-
     def is_blob(self, file_info):
-        # Check that the SHA for this file references a blob (file
-        # contents), or is an empty file.
-
-        if not file_info.empty() and file_info.chg_id_ is not None:
-            cmd = [ self.scm_.scm_path_,
-                    "cat-file", "-t", file_info.chg_id_ ]
-            (stdout, stderr, rc) = drutil.execute(self.scm_.verbose_, cmd)
-
-            if rc == 0:
-                return stdout[0] == "blob"
-            else:
-                drutil.fatal("%s: Unable to execute '%s'." %
-                             (self.qualid_(), ' '.join(cmd)))
-        else:
-            return True
-
-    def get_most_recent_commit_blob(self, file_info):
-        assert(isinstance(file_info, drscm.FileInfo))
-
-        sha = [ ]
-        if file_info.chg_id_ is not None:
-            if self.is_blob(file_info):
-                drutil.TODO("get_most_recent_commit_blob call unnecessary.")
-                return file_info.chg_id_
-
-            # This simplifies generating difffs for committed changes:
-            #
-            #   When the SHA of a commit is provided, use the SHA of
-            #   the previous commit as the latest.
-            #
-            sha = [ "%s^" % (file_info.chg_id_) ]
-
-        cmd = ([ self.scm_.scm_path_,
-                 "log", "--oneline", "-1" ] +
-               sha +
-               [ "--", file_info.rel_path_ ])
-
-        (stdout, stderr, rc) = drutil.execute(self.scm_.verbose_, cmd)
-
-        if rc == 0:
-            sha = stdout[0].split(' ')[0] # Example: 'd90e8f0 Initial commit'
-            if sha == "":                 # Empty sha means no previous commit.
-                return None
-
-            # Now get the blob of the desired file from the commit.
-            # This simplifies copy to the review directory for
-            # previous revisions of uncommitted changes, and committed changes.
-            return self.get_blob_from_commit_sha(file_info, sha)
-        else:
-            drutil.fatal("%s: Unable to execute '%s'." %
-                         (self.qualid_(), ' '.join(cmd)))
+        return git_is_blob(self.scm_, file_info)
 
     def copy_to_review_directory_(self, dest_dir, file_info):
         assert(isinstance(file_info, drscm.FileInfo))
@@ -105,16 +144,10 @@ class ChangedFile(drscm.ChangedFile):
         assert(self.is_blob(file_info))
 
         if file_info.chg_id_ is not None:
-            cmd = [ self.scm_.scm_path_, "show", file_info.chg_id_ ]
-            (stdout, stderr, rc) = drutil.execute(self.scm_.verbose_, cmd)
-
-            if rc == 0:
-                out_name = self.output_name(dest_dir, file_info)
-                self.create_output_dir(out_name)
-                self.write_file(out_name, stdout)
-            else:
-                drutil.fatal("%s: Unable to execute '%s'." %
-                             (self.qualid_(), ' '.join(cmd)))
+            contents = git_get_file_contents(self.scm_, file_info)
+            out_name = self.output_name(dest_dir, file_info)
+            self.create_output_dir(out_name)
+            self.write_file(out_name, contents)
         else:
             out_name = self.output_name(dest_dir, file_info)
             self.create_output_dir(out_name)
@@ -152,7 +185,8 @@ class GitStaged(Git):
     def parse_action(self, idx_ch, wrk_ch, rel_path):
         if (idx_ch == 'D') or (wrk_ch == 'D'):
             modi_file = drscm.FileInfoEmpty(rel_path)
-            base_file = drscm.FileInfo(rel_path, None)
+            blob_sha  = git_get_most_recent_commit_blob(self, modi_file)
+            base_file = drscm.FileInfo(rel_path, blob_sha)
             action    = ChangedFile(self, "delete", base_file, modi_file)
 
         elif (idx_ch in (' ', 'A', 'M')) and (wrk_ch == 'M'):
@@ -160,7 +194,8 @@ class GitStaged(Git):
             # processed by Unstaged.
             #
             modi_file = drscm.FileInfo(rel_path, None)
-            base_file = drscm.FileInfo(rel_path, None)
+            blob_sha  = git_get_most_recent_commit_blob(self, modi_file)
+            base_file = drscm.FileInfo(rel_path, blob_sha)
             action    = ChangedFile(self, "unstaged", base_file, modi_file)
 
         elif (idx_ch == 'R') and (wrk_ch in (' ', 'M')):
@@ -174,6 +209,8 @@ class GitStaged(Git):
             modi_rel_path = parts[2]
             modi_file     = drscm.FileInfo(modi_rel_path, None)
             base_file     = drscm.FileInfo(base_rel_path, None)
+            blob_sha      = git_get_most_recent_commit_blob(self, base_file)
+            base_file     = drscm.FileInfo(base_rel_path, blob_sha)
             action        = ChangedFile(self, "rename", base_file, modi_file)
 
         elif (idx_ch == 'A') and (wrk_ch == ' '):
@@ -183,7 +220,8 @@ class GitStaged(Git):
 
         elif (idx_ch == 'M') and wrk_ch == ' ':
             modi_file = drscm.FileInfo(rel_path, None)
-            base_file = drscm.FileInfo(rel_path, None)
+            blob_sha  = git_get_most_recent_commit_blob(self, modi_file)
+            base_file = drscm.FileInfo(rel_path, blob_sha)
             action    = ChangedFile(self, "staged", base_file, modi_file)
 
         elif (idx_ch == '?') or (wrk_ch == '?'):
@@ -203,24 +241,14 @@ class GitStaged(Git):
         # The first character refers to the index (staged changes).
         # The second character refers to the working tree (unstaged changes).
         #
-        cmd = [ self.scm_path_, "status",
-                "--ignore-submodules", "--renames", "--short" ]
-        (stdout, stderr, rc) = drutil.execute(self.verbose_, cmd)
-
-        if rc == 0:
-            result = [ ]
-            if len(stdout) > 0:
-                for l in stdout:
-                    i_ch     = l[0]
-                    w_ch     = l[1]
-                    rel_path = l[3:]
-                    action   = self.parse_action(i_ch, w_ch, rel_path)
-                    result.append(action)
-            else:
-                result = None
-        else:
-            drutil.fatal("%s: Unable to execute '%s'." %
-                         (self.qualid_(), ' '.join(cmd)))
+        result = [ ]
+        stdout = git_get_status_short(self)
+        for l in stdout:
+            i_ch     = l[0]
+            w_ch     = l[1]
+            rel_path = l[3:]
+            action   = self.parse_action(i_ch, w_ch, rel_path)
+            result.append(action)
 
         return result
 
@@ -233,25 +261,14 @@ class GitCommitted(Git):
     def __init__(self, options):
         super().__init__(options)
 
-    def rev_parse(self, chg_id):
-        assert(isinstance(chg_id, str))
-        cmd = [ self.scm_path_, "rev-parse", chg_id ]
-        (stdout, stderr, rc) = drutil.execute(self.verbose_, cmd)
-
-        if rc == 0:
-            return stdout
-        else:
-            drutil.fatal("%s: Unable to execute '%s'." %
-                         (self.qualid_(), ' '.join(cmd)))
-
     # Returns a range that covers a single SHA, or a range of SHA values.
     def get_change_range(self):
         assert(isinstance(self.change_id_, str))
-        stdout = self.rev_parse(self.change_id_)
+        stdout = git_rev_parse(self, self.change_id_)
         if len(stdout) == 1:
-            # Single SHA specified.
+            # Single SHA specified; double it to get a full range.
             chg_id = "%s^..%s" % (self.change_id_, self.change_id_)
-            stdout = self.rev_parse(chg_id)
+            stdout = git_rev_parse(self, chg_id)
 
         assert(len(stdout) == 2)
         # Remove leading '^' on second line of output.
@@ -259,21 +276,6 @@ class GitCommitted(Git):
         return (stdout[1],      # beg_sha  (not included in range).
                 stdout[0])      # end_sha.
 
-
-    def diff_tree(self,
-                  beg_sha, # Not included in range
-                  end_sha):
-        cmd = [ self.scm_path_, "diff-tree",
-                "--root",             # Show initial commit as creation event.
-                "--ignore-submodules",
-                "-M",                 # Find renames.
-                "-r", "%s..%s" % (beg_sha, end_sha) ]
-        (stdout, stderr, rc) = drutil.execute(self.verbose_, cmd)
-        if rc == 0:
-            return stdout
-        else:
-            drutil.fatal("%s: Unable to execute '%s'." %
-                         (self.qualid_(), ' '.join(cmd)))
 
     def parse_action(self, action, base_file_sha, modi_file_sha, tail):
         assert(action in ('A', 'B', 'C', 'D', 'M', 'R', 'T', 'U', 'X'))
@@ -333,7 +335,7 @@ class GitCommitted(Git):
     def generate_dossier_(self):
         (base_sha, modi_sha) = self.get_change_range()
 
-        diff = self.diff_tree(base_sha, modi_sha)
+        diff = git_diff_tree(self, base_sha, modi_sha)
         result = [ ]
         for l in diff:
             l = l.replace(' ', '\t') # Line has both space and tab.
