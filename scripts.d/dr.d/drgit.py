@@ -152,7 +152,8 @@ class GitStaged(Git):
     def parse_action(self, idx_ch, wrk_ch, rel_path):
         if (idx_ch == 'D') or (wrk_ch == 'D'):
             modi_file = drscm.FileInfoEmpty(rel_path)
-            action    = ChangedFile(self, "delete", None, modi_file)
+            base_file = drscm.FileInfo(rel_path, None)
+            action    = ChangedFile(self, "delete", base_file, modi_file)
 
         elif (idx_ch in (' ', 'A', 'M')) and (wrk_ch == 'M'):
             # Rename (idx_ch == 'R') is a special case that cannot be
