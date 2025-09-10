@@ -10,8 +10,22 @@ import drutil
 
 
 class ChangedFile(drscm.ChangedFile):
-    def __init__(self, scm):
+    def __init__(self, scm, action, base_file, modi_file):
         super().__init__(scm)
+        self.action_ = action
+        
+        assert(isinstance(modi_file,drscm. FileInfo))
+        self.modi_file_info_ = modi_file
+
+        assert(isinstance(base_file, drscm.FileInfo))
+        if not base_file.empty() and base_file.chg_id_ is None:
+            sha       = self.get_most_recent_commit_blob(modi_file)
+            base_file = drscm.FileInfo(base_file.rel_path_, sha)
+
+        self.base_file_info_ = base_file
+
+    def action(self):
+        return self.action_
 
     def write_file(self, out_name, contents):
         assert(isinstance(contents, list))
@@ -32,11 +46,32 @@ class ChangedFile(drscm.ChangedFile):
             drutil.fatal("%s: Unable to execute '%s'." %
                          (self.qualid_(), ' '.join(cmd)))
 
+    def is_blob(self, file_info):
+        # Check that the SHA for this file references a blob (file
+        # contents), or is an empty file.
+
+        if not file_info.empty() and file_info.chg_id_ is not None:
+            cmd = [ self.scm_.scm_path_,
+                    "cat-file", "-t", file_info.chg_id_ ]
+            (stdout, stderr, rc) = drutil.execute(self.scm_.verbose_, cmd)
+
+            if rc == 0:
+                return stdout[0] == "blob"
+            else:
+                drutil.fatal("%s: Unable to execute '%s'." %
+                             (self.qualid_(), ' '.join(cmd)))
+        else:
+            return True
+
     def get_most_recent_commit_blob(self, file_info):
         assert(isinstance(file_info, drscm.FileInfo))
 
         sha = [ ]
         if file_info.chg_id_ is not None:
+            if self.is_blob(file_info):
+                drutil.TODO("get_most_recent_commit_blob call unnecessary.")
+                return file_info.chg_id_
+
             # This simplifies generating difffs for committed changes:
             #
             #   When the SHA of a commit is provided, use the SHA of
@@ -64,23 +99,6 @@ class ChangedFile(drscm.ChangedFile):
             drutil.fatal("%s: Unable to execute '%s'." %
                          (self.qualid_(), ' '.join(cmd)))
 
-    def is_blob(self, file_info):
-        # Check that the SHA for this file references a blob (file
-        # contents), or is an empty file.
-
-        if not file_info.empty() and file_info.chg_id_ is not None:
-            cmd = [ self.scm_.scm_path_,
-                    "cat-file", "-t", file_info.chg_id_ ]
-            (stdout, stderr, rc) = drutil.execute(self.scm_.verbose_, cmd)
-        
-            if rc == 0:
-                return stdout[0] == "blob"
-            else:
-                drutil.fatal("%s: Unable to execute '%s'." %
-                             (self.qualid_(), ' '.join(cmd)))
-        else:
-            return True
-
     def copy_to_review_directory_(self, dest_dir, file_info):
         assert(isinstance(file_info, drscm.FileInfo))
         assert(not file_info.empty()) # Empty handled by caller.
@@ -103,25 +121,7 @@ class ChangedFile(drscm.ChangedFile):
             shutil.copyfile(file_info.rel_path_, out_name)
 
 
-class Uncommitted(ChangedFile):
-    def __init__(self, scm):
-        super().__init__(scm)
-
-    def find_and_set_base_file_info(self, file_info):
-        assert(isinstance(file_info, drscm.FileInfo))
-        sha = self.get_most_recent_commit_blob(file_info)
-        self.set_base_file_info(drscm.FileInfo(file_info.rel_path_, sha))
-
-
 class Untracked(ChangedFile):
-    def __init__(self, scm, modi_rel_path):
-        super().__init__(scm)
-        self.set_modi_file_info(drscm.FileInfo(modi_rel_path, None))
-        self.set_base_file_info(drscm.FileInfoEmpty(modi_rel_path))
-
-    def action(self):
-        return "untracked"
-
     def update_review_directory(self):
         # Untracked directories are ignored.  Untracked directories
         # only show up if there are files in them.
@@ -134,118 +134,6 @@ class Untracked(ChangedFile):
         else:
             drutil.TODO("Ignoring untracked directories (%s)." %
                         (self.modi_file_info_.rel_path_))
-
-
-class UncommittedUnstaged(Uncommitted):
-    def __init__(self, scm, modi_rel_path):
-        super().__init__(scm)
-        self.set_modi_file_info(drscm.FileInfo(modi_rel_path, None))
-        self.find_and_set_base_file_info(self.modi_file_info_)
-
-    def action(self):
-        return "unstaged"
-
-
-class UncommittedStaged(Uncommitted):
-    def __init__(self, scm, modi_rel_path):
-        super().__init__(scm)
-        self.set_modi_file_info(drscm.FileInfo(modi_rel_path, None))
-        self.find_and_set_base_file_info(self.modi_file_info_)
-
-    def action(self):
-        return "staged"
-
-
-class UncommittedRename(Uncommitted):
-    def __init__(self, scm, base_rel_path, modi_rel_path):
-        super().__init__(scm)
-        file_info = drscm.FileInfo(base_rel_path, None)
-        sha = self.get_most_recent_commit_blob(file_info)
-        self.set_base_file_info(drscm.FileInfo(base_rel_path, sha))
-        self.set_modi_file_info(drscm.FileInfo(modi_rel_path, None))
-
-    def action(self):
-        return "rename"
-
-
-class UncommittedDelete(Uncommitted):
-    def __init__(self, scm, modi_rel_path):
-        super().__init__(scm)
-        self.set_modi_file_info(drscm.FileInfoEmpty(modi_rel_path))
-        self.find_and_set_base_file_info(drscm.FileInfo(modi_rel_path, None))
-
-    def action(self):
-        return "delete"
-
-
-class UncommittedAdd(Uncommitted):
-    def __init__(self, scm, modi_rel_path):
-        super().__init__(scm)
-        self.set_modi_file_info(drscm.FileInfo(modi_rel_path, None))
-        self.set_base_file_info(drscm.FileInfoEmpty(modi_rel_path))
-
-    def action(self):
-        return "add"
-
-
-class Committed(ChangedFile):
-    def __init__(self, scm):
-        super().__init__(scm)
-
-
-class CommittedDelete(Committed):
-    def __init__(self, scm, base_rel_path, base_sha):
-        super().__init__(scm)
-        self.set_modi_file_info(drscm.FileInfoEmpty(base_rel_path))
-        self.set_base_file_info(drscm.FileInfo(base_rel_path, base_sha))
-
-    def action(self):
-        return "delete"
-
-
-class CommittedModify(Committed):
-    def __init__(self, scm, base_rel_path, base_file_sha, modi_file_sha):
-        super().__init__(scm)
-        self.set_modi_file_info(drscm.FileInfo(base_rel_path, modi_file_sha))
-        self.set_base_file_info(drscm.FileInfo(base_rel_path, base_file_sha))
-
-    def action(self):
-        return "modify"
-
-
-class CommittedRename(Committed):
-    def __init__(self, scm,
-                 base_rel_path, base_file_sha,
-                 modi_rel_path, modi_file_sha):
-        super().__init__(scm)
-        self.set_modi_file_info(drscm.FileInfo(modi_rel_path, modi_file_sha))
-        self.set_base_file_info(drscm.FileInfo(base_rel_path, base_file_sha))
-
-    def action(self):
-        return "rename"
-
-
-class CommittedAdd(Committed):
-    def __init__(self, scm, modi_rel_path, modi_file_sha):
-        super().__init__(scm)
-        self.set_modi_file_info(drscm.FileInfo(modi_rel_path, modi_file_sha))
-        self.set_base_file_info(drscm.FileInfoEmpty(modi_rel_path))
-
-    def action(self):
-        return "add"
-
-
-class NotYetSupportedState(ChangedFile):
-    def __init__(self, modi_rel_path):
-        super().__init__()
-        self.idx_ = idx
-        self.wrk_ = wrk
-
-        self.set_modi_file_info(drscm.FileInfo(modi_rel_path, None))
-        self.set_base_file_info(drscm.FileInfoEmpty(modi_rel_path))
-
-    def action(self):
-        return "%c%c" % (self.idx_, self.wrk_)
 
 
 class Git(drscm.SCM):
@@ -263,12 +151,17 @@ class GitStaged(Git):
 
     def parse_action(self, idx_ch, wrk_ch, rel_path):
         if (idx_ch == 'D') or (wrk_ch == 'D'):
-            action = UncommittedDelete(self, rel_path)
+            modi_file = drscm.FileInfoEmpty(rel_path)
+            action    = ChangedFile(self, "delete", None, modi_file)
+
         elif (idx_ch in (' ', 'A', 'M')) and (wrk_ch == 'M'):
             # Rename (idx_ch == 'R') is a special case that cannot be
-            # processed by UncommittedUnstaged.
+            # processed by Unstaged.
             #
-            action = UncommittedUnstaged(self, rel_path)
+            modi_file = drscm.FileInfo(rel_path, None)
+            base_file = drscm.FileInfo(rel_path, None)
+            action    = ChangedFile(self, "unstaged", base_file, modi_file)
+
         elif (idx_ch == 'R') and (wrk_ch in (' ', 'M')):
             # The file has been renamed.
             # rel_path is of the form:
@@ -278,17 +171,27 @@ class GitStaged(Git):
             parts         =  rel_path.split(' ')
             base_rel_path = parts[0]
             modi_rel_path = parts[2]
-            action        = UncommittedRename(self, base_rel_path, modi_rel_path)
+            modi_file     = drscm.FileInfo(modi_rel_path, None)
+            base_file     = drscm.FileInfo(base_rel_path, None)
+            action        = ChangedFile(self, "rename", base_file, modi_file)
+
         elif (idx_ch == 'A') and (wrk_ch == ' '):
-            action =  UncommittedAdd(self, rel_path)
+            modi_file = drscm.FileInfo(rel_path, None)
+            base_file = drscm.FileInfoEmpty(rel_path)
+            action    = ChangedFile(self, "add", base_file, modi_file)
+
         elif (idx_ch == 'M') and wrk_ch == ' ':
-            action = UncommittedStaged(self, rel_path)
+            modi_file = drscm.FileInfo(rel_path, None)
+            base_file = drscm.FileInfo(rel_path, None)
+            action    = ChangedFile(self, "staged", base_file, modi_file)
+
         elif (idx_ch == '?') or (wrk_ch == '?'):
-            action = Untracked(self, rel_path)
+            modi_file = drscm.FileInfo(rel_path, None)
+            base_file = drscm.FileInfoEmpty(rel_path)
+            action    = Untracked(self, "untracked", base_file, modi_file)
         else:
-            drutil.warning("unhandled state: index: %c  tree: %c  path: %s" %
-                           (idx_ch, wrk_ch, rel_path))
-            action = NotYetSupportedState(self)
+            raise NotImplementedError("Unknown action: '%s' '%s'  '%s'" %
+                                      (idx_ch, wrk_ch, rel_pat))
 
         return action;
 
@@ -377,7 +280,9 @@ class GitCommitted(Git):
         if action == 'A':
             assert(base_file_sha == "0000000000000000000000000000000000000000")
             modi_rel_path = tail[0]
-            action =  CommittedAdd(self, modi_rel_path, modi_file_sha)
+            modi_file     = drscm.FileInfo(modi_rel_path, modi_file_sha)
+            base_file     = drscm.FileInfoEmpty(modi_rel_path)
+            action        = ChangedFile(self, "add", base_file, modi_file)
 
         elif action == 'B':     # Pairing broken.
             # It is not known how to generate this action.
@@ -388,26 +293,29 @@ class GitCommitted(Git):
             raise NotImplementedError("Copy action: %s" % (tail))
 
         elif action == 'D':     # Delete.
-            base_rel_path = tail[0]
             assert(modi_file_sha == "0000000000000000000000000000000000000000")
-            action = CommittedDelete(self, base_rel_path, base_file_sha)
+            base_rel_path = tail[0]
+            modi_file     = drscm.FileInfoEmpty(base_rel_path)
+            base_file     = drscm.FileInfo(base_rel_path, base_file_sha)
+            action        = ChangedFile(self, "delete", base_file, modi_file)
 
         elif action == 'M':     # Modify.
             base_rel_path = tail[0]
-            action = CommittedModify(self, base_rel_path,
-                                     base_file_sha, modi_file_sha)
-            
+            modi_file     = drscm.FileInfo(base_rel_path, modi_file_sha)
+            base_file     = drscm.FileInfo(base_rel_path, base_file_sha)
+            action        = ChangedFile(self, "modify", base_file, modi_file)
+
         elif action == 'R':    # Rename.
             base_rel_path = tail[0]
             modi_rel_path = tail[1]
-            action        = CommittedRename(self,
-                                            base_rel_path, base_file_sha,
-                                            modi_rel_path, modi_file_sha)
+            modi_file     = drscm.FileInfo(modi_rel_path, modi_file_sha)
+            base_file     = drscm.FileInfo(base_rel_path, base_file_sha)
+            action        = ChangedFile(self, "rename", base_file, modi_file)
 
         elif action == 'T':    # Type change.
             # It is not known how to generate this action.
             raise NotImplementedError("Type change action: %s" % (tail))
-            
+
         elif action == 'U':    # Unmerged.
             # It is not known how to generate this action.
             raise NotImplementedError("Unmerged action: %s" % (tail))
