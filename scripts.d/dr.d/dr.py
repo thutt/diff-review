@@ -47,8 +47,11 @@ def report(options):
             print("  %*s   %s" % (action_width, f.action(),
                                   f.modi_file_info_.rel_path_))
 
-        print("\nTkDiff:  view-review -R %s  -r %s" % (options.arg_review_dir,
-                                                       options.arg_review_name))
+        print("\n"
+              "TkDiff:  view-review -R %s --viewer tkdiff -r %s" %
+              (options.arg_review_dir, options.arg_review_name))
+        print("Meld  :  view-review -R %s --viewer meld -r %s" %
+              (options.arg_review_dir, options.arg_review_name))
     else:
         if options.arg_change_id is None:
             print("No unstaged changes in client to review.")

@@ -109,7 +109,6 @@ Return Code:
                    action   = "store",
                    default  = "git",
                    choices  = [ "git" ],
-                   required = True,
                    dest     = "arg_scm")
 
     o.add_argument("--git-path",

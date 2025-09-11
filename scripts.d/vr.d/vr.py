@@ -39,7 +39,15 @@ Return Code:
                                         epilog          = help_epilog,
                                         prog            = "diff-review")
 
-    o = parser.add_argument_group("Output Options")
+    o = parser.add_argument_group("Viewer Options")
+    o.add_argument("--viewer",
+                   help     = ("Specifies which diff viewer to use."),
+                   action   = "store",
+                   default  = "tkdiff",
+                   choices  = [ "tkdiff", "meld" ],
+                   dest     = "arg_viewer")
+
+    o = parser.add_argument_group("Diff Specification Options")
     o.add_argument("-R", "--review-directory",
                    help     = ("Specifies root directory where diffs will be "
                                "written."),
@@ -58,6 +66,7 @@ Return Code:
                    required = True,
                    dest     = "arg_review_name")
 
+    o = parser.add_argument_group("Output Options")
     o.add_argument("--verbose",
                    help     = ("Turn on verbose diagnostic output"),
                    action   = "store_true",
@@ -89,7 +98,12 @@ def tkdiff(button, base, modi):
     button.configure(bg="grey", fg="white")
 
 
-def generate(review_name, dossier):
+def meld(button, base, modi):
+    os.system("/usr/bin/meld %s %s &" % (base, modi))
+    button.configure(bg="grey", fg="white")
+
+
+def generate(viewer, review_name, dossier):
     root = tkinter.Tk()
     root.title(review_name)
     frm  = tkinter.Frame(root)
@@ -108,7 +122,15 @@ def generate(review_name, dossier):
 
         label  = tkinter.Label(frm, text=action)
         button = tkinter.Button(frm, text=rel_modi)
-        lamb   = lambda button=button, b=base, m=modi: tkdiff(button, b, m)
+
+        if viewer == "tkdiff":
+            lamb = lambda button=button, b=base, m=modi: tkdiff(button, b, m)
+        elif viewer == "meld":
+            lamb = lambda button=button, b=base, m=modi: meld(button, b, m)
+        else:
+            raise NotImplementedError("Unrecognized viewer option, '%s'" %
+                                      (viewer))
+            
         button.configure(command=lamb)
 
         label.grid(column=0, row=row, sticky="nsew")
@@ -132,7 +154,7 @@ def main():
         with open(pathname, "r") as fp:
             dossier = json.load(fp)
 
-        generate(options.arg_review_name, dossier)
+        generate(options.arg_viewer, options.arg_review_name, dossier)
 
     except KeyboardInterrupt:
         return 0
