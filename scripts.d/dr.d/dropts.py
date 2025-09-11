@@ -146,6 +146,18 @@ Return Code:
                    dest     = "arg_verbose")
 
 
+    o = parser.add_argument_group("Git-specific Control")
+    o.add_argument("--git-tracked",
+                   help     = ("Set untracked file handling.  "
+                               "'no' shows no untracked files.  "
+                               "'all' shows all untracked files."),
+                   action   = "store",
+                   default  = "all",
+                   required = False,
+                   choices  = [ "no", "all" ],
+                   dest     = "arg_git_untracked")
+
+
     parser.add_argument("tail",
                         help  = "Command line tail",
                         nargs = "*")

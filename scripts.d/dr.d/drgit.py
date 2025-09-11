@@ -104,9 +104,10 @@ def git_rev_parse(scm, chg_id):
                      (drutil.qualid_(), ' '.join(cmd)))
 
 
-def git_get_status_short(scm):
+def git_get_status_short(scm, untracked):
     cmd = [ scm.scm_path_, "status",
-            "--ignore-submodules", "--renames", "--short" ]
+            "--ignore-submodules", "--renames",
+            "--untracked-files=%s" % (untracked), "--short" ]
     (stdout, stderr, rc) = drutil.execute(scm.verbose_, cmd)
 
     if rc == 0:
@@ -135,13 +136,10 @@ class ChangedFile(drscm.ChangedFile):
             for l in contents:
                 fp.write("%s\n" % (l))
 
-    def is_blob(self, file_info):
-        return git_is_blob(self.scm_, file_info)
-
     def copy_to_review_directory_(self, dest_dir, file_info):
         assert(isinstance(file_info, drscm.FileInfo))
         assert(not file_info.empty()) # Empty handled by caller.
-        assert(self.is_blob(file_info))
+        assert(git_is_blob(self.scm_, file_info))
 
         if file_info.chg_id_ is not None:
             contents = git_get_file_contents(self.scm_, file_info)
@@ -154,24 +152,10 @@ class ChangedFile(drscm.ChangedFile):
             shutil.copyfile(file_info.rel_path_, out_name)
 
 
-class Untracked(ChangedFile):
-    def update_review_directory(self):
-        # Untracked directories are ignored.  Untracked directories
-        # only show up if there are files in them.
-        #
-        if not os.path.isdir(self.modi_file_info_.rel_path_):
-            self.copy_to_review_directory(self.scm_.review_base_dir_,
-                                          self.base_file_info_)
-            self.copy_to_review_directory(self.scm_.review_modi_dir_,
-                                          self.modi_file_info_)
-        else:
-            drutil.TODO("Ignoring untracked directories (%s)." %
-                        (self.modi_file_info_.rel_path_))
-
-
 class Git(drscm.SCM):
     def __init__(self, options):
         super().__init__(options)
+        self.git_untracked_ = options.arg_git_untracked
 
 
 # GitStaged:
@@ -227,7 +211,7 @@ class GitStaged(Git):
         elif (idx_ch == '?') or (wrk_ch == '?'):
             modi_file = drscm.FileInfo(rel_path, None)
             base_file = drscm.FileInfoEmpty(rel_path)
-            action    = Untracked(self, "untracked", base_file, modi_file)
+            action    = ChangedFile(self, "untracked", base_file, modi_file)
         else:
             raise NotImplementedError("Unknown action: '%s' '%s'  '%s'" %
                                       (idx_ch, wrk_ch, rel_pat))
@@ -242,7 +226,7 @@ class GitStaged(Git):
         # The second character refers to the working tree (unstaged changes).
         #
         result = [ ]
-        stdout = git_get_status_short(self)
+        stdout = git_get_status_short(self, self.git_untracked_)
         for l in stdout:
             i_ch     = l[0]
             w_ch     = l[1]
