@@ -159,7 +159,9 @@ class SCM(object):
         raise NotImplementedError("%s: not implemented" % (self.qualid_()))
 
     def generate_dossier(self):
-        self.dossier_ = self.generate_dossier_()
+        dossier = self.generate_dossier_()
+        if len(dossier) > 0:
+            self.dossier_ = dossier
 
     def update_files_in_review_directory(self):
         for changed_file in self.dossier_:

@@ -295,7 +295,6 @@ class GitStaged(Git):
             rel_path = l[3:]
             action   = self.parse_action(i_ch, w_ch, rel_path)
             result.append(action)
-
         return result
 
 

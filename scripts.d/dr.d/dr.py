@@ -56,7 +56,7 @@ def report(options):
               (options.arg_review_dir, options.arg_review_name))
     else:
         if options.arg_change_id is None:
-            print("No unstaged changes in client to review.")
+            print("No uncommitted changes in client to review.")
         else:
             print("No files found in provided change ID.")
     print("\n")
