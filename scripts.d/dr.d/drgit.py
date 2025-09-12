@@ -76,7 +76,43 @@ def git_get_most_recent_commit_blob(scm, file_info):
                      (drutil.qualid_(), ' '.join(cmd)))
 
 
-def git_diff_tree(scm, 
+def git_get_numstat(scm,
+                    beg_sha, # Not included in range
+                    end_sha):
+    cmd = [ scm.scm_path_, "diff-tree",
+            "--root",             # Show initial commit as creation event.
+            "--ignore-submodules",
+            "--numstat",                 # Find renames.
+            "-r", "%s..%s" % (beg_sha, end_sha) ]
+    (stdout, stderr, rc) = drutil.execute(scm.verbose_, cmd)
+    if rc == 0:
+        return stdout
+    else:
+        drutil.fatal("%s: Unable to execute '%s'." %
+                     (drutil.qualid_(), ' '.join(cmd)))
+
+
+def git_get_staged_numstat(scm):
+    cmd = [ scm.scm_path_, "diff", "--cached", "--numstat" ]
+    (stdout, stderr, rc) = drutil.execute(scm.verbose_, cmd)
+    if rc == 0:
+        return stdout
+    else:
+        drutil.fatal("%s: Unable to execute '%s'." %
+                     (drutil.qualid_(), ' '.join(cmd)))
+
+
+def git_get_unstaged_numstat(scm):
+    cmd = [ scm.scm_path_, "diff", "--numstat" ]
+    (stdout, stderr, rc) = drutil.execute(scm.verbose_, cmd)
+    if rc == 0:
+        return stdout
+    else:
+        drutil.fatal("%s: Unable to execute '%s'." %
+                     (drutil.qualid_(), ' '.join(cmd)))
+
+
+def git_diff_tree(scm,
                   beg_sha, # Not included in range
                   end_sha):
     cmd = [ scm.scm_path_, "diff-tree",
@@ -157,6 +193,16 @@ class Git(drscm.SCM):
         super().__init__(options)
         self.git_untracked_ = options.arg_git_untracked
 
+    def process_numstat_output(self, stdout):
+        files   = len(stdout)
+        added   = 0
+        deleted = 0
+        for l in stdout:
+            info    = l.split('\t')
+            added   += int(info[0])
+            deleted += int(info[1])
+        return (files, added, deleted)
+
 
 # GitStaged:
 #
@@ -165,6 +211,22 @@ class Git(drscm.SCM):
 class GitStaged(Git):
     def __init__(self, options):
         super().__init__(options)
+
+    def get_unstaged_change_info(self):
+        stdout = git_get_unstaged_numstat(self)
+        return self.process_numstat_output(stdout)
+
+    def get_staged_change_info(self):
+        stdout = git_get_staged_numstat(self)
+        return self.process_numstat_output(stdout)
+
+    def get_changed_info_(self):
+        (files, added, deleted) = self.get_unstaged_change_info()
+        staged = "unstaged [%s files, %s lines]  " % (files, added + deleted)
+
+        (files, added, deleted) = self.get_staged_change_info()
+        unstaged = "staged [%s files  %s lines]" % (files, added + deleted)
+        return staged + unstaged
 
     def parse_action(self, idx_ch, wrk_ch, rel_path):
         if (idx_ch == 'D') or (wrk_ch == 'D'):
@@ -315,6 +377,13 @@ class GitCommitted(Git):
             raise NotImplementedError("Unrecognized action: %s  %s" % (action, tail))
 
         return action;
+
+    def get_changed_info_(self):
+        (base_sha, modi_sha) = self.get_change_range()
+        stdout = git_get_numstat(self, base_sha, modi_sha)
+        (files, added, deleted) = self.process_numstat_output(stdout)
+        msg = ("committed [%s files, %s lines]  " % (files, added + deleted))
+        return msg
 
     def generate_dossier_(self):
         (base_sha, modi_sha) = self.get_change_range()

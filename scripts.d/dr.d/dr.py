@@ -47,10 +47,12 @@ def report(options):
             print("  %*s   %s" % (action_width, f.action(),
                                   f.modi_file_info_.rel_path_))
 
+        changed_info = options.scm.get_changed_info()
         print("\n"
-              "TkDiff:  view-review -R %s --viewer tkdiff -r %s" %
+              "Changes:  %s" % (changed_info))
+        print("TkDiff :  view-review -R %s --viewer tkdiff -r %s" %
               (options.arg_review_dir, options.arg_review_name))
-        print("Meld  :  view-review -R %s --viewer meld -r %s" %
+        print("Meld   :  view-review -R %s --viewer meld -r %s" %
               (options.arg_review_dir, options.arg_review_name))
     else:
         if options.arg_change_id is None:
@@ -63,9 +65,7 @@ def report(options):
 def main():
     try:
         options = process_command_line()
-
         options.scm.generate(options)
-
         report(options)
 
     except KeyboardInterrupt:

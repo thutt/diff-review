@@ -150,6 +150,11 @@ class SCM(object):
         else:
             drutil.fatal("Unhandled path to SCM tool.")
 
+    def get_changed_info(self):
+        result = self.get_changed_info_()
+        assert(isinstance(result, str))
+        return result
+
     def generate_dossier_(self):
         raise NotImplementedError("%s: not implemented" % (self.qualid_()))
 
