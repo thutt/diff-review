@@ -206,7 +206,7 @@ class Git(drscm.SCM):
 
 # GitStaged:
 #
-#  An interface to Git that facilitates reviewing uncommitted chagnes.
+#  An interface to Git that facilitates reviewing uncommitted changes.
 #
 class GitStaged(Git):
     def __init__(self, options):
@@ -301,7 +301,7 @@ class GitStaged(Git):
 
 # GitCommitted:
 #
-#  An interface to Git that facilitates reviewing committed chagnes.
+#  An interface to Git that facilitates reviewing committed changes.
 #
 class GitCommitted(Git):
     def __init__(self, options):
