@@ -36,7 +36,7 @@ def execute(verbose, cmd):
 
     p = subprocess.Popen(cmd,
                          shell    = False,
-                         encoding = "ASCII",
+                         encoding = "utf8",
                          stdin    = subprocess.PIPE,
                          stdout   = subprocess.PIPE,
                          stderr   = subprocess.PIPE)
