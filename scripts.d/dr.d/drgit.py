@@ -37,7 +37,7 @@ def git_get_file_contents(scm, file_info):
                      (drutil.qualid_(), ' '.join(cmd)))
 
 
-def git_get_blob_from_commit_sha(scm, file_info, sha):
+def git_get_commit_blob_from_commit_sha(scm, file_info, sha):
     cmd = [ scm.scm_path_, "ls-tree", sha, file_info.rel_path_ ]
     (stdout, stderr, rc) = drutil.execute(scm.verbose_, cmd)
 
@@ -70,7 +70,7 @@ def git_get_most_recent_commit_blob(scm, file_info):
         # Now get the blob of the desired file from the commit.
         # This simplifies copy to the review directory for
         # previous revisions of uncommitted changes, and committed changes.
-        return git_get_blob_from_commit_sha(scm, file_info, sha)
+        return git_get_commit_blob_from_commit_sha(scm, file_info, sha)
     else:
         drutil.fatal("%s: Unable to execute '%s'." %
                      (drutil.qualid_(), ' '.join(cmd)))
@@ -325,7 +325,7 @@ class GitCommitted(Git):
     def parse_action(self, action, base_file_sha, modi_file_sha, tail):
         assert(action in ('A', 'B', 'C', 'D', 'M', 'R', 'T', 'U', 'X'))
 
-        if action == 'A':
+        if action == 'A':       # Add.
             assert(base_file_sha == "0000000000000000000000000000000000000000")
             modi_rel_path = tail[0]
             modi_file     = drscm.FileInfo(modi_rel_path, modi_file_sha)

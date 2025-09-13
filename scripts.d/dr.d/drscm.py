@@ -74,14 +74,23 @@ class ChangedFile(object):
         self.scm_ = scm
 
         # inv: modi_file_info_ is not None
-        # inv: base_file_info_ is not None
         #
-        # An untracked file will have a name, but no change info.
+        # Describes the modified file in a change.
         #
-        # A deleted file will have no current file name, nor change
-        # info.  These will be empty FileInfo instances.
+        # inv: rel_path_ is not None
+        # inv: chg_id_   is not None -> chg_id_ is a blob commit of the file.
+        # inv: chg_id_   is None     -> file is in the source directory tree
         #
         self.modi_file_info_   = None
+
+        # inv: base_file_info_ is not None
+        #
+        # Describes the base file in a change.
+        #
+        # inv: rel_path_ is not None
+        # inv: chg_id_   is not None -> chg_id_ is a blob commit of the file.
+        # inv: chg_id_   is None     -> the file doesn't exist in the SCM.
+        #
         self.base_file_info_   = None
 
     def set_base_file_info(self, file_info):
@@ -101,9 +110,29 @@ class ChangedFile(object):
         if not os.path.exists(out_dir):
             drutil.mktree(out_dir)
 
+    # This function must be implemented by an extension of this
+    # type.  It is called when needing to know the operation that
+    # is being performed on the file (add, delete, modify, etc.)
+    #
     def action(self):
         raise NotImplementedError("%s: not implemented" % (self.qualid_()))
 
+    # This function copies 'file_info' into the review directory.
+    # 'file_info' might need to be checked out from the SCM.
+    #
+    # If the file is empty, an empty file is created.
+    #
+    def copy_to_review_directory_(self, dest_dir, file_info):
+        raise NotImplementedError("%s: not implemented" % (self.qualid_()))
+
+    # This function copies 'file_info' into the review directory by
+    # invoking the extension-implemented copy_to_review_directory_().
+    # The called function will extract the file from the SCM, or from
+    # the source client directory structure and copy it to the
+    # destination directory.  The 
+    #
+    # If the file is empty, an empty file is created.
+    #
     def copy_to_review_directory(self, dest_dir, file_info):
         assert(isinstance(file_info, FileInfo))
         if not file_info.empty():
@@ -114,6 +143,9 @@ class ChangedFile(object):
             with open(out_name, "w") as fp:
                 pass
 
+    # This function copies both the base and modified files into the
+    # review directory.
+    #
     def update_review_directory(self):
         self.copy_to_review_directory(self.scm_.review_base_dir_,
                                       self.base_file_info_)
@@ -150,11 +182,27 @@ class SCM(object):
         else:
             drutil.fatal("Unhandled path to SCM tool.")
 
+    # Returns a single string that represents the information about
+    # the change that should be conveyed to the user.  For example the
+    # number of files and lines changed.
+    #
+    # It should be formatted to fit on one (1) line of no more than 80
+    # columns.
+    #
+    def get_changed_info_(self):
+        raise NotImplementedError("%s: not implemented" % (self.qualid_()))
+
     def get_changed_info(self):
         result = self.get_changed_info_()
         assert(isinstance(result, str))
         return result
 
+    # Examines the current source client, in addition to the command
+    # line options, and returns a, possibly empty, list of ChangedFile
+    # instances.  Each ChangedFile instance will describe a base file,
+    # and a modified file that, together, can be compared to see the
+    # differences make to a single file.
+    #
     def generate_dossier_(self):
         raise NotImplementedError("%s: not implemented" % (self.qualid_()))
 
