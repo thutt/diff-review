@@ -63,14 +63,19 @@ def git_get_most_recent_commit_blob(scm, file_info):
     (stdout, stderr, rc) = drutil.execute(scm.verbose_, cmd)
 
     if rc == 0:
-        sha = stdout[0].split(' ')[0] # Example: 'd90e8f0 Initial commit'
-        if sha == "":                 # Empty sha means no previous commit.
-            return None
+        if len(stdout) > 0:
+           sha = stdout[0].split(' ')[0] # Example: 'd90e8f0 Initial commit'
+           if sha == "":                 # Empty sha means no previous commit.
+               return None
 
-        # Now get the blob of the desired file from the commit.
-        # This simplifies copy to the review directory for
-        # previous revisions of uncommitted changes, and committed changes.
-        return git_get_commit_blob_from_commit_sha(scm, file_info, sha)
+           # Now get the blob of the desired file from the commit.
+           # This simplifies copy to the review directory for
+           # previous revisions of uncommitted changes, and committed changes.
+           return git_get_commit_blob_from_commit_sha(scm, file_info, sha)
+        else:
+            # No stdout on first command means the file is not
+            # committed.
+            return None
     else:
         drutil.fatal("%s: Unable to execute '%s'." %
                      (drutil.qualid_(), ' '.join(cmd)))
