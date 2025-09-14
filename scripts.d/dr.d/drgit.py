@@ -279,6 +279,7 @@ class GitStaged(Git):
             modi_file = drscm.FileInfo(rel_path, None)
             base_file = drscm.FileInfoEmpty(rel_path)
             action    = ChangedFile(self, "untracked", base_file, modi_file)
+
         else:
             raise NotImplementedError("Unknown action: '%s' '%s'  '%s'" %
                                       (idx_ch, wrk_ch, rel_pat))
@@ -397,8 +398,8 @@ class GitCommitted(Git):
         for l in diff:
             l = l.replace(' ', '\t') # Line has both space and tab.
             fields = l.split('\t')
-            base_file_mode = fields[0]
-            modi_file_mode = fields[1]
+            # fields[0]: base_file_mode
+            # fields[1]: modi_file_mode
             base_file_sha  = fields[2]
             modi_file_sha  = fields[3]
             action         = fields[4]
