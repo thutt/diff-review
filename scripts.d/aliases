@@ -1,0 +1,35 @@
+#!/bin/bash
+# Copyright (c) 2025  Logic Magicians Software.
+# All Rights Reserved.
+# Licensed under Gnu GPL V3.
+#
+#  This file declares a 'dr' and 'vr' shell alias for 'diff-review'
+#  and 'view-review' respectively.  It provides direct access to the
+#  utilities without having to modify PATH.
+#
+if [[ "${BASH_SOURCE[0]}" != "${0}" ]]; then
+    script="$(readlink -f ${BASH_SOURCE[0]})";
+    dir="$(readlink -f $(dirname "${script}")/..)";
+    eval alias dr='${dir}/diff-review'
+    eval alias vr='${dir}/view-review'
+
+    cat <<EOF
+
+The following alias provides, provding direct access to 'diff-review',
+is now present in the shell.
+
+  $(alias dr)
+
+
+This alias, also present in the shell, provides access to
+'view-review'
+
+  $(alias vr)
+
+
+EOF
+
+else
+    echo "This script cannot be executed.  It must be sourced.";
+fi
+
