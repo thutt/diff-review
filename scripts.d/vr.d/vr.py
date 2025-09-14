@@ -13,6 +13,70 @@ except:
     sys.exit(10)
 import traceback
 
+
+class TkInterface(object):
+    def create_root_window(self, review_name):
+        root = tkinter.Tk()
+        root.title(review_name)
+        root.columnconfigure(0, weight=1)
+        root.rowconfigure(0, weight = 1)
+        root.columnconfigure(0, weight = 1)
+        root.bind("<Escape>", lambda event: root.destroy())
+        return root
+
+    def create_frame(self):
+        frm = tkinter.Frame(self.root_)
+        frm.grid(row = 0, column = 0, sticky = "nsew")
+        frm.columnconfigure(0, weight = 1)
+        frm.rowconfigure(0, weight = 1)
+        return frm
+
+    def create_canvas(self):
+        canvas = tkinter.Canvas(self.frm_)
+        canvas.grid(row = 0, column = 0, sticky = "nsew")
+        return canvas
+
+    def create_scrollbar(self):
+        sb = tkinter.Scrollbar(self.frm_,
+                               orient  = "vertical",
+                               command = self.canvas_.yview)
+        sb.grid(row = 0, column = 1, sticky = "ns")
+        self.canvas_.configure(yscrollcommand = sb.set)
+        return sb
+
+    def create_content_frame(self):
+        cf = tkinter.Frame(self.canvas_)
+        cf.bind("<Configure>",
+                lambda e: self.canvas_.configure(scrollregion =
+                                                 self.canvas_.bbox("all")))
+        self.canvas_.create_window((0, 0), window = cf, anchor = "nw")
+        return cf
+
+    def add_quit(self, row):
+        quit  = tkinter.Button(self.frm_,
+                               text    = "Quit",
+                               command = self.root_.destroy)
+        quit.configure(bg = "red", fg = "white")
+        quit.grid(column = 1, row = row, sticky = "nsew")
+
+    def size_window(self, rows, cols):
+        char_pixel_width  =  8 * cols
+        char_pixel_height = 40 * rows;
+        Y                 = char_pixel_height
+        X                 = 150 + char_pixel_width
+        Y                 = min(1000, Y)
+        X                 = min( 700, X)
+        self.root_.geometry("%dx%d" % (X, Y))
+
+    def __init__(self, review_name):
+        self.review_name_ = review_name
+        self.root_        = self.create_root_window(review_name)
+        self.frm_         = self.create_frame()
+        self.canvas_      = self.create_canvas()
+        self.scrollbar_   = self.create_scrollbar()
+        self.content_     = self.create_content_frame()
+
+
 def configure_parser():
     description = ("""
 
@@ -104,15 +168,14 @@ def meld(button, base, modi):
 
 
 def generate(viewer, review_name, dossier):
-    root = tkinter.Tk()
-    root.title(review_name)
-    frm  = tkinter.Frame(root)
-    row  = 0
-    frm.grid()
+    tkintf  = TkInterface(review_name)
 
+    row      = 0                # Number of files.
+    col      = 0                # Maximum pathname length, in chars
     base_dir = dossier["base"]
     modi_dir = dossier["modi"]
-    for f in dossier['files']:
+    for f in sorted(dossier['files'],
+                    key=lambda item: item["modi_rel_path"]):
         action   = f["action"]
         rel_base = f["base_rel_path"]
         rel_modi = f["modi_rel_path"]
@@ -120,8 +183,10 @@ def generate(viewer, review_name, dossier):
         base   = os.path.join(base_dir, rel_base)
         modi   = os.path.join(modi_dir, rel_modi)
 
-        label  = tkinter.Label(frm, text=action)
-        button = tkinter.Button(frm, text=rel_modi)
+        col = max(max(col, len(rel_base)), len(rel_modi))
+
+        label  = tkinter.Label(tkintf.content_, text=action)
+        button = tkinter.Button(tkintf.content_, text=rel_modi)
 
         if viewer == "tkdiff":
             lamb = lambda button=button, b=base, m=modi: tkdiff(button, b, m)
@@ -130,19 +195,16 @@ def generate(viewer, review_name, dossier):
         else:
             raise NotImplementedError("Unrecognized viewer option, '%s'" %
                                       (viewer))
-            
-        button.configure(command=lamb)
 
+        button.configure(command=lamb)
         label.grid(column=0, row=row, sticky="nsew")
         button.grid(column=1, row=row, sticky="nsew")
         row = row + 1
 
-    quit  = tkinter.Button(frm, text="Quit", command=root.destroy)
-    quit.configure(bg="red", fg="white")
-    quit.grid(column=1, row=row, sticky="nsew")
-    root.bind("<Escape>", lambda event: root.destroy())
-
-    root.mainloop()
+    tkintf.add_quit(row)
+    tkintf.size_window(row + 1, # Number of rows, including 'quit'.
+                       col)
+    tkintf.root_.mainloop()
 
 
 def main():
