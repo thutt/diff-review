@@ -115,9 +115,8 @@ Return Code:
                    help     = ("Specifies the name of the diffs as they will "
                                "be written."),
                    action   = "store",
-                   default  = None,
+                   default  = "default",
                    metavar  = "<name>",
-                   required = True,
                    dest     = "arg_review_name")
 
     o.add_argument("--verbose",
