@@ -5,6 +5,8 @@
 import inspect
 import os
 import subprocess
+import threading
+
 
 class FatalError(Exception):
     def __init__(self, msg):
@@ -24,7 +26,9 @@ def TODO(msg):
 
 def mktree(p):
     if not os.path.exists(p):
-        os.makedirs(p)
+        with mkdir_lock:
+            if not os.path.exists(p):
+                os.makedirs(p)
 
 
 def execute(verbose, cmd):
@@ -72,3 +76,9 @@ def qualid_():
     module   = os.path.basename(caller.filename).split('.')[0]
     return "%s.%s" % (module, function)
 
+def module_init():
+    global mkdir_lock
+    mkdir_lock = threading.Lock()
+
+
+module_init()    

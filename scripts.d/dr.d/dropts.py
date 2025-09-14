@@ -101,6 +101,19 @@ Return Code:
                    required = False,
                    dest     = "arg_git_path")
 
+    o = parser.add_argument_group("Miscellaneous Options")
+    o.add_argument("--threads",
+                   help     = ("Overrides the default number of"
+                               "threads used internally.  The default is based "
+                               "on the number of CPUs the system has.  "
+                               "[default: %(default)s]"),
+                   action   = "store",
+                   type     = int,
+                   default  = 4 * os.cpu_count(),
+                   metavar  = "<number-of-threads>",
+                   required = False,
+                   dest     = "arg_threads")
+
     o = parser.add_argument_group("Output Options")
     o.add_argument("-R", "--review-directory",
                    help     = ("Specifies root directory where diffs will be "

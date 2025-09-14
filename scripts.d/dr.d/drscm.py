@@ -5,8 +5,10 @@
 import inspect
 import json
 import os
+import threading
 
 import drutil
+
 
 # FileInfo & FileInfoEmpty
 #
@@ -129,7 +131,7 @@ class ChangedFile(object):
     # invoking the extension-implemented copy_to_review_directory_().
     # The called function will extract the file from the SCM, or from
     # the source client directory structure and copy it to the
-    # destination directory.  The 
+    # destination directory.
     #
     # If the file is empty, an empty file is created.
     #
@@ -176,6 +178,7 @@ class SCM(object):
         self.review_modi_dir_ = options.review_modi_dir
         self.dossier_         = None # None -> no change to review.
         self.verbose_         = options.arg_verbose
+        self.n_threads_       = options.arg_threads
 
         if options.arg_scm == "git":
             self.scm_path_ = options.arg_git_path
@@ -211,9 +214,25 @@ class SCM(object):
         if len(dossier) > 0:
             self.dossier_ = dossier
 
+    def copy_file(self, dummy, changed_file, semaphore):
+        changed_file.update_review_directory()
+        semaphore.release()
+
     def update_files_in_review_directory(self):
+        n_semaphore = self.n_threads_
+        semaphore   = threading.Semaphore(n_semaphore)
+        processes   = [ ]
+        running     = [ ]
         for changed_file in self.dossier_:
-            changed_file.update_review_directory()
+            p = threading.Thread(target = self.copy_file,
+                                 args   = (self,
+                                           changed_file, semaphore))
+            processes.append(p)
+            semaphore.acquire()
+            p.start()
+
+        for p in processes:
+            p.join()
 
     def generate(self, options):
         self.generate_dossier()

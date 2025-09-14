@@ -2,6 +2,7 @@
 # All Rights Reserved.
 # Licensed under Gnu GPL V3.
 #
+import datetime
 import os
 import sys
 import traceback
@@ -34,7 +35,7 @@ def process_command_line():
     return options
 
 
-def report(options):
+def report(options, changed_info, elapsed_time):
     if options.scm.dossier_ is not None:
         print("\ndiff-review:  %s\n"  % (os.path.join(options.arg_review_dir,
                                                       options.arg_review_name)))
@@ -47,13 +48,13 @@ def report(options):
             print("  %*s   %s" % (action_width, f.action(),
                                   f.modi_file_info_.rel_path_))
 
-        changed_info = options.scm.get_changed_info()
         print("\n"
               "Changes:  %s" % (changed_info))
         print("TkDiff :  view-review -R %s --viewer tkdiff -r %s" %
               (options.arg_review_dir, options.arg_review_name))
         print("Meld   :  view-review -R %s --viewer meld -r %s" %
               (options.arg_review_dir, options.arg_review_name))
+        print("Elapsed:  %s" % (elapsed_time))
     else:
         if options.arg_change_id is None:
             print("No uncommitted changes in client to review.")
@@ -64,9 +65,14 @@ def report(options):
 
 def main():
     try:
+        beg     = datetime.datetime.now()
         options = process_command_line()
         options.scm.generate(options)
-        report(options)
+        changed_info = options.scm.get_changed_info()
+        end     = datetime.datetime.now()
+        elapsed = end - beg
+
+        report(options, changed_info, elapsed)
 
     except KeyboardInterrupt:
         return 0
