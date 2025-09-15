@@ -125,9 +125,9 @@ Return Code:
                    help     = ("Specifies the name of the diffs as they will "
                                "be written."),
                    action   = "store",
-                   default  = None,
+                   default  = "default",
                    metavar  = "<name>",
-                   required = True,
+                   required = False,
                    dest     = "arg_review_name")
 
     o = parser.add_argument_group("Output Options")
