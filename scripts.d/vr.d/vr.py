@@ -5,6 +5,8 @@
 import argparse
 import json
 import os
+import subprocess
+import signal
 import sys
 try:
     import tkinter
@@ -21,7 +23,7 @@ class TkInterface(object):
         root.columnconfigure(0, weight=1)
         root.rowconfigure(0, weight = 1)
         root.columnconfigure(0, weight = 1)
-        root.bind("<Escape>", lambda event: root.destroy())
+        root.bind("<Escape>", lambda event: self.quit())
         return root
 
     def create_frame(self):
@@ -52,10 +54,53 @@ class TkInterface(object):
         self.canvas_.create_window((0, 0), window = cf, anchor = "nw")
         return cf
 
+    def quit(self):
+        self.root_.destroy()
+        for subp in self.subp_:
+            os.killpg(os.getpgid(subp.pid), signal.SIGTERM)
+
+
+    def tkdiff(self, button, base, modi):
+        subp = subprocess.Popen([ "/usr/bin/tkdiff", base, modi ],
+                                start_new_session = True)
+        self.subp_.append(subp)
+        button.configure(bg="grey", fg="white")
+
+
+    def meld(self, button, base, modi):
+        subp = subprocess.Popen([ "/usr/bin/meld", base, modi ],
+                                start_new_session = True)
+        self.subp_.append(subp)
+        button.configure(bg="grey", fg="white")
+
+
+    def add_button(self, viewer, row, action, base, modi, rel_modi):
+        label  = tkinter.Label(self.content_, text=action)
+        button = tkinter.Button(self.content_, text=rel_modi)
+
+        if viewer == "tkdiff":
+            lamb = lambda slf=self,      \
+                          button=button, \
+                          b=base,        \
+                          m=modi: slf.tkdiff(button, b, m)
+        elif viewer == "meld":
+            lamb = lambda slf=self,      \
+                          button=button, \
+                          b=base,        \
+                          m=modi: slf.meld(button, b, m)
+        else:
+            raise NotImplementedError("Unrecognized viewer option, '%s'" %
+                                      (viewer))
+
+        button.configure(command=lamb)
+        label.grid(column=0, row=row, sticky="nsew")
+        button.grid(column=1, row=row, sticky="nsew")
+
+
     def add_quit(self, row):
         quit  = tkinter.Button(self.frm_,
                                text    = "Quit",
-                               command = self.root_.destroy)
+                               command = self.quit)
         quit.configure(bg = "red", fg = "white")
         quit.grid(column = 1, row = row, sticky = "nsew")
 
@@ -75,6 +120,7 @@ class TkInterface(object):
         self.canvas_      = self.create_canvas()
         self.scrollbar_   = self.create_scrollbar()
         self.content_     = self.create_content_frame()
+        self.subp_        = [ ]
 
 
 def configure_parser():
@@ -157,19 +203,8 @@ def process_command_line():
     return options
 
 
-def tkdiff(button, base, modi):
-    os.system("/usr/bin/tkdiff %s %s &" % (base, modi))
-    button.configure(bg="grey", fg="white")
-
-
-def meld(button, base, modi):
-    os.system("/usr/bin/meld %s %s &" % (base, modi))
-    button.configure(bg="grey", fg="white")
-
-
 def generate(viewer, review_name, dossier):
-    tkintf  = TkInterface(review_name)
-
+    tkintf   = TkInterface(review_name)
     row      = 0                # Number of files.
     col      = 0                # Maximum pathname length, in chars
     base_dir = dossier["base"]
@@ -185,20 +220,7 @@ def generate(viewer, review_name, dossier):
 
         col = max(max(col, len(rel_base)), len(rel_modi))
 
-        label  = tkinter.Label(tkintf.content_, text=action)
-        button = tkinter.Button(tkintf.content_, text=rel_modi)
-
-        if viewer == "tkdiff":
-            lamb = lambda button=button, b=base, m=modi: tkdiff(button, b, m)
-        elif viewer == "meld":
-            lamb = lambda button=button, b=base, m=modi: meld(button, b, m)
-        else:
-            raise NotImplementedError("Unrecognized viewer option, '%s'" %
-                                      (viewer))
-
-        button.configure(command=lamb)
-        label.grid(column=0, row=row, sticky="nsew")
-        button.grid(column=1, row=row, sticky="nsew")
+        tkintf.add_button(viewer, row, action, base, modi, rel_modi)
         row = row + 1
 
     tkintf.add_quit(row)
