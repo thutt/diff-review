@@ -15,8 +15,8 @@ if [[ "${BASH_SOURCE[0]}" != "${0}" ]]; then
 
     cat <<EOF
 
-The following alias provides, provding direct access to 'diff-review',
-is now present in the shell.
+The following alias, providing direct access to 'diff-review', is now
+present in the shell.
 
   $(alias dr)
 
