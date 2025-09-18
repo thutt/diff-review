@@ -59,21 +59,28 @@ class TkInterface(object):
         for subp in self.subp_:
             os.killpg(os.getpgid(subp.pid), signal.SIGTERM)
 
-
     def tkdiff(self, button, base, modi):
         subp = subprocess.Popen([ "/usr/bin/tkdiff", base, modi ],
                                 start_new_session = True)
         self.subp_.append(subp)
-        button.configure(bg="grey", fg="white")
-
+        button.configure(bg=self.sel_bg_, fg=self.sel_fg_)
 
     def meld(self, button, base, modi):
         subp = subprocess.Popen([ "/usr/bin/meld", base, modi ],
                                 start_new_session = True)
         self.subp_.append(subp)
-        button.configure(bg="grey", fg="white")
+        button.configure(bg=self.sel_bg_, fg=self.sel_fg_)
 
+    def open_notes(self):
+        editor = os.getenv("EDITOR", "/usr/bin/emacs")
+        subp = subprocess.Popen([ editor, self.notes_ ],
+                                start_new_session = True)
+        # This subprocess is not put on the list of processes to kill
+        # because the buffer may not be written to disk.
 
+    def unselect_button(self, button):
+        button.configure(bg=self.uns_bg_, fg=self.sel_fg_)
+        
     def add_button(self, viewer, row, action, base, modi, rel_modi):
         label  = tkinter.Label(self.content_, text=action)
         button = tkinter.Button(self.content_, text=rel_modi)
@@ -92,17 +99,27 @@ class TkInterface(object):
             raise NotImplementedError("Unrecognized viewer option, '%s'" %
                                       (viewer))
 
-        button.configure(command=lamb)
+        button.configure(command=lamb, bg=self.uns_bg_, fg=self.sel_fg_)
         label.grid(column=0, row=row, sticky="nsew")
         button.grid(column=1, row=row, sticky="nsew")
 
+        # Set right click to reset color.
+        button.bind("<Button-3>", lambda event, button = button: self.unselect_button(button))
 
     def add_quit(self, row):
-        quit  = tkinter.Button(self.frm_,
-                               text    = "Quit",
-                               command = self.quit)
+        quit = tkinter.Button(self.frm_,
+                              text    = "Quit",
+                              command = self.quit)
         quit.configure(bg = "red", fg = "white")
         quit.grid(column = 1, row = row, sticky = "nsew")
+
+
+    def add_notes(self, row):
+        notes = tkinter.Button(self.frm_,
+                               text    = "Notes",
+                               command = self.open_notes)
+        notes.configure(bg=self.uns_bg_, fg=self.sel_fg_)
+        notes.grid(column = 0, row = row, sticky = "nsew")
 
     def size_window(self, rows, cols):
         char_pixel_width  =  8 * cols
@@ -113,7 +130,32 @@ class TkInterface(object):
         X                 = min( 700, X)
         self.root_.geometry("%dx%d" % (X, Y))
 
-    def __init__(self, review_name):
+    def mktree(self, p):
+        if not os.path.exists(p):
+            os.makedirs(p)
+
+
+    def create_notes_file(self):
+        # Create a file that can be used to take notes on the review.
+
+        home = os.getenv("HOME", os.path.expanduser("~"))
+        notes = os.path.join(home, "review", self.dossier_["notes"])
+        self.mktree(os.path.dirname(notes))
+
+        if not os.path.exists(notes):
+            with open(notes, "w") as fp:
+                for f in sorted(self.dossier_['files'],
+                                key=lambda item: item["modi_rel_path"]):
+                    fp.write("%s:\n\n\n" % (f["modi_rel_path"]))
+
+        return notes
+
+    def __init__(self, review_name, dossier):
+        self.uns_bg_      = "blue"   # Color before button poked.
+        self.uns_fg_      = "yellow"
+        self.sel_bg_      = "black"  # Color after button poked.
+        self.sel_fg_      = "white"
+        self.dossier_     = dossier
         self.review_name_ = review_name
         self.root_        = self.create_root_window(review_name)
         self.frm_         = self.create_frame()
@@ -121,6 +163,7 @@ class TkInterface(object):
         self.scrollbar_   = self.create_scrollbar()
         self.content_     = self.create_content_frame()
         self.subp_        = [ ]
+        self.notes_       = self.create_notes_file()
 
 
 def configure_parser():
@@ -204,7 +247,7 @@ def process_command_line():
 
 
 def generate(viewer, review_name, dossier):
-    tkintf   = TkInterface(review_name)
+    tkintf   = TkInterface(review_name, dossier)
     row      = 0                # Number of files.
     col      = 0                # Maximum pathname length, in chars
     base_dir = dossier["base"]
@@ -223,6 +266,7 @@ def generate(viewer, review_name, dossier):
         tkintf.add_button(viewer, row, action, base, modi, rel_modi)
         row = row + 1
 
+    tkintf.add_notes(row)
     tkintf.add_quit(row)
     tkintf.size_window(row + 1, # Number of rows, including 'quit'.
                        col)

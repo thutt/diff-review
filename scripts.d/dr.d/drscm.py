@@ -2,6 +2,7 @@
 # All Rights Reserved.
 # Licensed under Gnu GPL V3.
 #
+import datetime
 import inspect
 import json
 import os
@@ -239,6 +240,13 @@ class SCM(object):
         if self.dossier_ is not None:
             self.update_files_in_review_directory()
 
+            now        = datetime.datetime.now()
+            timestamp  = datetime.datetime.strftime(now, "%Y.%m.%d.%H.%M.%S")
+            review_dir = os.path.join(options.arg_review_dir,
+                                      options.arg_review_name)
+            notes_file = os.path.join(options.arg_review_name,
+                                      "notes-%s.text" % (timestamp))
+
             # Create a JSON dictionary that contains information about the
             # files written to the review directory.  This is used by the
             # 'view-review' program to display the review file-selection
@@ -248,6 +256,7 @@ class SCM(object):
                 'root'  : self.review_dir_,
                 'base'  : self.review_base_dir_,
                 'modi'  : self.review_modi_dir_,
+                'notes' : notes_file,
                 'files' : [ ]
             }
             for f in self.dossier_:
