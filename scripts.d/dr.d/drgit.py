@@ -215,9 +215,11 @@ class Git(drscm.SCM):
         added   = 0
         deleted = 0
         for l in stdout:
-            info    = l.split('\t')
-            added   += int(info[0])
-            deleted += int(info[1])
+            info = l.split('\t')
+            if info[0][0] != '-':
+                added   += int(info[0])
+            if info[1][0] != '-':
+                deleted += int(info[1])
         return (files, added, deleted)
 
 
