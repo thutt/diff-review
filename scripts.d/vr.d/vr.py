@@ -71,10 +71,30 @@ class TkInterface(object):
         self.subp_.append(subp)
         button.configure(bg=self.sel_bg_, fg=self.sel_fg_)
 
+    def create_notes_file(self):
+        # Create a file that can be used to take notes on the review.
+
+        filename = "%s.%s.%s" % (self.dossier_["user"],
+                                 self.dossier_["name"],
+                                 self.dossier_["time"])
+        home     = os.getenv("HOME", os.path.expanduser("~"))
+        notes    = os.path.join(home, "review", "notes", filename)
+        self.mktree(os.path.dirname(notes))
+
+        if not os.path.exists(notes):
+            with open(notes, "w") as fp:
+                for f in sorted(self.dossier_['files'],
+                                key=lambda item: item["modi_rel_path"]):
+                    fp.write("%s:\n\n\n" % (f["modi_rel_path"]))
+
+        print("Notes file: %s" % (notes))
+        return notes
+
     def open_notes(self):
-        editor = os.getenv("EDITOR", "/usr/bin/emacs")
-        subp = subprocess.Popen([ editor, self.notes_ ],
-                                start_new_session = True)
+        self.notes_ = self.create_notes_file()
+        editor      = os.getenv("EDITOR", "/usr/bin/emacs")
+        subp        = subprocess.Popen([ editor, self.notes_ ],
+                                       start_new_session = True)
         # This subprocess is not put on the list of processes to kill
         # because the buffer may not be written to disk.
 
@@ -135,21 +155,6 @@ class TkInterface(object):
             os.makedirs(p)
 
 
-    def create_notes_file(self):
-        # Create a file that can be used to take notes on the review.
-
-        home = os.getenv("HOME", os.path.expanduser("~"))
-        notes = os.path.join(home, "review", self.dossier_["notes"])
-        self.mktree(os.path.dirname(notes))
-
-        if not os.path.exists(notes):
-            with open(notes, "w") as fp:
-                for f in sorted(self.dossier_['files'],
-                                key=lambda item: item["modi_rel_path"]):
-                    fp.write("%s:\n\n\n" % (f["modi_rel_path"]))
-
-        return notes
-
     def __init__(self, review_name, dossier):
         self.uns_bg_      = "blue"   # Color before button poked.
         self.uns_fg_      = "yellow"
@@ -163,8 +168,7 @@ class TkInterface(object):
         self.scrollbar_   = self.create_scrollbar()
         self.content_     = self.create_content_frame()
         self.subp_        = [ ]
-        self.notes_       = self.create_notes_file()
-
+        self.notes_       = None
 
 def configure_parser():
     description = ("""

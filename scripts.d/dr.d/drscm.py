@@ -3,6 +3,7 @@
 # Licensed under Gnu GPL V3.
 #
 import datetime
+import getpass
 import inspect
 import json
 import os
@@ -173,6 +174,7 @@ class SCM(object):
                           inspect.stack()[1].function)
 
     def __init__(self, options):
+        self.review_name_     = options.arg_review_name
         self.change_id_       = options.arg_change_id
         self.review_dir_      = options.review_dir
         self.review_base_dir_ = options.review_base_dir
@@ -244,8 +246,6 @@ class SCM(object):
             timestamp  = datetime.datetime.strftime(now, "%Y.%m.%d.%H.%M.%S")
             review_dir = os.path.join(options.arg_review_dir,
                                       options.arg_review_name)
-            notes_file = os.path.join(options.arg_review_name,
-                                      "notes-%s.text" % (timestamp))
 
             # Create a JSON dictionary that contains information about the
             # files written to the review directory.  This is used by the
@@ -253,10 +253,12 @@ class SCM(object):
             # menu.
             #
             info = {
+                'user'  : getpass.getuser(),
+                'name'  : self.review_name_,
                 'root'  : self.review_dir_,
                 'base'  : self.review_base_dir_,
                 'modi'  : self.review_modi_dir_,
-                'notes' : notes_file,
+                'time'  : timestamp,
                 'files' : [ ]
             }
             for f in self.dossier_:
