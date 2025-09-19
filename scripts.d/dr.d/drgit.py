@@ -190,7 +190,19 @@ class ChangedFile(drscm.ChangedFile):
         else:
             out_name = self.output_name(dest_dir, file_info)
             self.create_output_dir(out_name)
-            shutil.copyfile(file_info.rel_path_, out_name)
+            try:
+                shutil.copyfile(file_info.rel_path_, out_name)
+            except Exception as exc:
+                # The on-disk file could not be copied.
+                #
+                # One cause of this is emacs .#<filename> files that
+                # are created for unsaved modified files.
+                #
+                with open(out_name, "w") as fp:
+                    fp.write("Unable to copy this file from the source tree to "
+                             "the review directory.\n"
+                             "\n"
+                             "This template is used in its place.\n")
 
 
 class Git(drscm.SCM):
