@@ -63,13 +63,13 @@ class TkInterface(object):
         subp = subprocess.Popen([ "/usr/bin/tkdiff", base, modi ],
                                 start_new_session = True)
         self.subp_.append(subp)
-        button.configure(bg=self.sel_bg_, fg=self.sel_fg_)
+        button.configure(bg=self.file_sel_bg_, fg=self.file_sel_fg_)
 
     def meld(self, button, base, modi):
         subp = subprocess.Popen([ "/usr/bin/meld", base, modi ],
                                 start_new_session = True)
         self.subp_.append(subp)
-        button.configure(bg=self.sel_bg_, fg=self.sel_fg_)
+        button.configure(bg=self.file_sel_bg_, fg=self.file_sel_fg_)
 
     def create_notes_file(self):
         # Create a file that can be used to take notes on the review.
@@ -99,7 +99,7 @@ class TkInterface(object):
         # because the buffer may not be written to disk.
 
     def unselect_button(self, button):
-        button.configure(bg=self.uns_bg_, fg=self.sel_fg_)
+        button.configure(bg=self.file_uns_bg_, fg=self.file_uns_fg_)
         
     def add_button(self, viewer, row, action, base, modi, rel_modi):
         label  = tkinter.Label(self.content_, text=action)
@@ -119,12 +119,14 @@ class TkInterface(object):
             raise NotImplementedError("Unrecognized viewer option, '%s'" %
                                       (viewer))
 
-        button.configure(command=lamb, bg=self.uns_bg_, fg=self.sel_fg_)
+        button.configure(command=lamb,
+                         bg=self.file_uns_bg_, fg=self.file_uns_fg_)
         label.grid(column=0, row=row, sticky="nsew")
         button.grid(column=1, row=row, sticky="nsew")
 
         # Set right click to reset color.
-        button.bind("<Button-3>", lambda event, button = button: self.unselect_button(button))
+        button.bind("<Button-3>",
+                    lambda event, button = button: self.unselect_button(button))
 
     def add_quit(self, row):
         quit = tkinter.Button(self.frm_,
@@ -133,12 +135,11 @@ class TkInterface(object):
         quit.configure(bg = "red", fg = "white")
         quit.grid(column = 1, row = row, sticky = "nsew")
 
-
     def add_notes(self, row):
         notes = tkinter.Button(self.frm_,
                                text    = "Notes",
                                command = self.open_notes)
-        notes.configure(bg=self.uns_bg_, fg=self.sel_fg_)
+        notes.configure(bg=self.notes_uns_bg_, fg=self.notes_uns_fg_)
         notes.grid(column = 0, row = row, sticky = "nsew")
 
     def size_window(self, rows, cols):
@@ -156,19 +157,24 @@ class TkInterface(object):
 
 
     def __init__(self, review_name, dossier):
-        self.uns_bg_      = "blue"   # Color before button poked.
-        self.uns_fg_      = "yellow"
-        self.sel_bg_      = "black"  # Color after button poked.
-        self.sel_fg_      = "white"
-        self.dossier_     = dossier
-        self.review_name_ = review_name
-        self.root_        = self.create_root_window(review_name)
-        self.frm_         = self.create_frame()
-        self.canvas_      = self.create_canvas()
-        self.scrollbar_   = self.create_scrollbar()
-        self.content_     = self.create_content_frame()
-        self.subp_        = [ ]
-        self.notes_       = None
+        self.notes_uns_bg_ = "grey"   # Color of Notes button.
+        self.notes_uns_fg_ = "yellow"
+
+        self.file_uns_bg_  = "grey92" # Color before file button poked.
+        self.file_uns_fg_  = "black"
+
+        self.file_sel_bg_  = "black"  # Color after file button poked.
+        self.file_sel_fg_  = "white"
+        self.dossier_      = dossier
+        self.review_name_  = review_name
+        self.root_         = self.create_root_window(review_name)
+        self.frm_          = self.create_frame()
+        self.canvas_       = self.create_canvas()
+        self.scrollbar_    = self.create_scrollbar()
+        self.content_      = self.create_content_frame()
+        self.subp_         = [ ]
+        self.notes_        = None
+
 
 def configure_parser():
     description = ("""
