@@ -36,8 +36,7 @@ This will produce the following text on the console:
       modify   arch/arm64/kernel/module.c
 
     Changes:  committed [5 files, 38 lines]  
-    TkDiff :  view-review -R ~/review --viewer tkdiff -r gungla
-    Meld   :  view-review -R ~/review --viewer meld -r gungla
+    Viewer :  view-review -R ~/review -r gungla
 
 
 The final two lines are commands that can be executed to view the

@@ -50,9 +50,7 @@ def report(options, changed_info, elapsed_time):
 
         print("\n"
               "Changes:  %s" % (changed_info))
-        print("TkDiff :  view-review -R %s --viewer tkdiff -r %s" %
-              (options.arg_review_dir, options.arg_review_name))
-        print("Meld   :  view-review -R %s --viewer meld -r %s" %
+        print("Viewer :  view-review -R %s -r %s" %
               (options.arg_review_dir, options.arg_review_name))
         print("Elapsed:  %s" % (elapsed_time))
     else:

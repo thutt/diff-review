@@ -33,13 +33,30 @@ class TkInterface(object):
         frm.rowconfigure(0, weight = 1)
         return frm
 
+    def set_viewer(self, tkdiff, meld):
+        self.tkdiff_ = tkdiff
+        self.meld_   = meld
+
+    def create_menu(self):
+        menu   = tkinter.Menu(self.frame_)
+        viewer = tkinter.Menu(menu, tearoff = 0)
+        menu.add_cascade(label = "Viewer", menu = viewer)
+
+        viewer.add_command(label   = "TkDiff",
+                           command = (lambda tkdiff=True, meld=False:
+                                      self.set_viewer(tkdiff, meld)))
+        viewer.add_command(label   = "Meld",
+                           command = (lambda tkdiff=False, meld=True:
+                                      self.set_viewer(tkdiff, meld)))
+        return menu
+        
     def create_canvas(self):
-        canvas = tkinter.Canvas(self.frm_)
+        canvas = tkinter.Canvas(self.frame_)
         canvas.grid(row = 0, column = 0, sticky = "nsew")
         return canvas
 
     def create_scrollbar(self):
-        sb = tkinter.Scrollbar(self.frm_,
+        sb = tkinter.Scrollbar(self.frame_,
                                orient  = "vertical",
                                command = self.canvas_.yview)
         sb.grid(row = 0, column = 1, sticky = "ns")
@@ -59,15 +76,16 @@ class TkInterface(object):
         for subp in self.subp_:
             os.killpg(os.getpgid(subp.pid), signal.SIGTERM)
 
-    def tkdiff(self, button, base, modi):
-        subp = subprocess.Popen([ "/usr/bin/tkdiff", base, modi ],
-                                start_new_session = True)
-        self.subp_.append(subp)
-        button.configure(bg=self.file_sel_bg_, fg=self.file_sel_fg_)
+    def execute_viewer(self, button, base, modi):
+        if self.tkdiff_:
+            subp = subprocess.Popen([ "/usr/bin/tkdiff", base, modi ],
+                                    start_new_session = True)
+        elif self.meld_:
+            subp = subprocess.Popen([ "/usr/bin/meld", base, modi ],
+                                    start_new_session = True)
+        else:
+            raise NotImplementedError("Unsupported viewer")
 
-    def meld(self, button, base, modi):
-        subp = subprocess.Popen([ "/usr/bin/meld", base, modi ],
-                                start_new_session = True)
         self.subp_.append(subp)
         button.configure(bg=self.file_sel_bg_, fg=self.file_sel_fg_)
 
@@ -101,23 +119,12 @@ class TkInterface(object):
     def unselect_button(self, button):
         button.configure(bg=self.file_uns_bg_, fg=self.file_uns_fg_)
         
-    def add_button(self, viewer, row, action, base, modi, rel_modi):
+    def add_button(self, row, action, base, modi, rel_modi):
         label  = tkinter.Label(self.content_, text=action)
         button = tkinter.Button(self.content_, text=rel_modi)
 
-        if viewer == "tkdiff":
-            lamb = lambda slf=self,      \
-                          button=button, \
-                          b=base,        \
-                          m=modi: slf.tkdiff(button, b, m)
-        elif viewer == "meld":
-            lamb = lambda slf=self,      \
-                          button=button, \
-                          b=base,        \
-                          m=modi: slf.meld(button, b, m)
-        else:
-            raise NotImplementedError("Unrecognized viewer option, '%s'" %
-                                      (viewer))
+        lamb = lambda slf=self, button=button, \
+                      b=base, m=modi: slf.execute_viewer(button, b, m)
 
         button.configure(command=lamb,
                          bg=self.file_uns_bg_, fg=self.file_uns_fg_)
@@ -129,14 +136,14 @@ class TkInterface(object):
                     lambda event, button = button: self.unselect_button(button))
 
     def add_quit(self, row):
-        quit = tkinter.Button(self.frm_,
+        quit = tkinter.Button(self.frame_,
                               text    = "Quit",
                               command = self.quit)
         quit.configure(bg = "red", fg = "white")
         quit.grid(column = 1, row = row, sticky = "nsew")
 
     def add_notes(self, row):
-        notes = tkinter.Button(self.frm_,
+        notes = tkinter.Button(self.frame_,
                                text    = "Notes",
                                command = self.open_notes)
         notes.configure(bg=self.notes_uns_bg_, fg=self.notes_uns_fg_)
@@ -168,13 +175,16 @@ class TkInterface(object):
         self.dossier_      = dossier
         self.review_name_  = review_name
         self.root_         = self.create_root_window(review_name)
-        self.frm_          = self.create_frame()
+        self.frame_        = self.create_frame()
+        self.menu_         = self.create_menu()
         self.canvas_       = self.create_canvas()
         self.scrollbar_    = self.create_scrollbar()
         self.content_      = self.create_content_frame()
         self.subp_         = [ ]
         self.notes_        = None
-
+        self.root_.config(menu = self.menu_)
+        self.tkdiff_       = True
+        self.meld_         = False
 
 def configure_parser():
     description = ("""
@@ -201,14 +211,6 @@ Return Code:
                                         description     = description,
                                         epilog          = help_epilog,
                                         prog            = "diff-review")
-
-    o = parser.add_argument_group("Viewer Options")
-    o.add_argument("--viewer",
-                   help     = ("Specifies which diff viewer to use."),
-                   action   = "store",
-                   default  = "tkdiff",
-                   choices  = [ "tkdiff", "meld" ],
-                   dest     = "arg_viewer")
 
     o = parser.add_argument_group("Diff Specification Options")
     o.add_argument("-R", "--review-directory",
@@ -256,7 +258,7 @@ def process_command_line():
     return options
 
 
-def generate(viewer, review_name, dossier):
+def generate(review_name, dossier):
     tkintf   = TkInterface(review_name, dossier)
     row      = 0                # Number of files.
     col      = 0                # Maximum pathname length, in chars
@@ -273,7 +275,7 @@ def generate(viewer, review_name, dossier):
 
         col = max(max(col, len(rel_base)), len(rel_modi))
 
-        tkintf.add_button(viewer, row, action, base, modi, rel_modi)
+        tkintf.add_button(row, action, base, modi, rel_modi)
         row = row + 1
 
     tkintf.add_notes(row)
@@ -292,7 +294,7 @@ def main():
         with open(pathname, "r") as fp:
             dossier = json.load(fp)
 
-        generate(options.arg_viewer, options.arg_review_name, dossier)
+        generate(options.arg_review_name, dossier)
 
     except KeyboardInterrupt:
         return 0
