@@ -33,23 +33,19 @@ class TkInterface(object):
         frm.rowconfigure(0, weight = 1)
         return frm
 
-    def set_viewer(self, tkdiff, meld):
-        self.tkdiff_ = tkdiff
-        self.meld_   = meld
-
-    def create_menu(self):
-        menu   = tkinter.Menu(self.frame_)
+    def add_viewer_menu(self, menu):
         viewer = tkinter.Menu(menu, tearoff = 0)
         menu.add_cascade(label = "Viewer", menu = viewer)
-
-        viewer.add_command(label   = "TkDiff",
-                           command = (lambda tkdiff=True, meld=False:
-                                      self.set_viewer(tkdiff, meld)))
-        viewer.add_command(label   = "Meld",
-                           command = (lambda tkdiff=False, meld=True:
-                                      self.set_viewer(tkdiff, meld)))
-        return menu
+        viewer.add_radiobutton(label = "TkDiff", variable = self.viewer_)
+        viewer.add_radiobutton(label = "Meld"  , variable = self.viewer_)
+        self.viewer_.set("TkDiff")     # Start with tkdiff.
         
+    def create_menu_bar(self):
+        menu = tkinter.Menu(self.frame_)
+        self.add_viewer_menu(menu)
+        self.add_notes_menu(menu)
+        return menu
+
     def create_canvas(self):
         canvas = tkinter.Canvas(self.frame_)
         canvas.grid(row = 0, column = 0, sticky = "nsew")
@@ -77,26 +73,32 @@ class TkInterface(object):
             os.killpg(os.getpgid(subp.pid), signal.SIGTERM)
 
     def execute_viewer(self, button, base, modi):
-        if self.tkdiff_:
+        viewer = self.viewer_.get()
+
+        if viewer == "TkDiff":
             subp = subprocess.Popen([ "/usr/bin/tkdiff", base, modi ],
                                     start_new_session = True)
-        elif self.meld_:
+        elif viewer == "Meld":
             subp = subprocess.Popen([ "/usr/bin/meld", base, modi ],
                                     start_new_session = True)
         else:
-            raise NotImplementedError("Unsupported viewer")
+            raise NotImplementedError("Unsupported viewer: '%s'" %
+                                      (self.viewer_.get()))
 
         self.subp_.append(subp)
         button.configure(bg=self.file_sel_bg_, fg=self.file_sel_fg_)
 
-    def create_notes_file(self):
-        # Create a file that can be used to take notes on the review.
-
+    def notes_filename(self):
         filename = "%s.%s.%s" % (self.dossier_["user"],
                                  self.dossier_["name"],
                                  self.dossier_["time"])
         home     = os.getenv("HOME", os.path.expanduser("~"))
         notes    = os.path.join(home, "review", "notes", filename)
+        return notes
+
+    def create_notes_file(self):
+        # Create a file that can be used to take notes on the review.
+        notes = self.notes_filename()
         self.mktree(os.path.dirname(notes))
 
         if not os.path.exists(notes):
@@ -105,14 +107,10 @@ class TkInterface(object):
                                 key=lambda item: item["modi_rel_path"]):
                     fp.write("%s:\n\n\n" % (f["modi_rel_path"]))
 
-        print("Notes file: %s" % (notes))
-        return notes
-
-    def open_notes(self):
-        self.notes_ = self.create_notes_file()
-        editor      = os.getenv("EDITOR", "/usr/bin/emacs")
-        subp        = subprocess.Popen([ editor, self.notes_ ],
-                                       start_new_session = True)
+    def open_notes(self, editor, filename):
+        self.create_notes_file()
+        subp = subprocess.Popen([ editor, filename ],
+                                start_new_session = True)
         # This subprocess is not put on the list of processes to kill
         # because the buffer may not be written to disk.
 
@@ -142,12 +140,30 @@ class TkInterface(object):
         quit.configure(bg = "red", fg = "white")
         quit.grid(column = 1, row = row, sticky = "nsew")
 
-    def add_notes(self, row):
-        notes = tkinter.Button(self.frame_,
-                               text    = "Notes",
-                               command = self.open_notes)
-        notes.configure(bg=self.notes_uns_bg_, fg=self.notes_uns_fg_)
-        notes.grid(column = 0, row = row, sticky = "nsew")
+    def add_notes_menu(self, menu):
+        notes    = tkinter.Menu(menu, tearoff = 0)
+        filename = self.notes_filename()
+        menu.add_cascade(label = "Notes", menu = notes)
+
+        # If ${EDITOR} is defined, put it first in the list, as that
+        # will be the one someone wants to use most.
+        editor = os.getenv("EDITOR", None)
+        if editor is not None:
+            notes.add_command(label   = "%s '%s'" % (editor, filename),
+                              command = (lambda editor=editor,
+                                         filename=filename:
+                                         self.open_notes(editor, filename)))
+            notes.add_separator()
+
+        # Put vi and emacs, even if they duplicate the first entry.
+        notes.add_command(label   = "emacs '%s'" % (filename),
+                          command = (lambda editor="/usr/bin/emacs",
+                                     filename=filename:
+                                     self.open_notes(editor, filename)))
+        notes.add_command(label   = "vi '%s'" % (filename),
+                          command = (lambda editor="/usr/bin/vi",
+                                     filename=filename:
+                                     self.open_notes(editor, filename)))
 
     def size_window(self, rows, cols):
         char_pixel_width  =  8 * cols
@@ -174,17 +190,19 @@ class TkInterface(object):
         self.file_sel_fg_  = "white"
         self.dossier_      = dossier
         self.review_name_  = review_name
+        self.subp_         = [ ]
+        self.notes_        = None
+
         self.root_         = self.create_root_window(review_name)
+
+        self.viewer_       = tkinter.StringVar() # Must be after root creation.
         self.frame_        = self.create_frame()
-        self.menu_         = self.create_menu()
+        self.menu_         = self.create_menu_bar()
         self.canvas_       = self.create_canvas()
         self.scrollbar_    = self.create_scrollbar()
         self.content_      = self.create_content_frame()
-        self.subp_         = [ ]
-        self.notes_        = None
         self.root_.config(menu = self.menu_)
-        self.tkdiff_       = True
-        self.meld_         = False
+
 
 def configure_parser():
     description = ("""
@@ -278,7 +296,6 @@ def generate(review_name, dossier):
         tkintf.add_button(row, action, base, modi, rel_modi)
         row = row + 1
 
-    tkintf.add_notes(row)
     tkintf.add_quit(row)
     tkintf.size_window(row + 1, # Number of rows, including 'quit'.
                        col)
