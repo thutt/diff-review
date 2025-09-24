@@ -33,11 +33,30 @@ class TkInterface(object):
         frm.rowconfigure(0, weight = 1)
         return frm
 
+    def execute_viewer(self, button, base, modi):
+        viewer = self.viewer_.get()
+
+        if viewer == "TkDiff":
+            cmd = [ "/usr/bin/tkdiff", base, modi ]
+        elif viewer == "Meld":
+            cmd = [ "/usr/bin/meld", base, modi ]
+        elif viewer == "Emacs":
+            cmd = [ "/usr/bin/emacs",
+                    "--eval", "(ediff-files \"%s\" \"%s\")" % (base, modi) ]
+        else:
+            raise NotImplementedError("Unsupported viewer: '%s'" %
+                                      (self.viewer_.get()))
+
+        subp = subprocess.Popen(cmd, start_new_session = True)
+        self.subp_.append(subp)
+        button.configure(bg=self.file_sel_bg_, fg=self.file_sel_fg_)
+
     def add_viewer_menu(self, menu):
         viewer = tkinter.Menu(menu, tearoff = 0)
         menu.add_cascade(label = "Viewer", menu = viewer)
         viewer.add_radiobutton(label = "TkDiff", variable = self.viewer_)
         viewer.add_radiobutton(label = "Meld"  , variable = self.viewer_)
+        viewer.add_radiobutton(label = "Emacs" , variable = self.viewer_)
         self.viewer_.set("TkDiff")     # Start with tkdiff.
         
     def create_menu_bar(self):
@@ -68,25 +87,9 @@ class TkInterface(object):
         return cf
 
     def quit(self):
-        self.root_.destroy()
         for subp in self.subp_:
             os.killpg(os.getpgid(subp.pid), signal.SIGTERM)
-
-    def execute_viewer(self, button, base, modi):
-        viewer = self.viewer_.get()
-
-        if viewer == "TkDiff":
-            subp = subprocess.Popen([ "/usr/bin/tkdiff", base, modi ],
-                                    start_new_session = True)
-        elif viewer == "Meld":
-            subp = subprocess.Popen([ "/usr/bin/meld", base, modi ],
-                                    start_new_session = True)
-        else:
-            raise NotImplementedError("Unsupported viewer: '%s'" %
-                                      (self.viewer_.get()))
-
-        self.subp_.append(subp)
-        button.configure(bg=self.file_sel_bg_, fg=self.file_sel_fg_)
+        self.root_.destroy()
 
     def notes_filename(self):
         filename = "%s.%s.%s" % (self.dossier_["user"],
