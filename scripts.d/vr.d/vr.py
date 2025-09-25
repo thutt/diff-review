@@ -210,8 +210,7 @@ class TkInterface(object):
 def configure_parser():
     description = ("""
 
-view-review facilitates viewing the contents of changes an already-generated diff.
-
+view-review facilitates viewing the contents of an already-generated diff.
 
 """)
 
