@@ -36,13 +36,13 @@ class TkInterface(object):
     def execute_viewer(self, button, base, modi):
         viewer = self.viewer_.get()
 
-        if viewer == "TkDiff":
-            cmd = [ "/usr/bin/tkdiff", base, modi ]
-        elif viewer == "Meld":
-            cmd = [ "/usr/bin/meld", base, modi ]
-        elif viewer == "Emacs":
+        if viewer == "Emacs":
             cmd = [ "/usr/bin/emacs",
                     "--eval", "(ediff-files \"%s\" \"%s\")" % (base, modi) ]
+        elif viewer == "Meld":
+            cmd = [ "/usr/bin/meld", base, modi ]
+        elif viewer == "TkDiff":
+            cmd = [ "/usr/bin/tkdiff", base, modi ]
         else:
             raise NotImplementedError("Unsupported viewer: '%s'" %
                                       (self.viewer_.get()))
@@ -54,9 +54,9 @@ class TkInterface(object):
     def add_viewer_menu(self, menu):
         viewer = tkinter.Menu(menu, tearoff = 0)
         menu.add_cascade(label = "Viewer", menu = viewer)
-        viewer.add_radiobutton(label = "TkDiff", variable = self.viewer_)
-        viewer.add_radiobutton(label = "Meld"  , variable = self.viewer_)
         viewer.add_radiobutton(label = "Emacs" , variable = self.viewer_)
+        viewer.add_radiobutton(label = "Meld"  , variable = self.viewer_)
+        viewer.add_radiobutton(label = "TkDiff", variable = self.viewer_)
         self.viewer_.set("TkDiff")     # Start with tkdiff.
         
     def create_menu_bar(self):
