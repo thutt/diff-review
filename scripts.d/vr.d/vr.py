@@ -37,12 +37,36 @@ class TkInterface(object):
         viewer = self.viewer_.get()
 
         if viewer == "Emacs":
-            cmd = [ "/usr/bin/emacs",
+            cmd = [ "/usr/bin/emacs", # Assumes window-ed emacs.
                     "--eval", "(ediff-files \"%s\" \"%s\")" % (base, modi) ]
         elif viewer == "Meld":
             cmd = [ "/usr/bin/meld", base, modi ]
         elif viewer == "TkDiff":
             cmd = [ "/usr/bin/tkdiff", base, modi ]
+        elif viewer == "Vim":
+            # Vimdiff starts in the terminal from which this script
+            # has been launched.  It also mucks with the stty
+            # settings.
+            #
+            # If TERM is set, its value will be used to launch a new
+            # terminal session for vimdiff.  It is assumed to use '-e'
+            # as the argument to execute a program.  This terminal
+            # will be closed when vr is closed, without affecting the
+            # parent terminal.
+            #
+            # If TERM is not set, vimdiff will be launched directly.
+            # A 'finally' clause in main() will ensure that the
+            # terminal is returned to a sane state.
+            #
+            # Note: Only one vimdiff session at a time can be
+            #       launched, due to the say that vim functions with
+            #       'swp' files.
+            #
+            vimdiff = [ "/usr/bin/vimdiff" ]
+            term    = os.getenv("TERM", None)
+            if term is not None:
+                vimdiff = [ term, "-e" ] + vimdiff
+            cmd = vimdiff + [ base, modi ]
         else:
             raise NotImplementedError("Unsupported viewer: '%s'" %
                                       (self.viewer_.get()))
@@ -57,8 +81,9 @@ class TkInterface(object):
         viewer.add_radiobutton(label = "Emacs" , variable = self.viewer_)
         viewer.add_radiobutton(label = "Meld"  , variable = self.viewer_)
         viewer.add_radiobutton(label = "TkDiff", variable = self.viewer_)
+        viewer.add_radiobutton(label = "Vim"   , variable = self.viewer_)
         self.viewer_.set("TkDiff")     # Start with tkdiff.
-        
+
     def create_menu_bar(self):
         menu = tkinter.Menu(self.frame_)
         self.add_viewer_menu(menu)
@@ -119,7 +144,7 @@ class TkInterface(object):
 
     def unselect_button(self, button):
         button.configure(bg=self.file_uns_bg_, fg=self.file_uns_fg_)
-        
+
     def add_button(self, row, action, base, modi, rel_modi):
         label  = tkinter.Label(self.content_, text=action)
         button = tkinter.Button(self.content_, text=rel_modi)
@@ -329,6 +354,10 @@ def main():
         print(traceback.format_exc())
 
         return 1
+
+    finally:
+        subprocess.Popen([ "/usr/bin/stty", "sane" ])
+
 
 
 if __name__ == "__main__":
