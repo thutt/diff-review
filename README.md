@@ -138,9 +138,8 @@ diff-review:  /home/thutt/review/default
   modify   src/gmalloc.c
 
 Changes:  committed [2 files, 249 lines]
-TkDiff :  view-review -R /home/thutt/review --viewer tkdiff -r default
-Meld   :  view-review -R /home/thutt/review --viewer meld -r default
-Elapsed:  0:00:00.098735
+Viewer :  view-review -R /home/thutt/review -r default
+Elapsed:  0:00:00.111161
 ```
 
 The lines beginning with `TkDiff` and `Meld` are commands that can be
@@ -205,9 +204,9 @@ diff-review:  /home/thutt/review/default
   modify   test/lisp/textmodes/ispell-tests/ispell-tests.el
 
 Changes:  committed [30 files, 378 lines]  
-TkDiff :  view-review -R /home/thutt/review --viewer tkdiff -r default
-Meld   :  view-review -R /home/thutt/review --viewer meld -r default
-Elapsed:  0:00:00.514990
+Viewer :  view-review -R /home/thutt/review -r default
+Elapsed:  0:00:00.594228
+
 ```
 
 ## View uncommitted changes
@@ -233,10 +232,9 @@ diff-review:  /home/thutt/review/default
      delete   config.bat
   untracked   untracked
 
-Changes:  unstaged [1 files, 130 lines]  staged [1 files  385 lines]
-TkDiff :  view-review -R /home/thutt/review --viewer tkdiff -r default
-Meld   :  view-review -R /home/thutt/review --viewer meld -r default
-Elapsed:  0:00:00.268845
+Changes:  unstaged [1 files, 130 lines]  staged [1 files  384 lines]
+Viewer :  view-review -R /home/thutt/review -r default
+Elapsed:  0:00:00.116628
 ```
 
 As ever, `vr` can be used to view the changes.
@@ -257,10 +255,10 @@ diff-review:  /home/thutt/review/default
      delete   config.bat
   untracked   untracked
 
-Changes:  unstaged [0 files, 0 lines]  staged [2 files  515 lines]
-TkDiff :  view-review -R /home/thutt/review --viewer tkdiff -r default
-Meld   :  view-review -R /home/thutt/review --viewer meld -r default
-Elapsed:  0:00:00.268926
+Changes:  unstaged [0 files, 0 lines]  staged [2 files  514 lines]
+Viewer :  view-review -R /home/thutt/review -r default
+Elapsed:  0:00:00.115293
+
 ```
 
 Finally, make another modification to `README` to show how its state
@@ -279,10 +277,9 @@ diff-review:  /home/thutt/review/default
      delete   config.bat
   untracked   untracked
 
-Changes:  unstaged [1 files, 274 lines]  staged [2 files  515 lines]
-TkDiff :  view-review -R /home/thutt/review --viewer tkdiff -r default
-Meld   :  view-review -R /home/thutt/review --viewer meld -r default
-Elapsed:  0:00:00.271783
+Changes:  unstaged [1 files, 274 lines]  staged [2 files  514 lines]
+Viewer :  view-review -R /home/thutt/review -r default
+Elapsed:  0:00:00.114766
 ```
 
 ## Clean up repository
