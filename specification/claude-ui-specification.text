@@ -1,0 +1,171 @@
+The following text was provided to Claude to generate the experimental
+Claude differencing engine.
+
+In the interative conversation, it did a fairly good job.  But there
+are a few rough edges.  Many of the rough edges initially seem to be
+limitations of the tkinter module.
+
+For example, a design goal was to have 'not present lines' (consider:
+lines added to the modified file have no corresponding lines in the
+base file, and conversely lines deleted from the modified file have no
+corresponding line to the lines removed from the base file.) be dark
+grey across the entire size of the source code panel.  Unfortunately,
+tkinter's Text interface does not allow that; text must be present for
+it to have a background color.
+
+Additionally, lines with a different background color behave
+differently when selected with the mouse.
+
+Nonetheless, it still did a pretty good, imperfect, job.  And in some
+cases -- like note taking -- an impressive job.
+
+The experimental nature will continue until solutions are found, or I
+go and fix the generated code myself.
+
+Claude will probably not generate the same code if given this
+specification through a different account.
+
+Being that I am not a tkinter expert, I cannot vouch for the quality
+of the generated code.
+
+
+--- >8 ------ >8 ------ >8 (cut here)
+
+Using the tkinter module from python, I want to create a tool that
+will allow reviewing differences between two files.
+
+The base file shall be specified with the first command line argument.
+The modified file shall be specified with the second command line
+argument.
+
+A file to be used for taking notes about the differences in the base
+and modified files can be specified as the third command line
+argument.  If no third argument is supplied, note taking is disabled.
+
+All directories mentioned in the note taking pathname must exist
+before program invocation.
+
+There should be a root window.  The root window shall contain a Frame.
+The Frame and its contents should resize as the window resizes. The
+Frame shall contain two identical side-by-side Canvas.
+
+The left Canvas shall contain the base file.
+
+The right Canvas shall contain the modified file.
+
+Each Canvas shall contain a two columns.  The left column shall contain
+line numbers, and the right column shall contain the text of the
+file.
+
+Colors referenced shall be used as literal strings.  Do not use RGB values.
+
+The line numbers shall be limited to 6 digits.  The line number column
+should be a constant size.  The line numbers shall not be selectable.
+
+The right column of the Canvas shall contain the source text of the
+corresponding file.
+
+The right column of each Canvas shall be selectable, but immutable.
+
+The background of the right column of each Canvas shall be light grey.
+
+Horizontally, along the bottom of the Frame shall be a scroll bar.
+This scroll bar will synchronize horizontal scrolling of the right
+column of each Canvas.  The line numbers shall not scroll.
+
+On the right side of the right Canvas shall be a vertical scroll bar.
+This scroll bar will control synchronized vertical scrolling of both
+source panels, and their respective line numbers.
+
+In the center, between the two Canvases should be a diff map
+indicating where changes are present in the source files.
+
+In the diff map, green shall represent lines added to the modified
+file.  Red shall represent lines deleted from the base file.  Salmon
+shall represent other differences between the two files.
+
+Clicking anywhere on the diff map shall center the corresponding area
+of the source files in the viewer.
+
+Clicking on a line in the base or modified source text shall change
+the line number column of both base and modified to have a white
+background with black text.
+
+Put a translucent grey block on the diff map that shows the part of
+the files that are within the viewer.
+
+Pressing 'n' or 'N' shall center the next change region.
+
+Pressing 'p' or 'P' shall center the previous change region.
+
+Use Courier 12 point bold font.
+
+Using the mouse wheel while positioned over the diff map shall
+vertically scroll the window in the same way if it is positioned
+anywhere else on the window.
+
+A line added in the modified file shall be represented by a blank line
+in the base file view.  This line number area for these implicitly
+added blank lines shall be blank and have a dark grey background.  The
+base file line number shall not increment for this blank line.
+
+A line deleted in the modified file shall be represented by a blank
+line in the modified file view.  This line number area for these
+implicitly added blank lines shall have a dark grey background.  The
+modified file line number shall not increment for this blank line.
+
+Intraline changes shall be highlighted.  Additions should be green.
+Deletions should be red.  Other changes should be blue.
+
+Pressing Escape should terminate the program.
+
+If no note taking file is supplied, double cliking on a source line
+shall raise a dialog stating 'No note taking file supplied.  Note
+taking disabled.' with an 'Ok' button to dismiss.
+
+If a note taking file is supplied, double clicking on a source line
+shall append the following information to the note taking file,
+formatted as described:
+
+1. '(base): ' if a line in the base file was clicked, '(modi): ' if a line
+    in the modified file was clicked.
+2. The name of the file that was clicked,
+3. A newline character.
+4. An indentation of 2 spaces
+5. The line number that was clicked
+6. A colon.
+7. The text of the source line that was clicked.
+8. Two newline characters.
+
+There shall be a right-click context menu.
+The context menu will contain an item labeled 'Take Note'.
+
+If a note takingIf a one or more lines of source have been selected, the 'Take Note'
+option shall be enabled.
+
+If no lines are selected, the 'Take Note' option shall be disabled.
+If no note taking file was supplied, the 'Take Note' menu item shall
+be disabled and state 'Take Note (no file supplied)'.
+
+Selecting lines of source, right clicking and selecting 'Take Note'
+shall append the following information to the note taking file,
+formatted as described:
+
+1. '(base): ' if lines in the base file were selected, '(modi): ' if lines
+    in the modified file was clicked.
+2. The name of the file that was clicked,
+3. A newline character.
+4. For each line that was selected:
+
+   a) An indentation of 2 spaces
+   b) The line number that was clicked
+   c) A colon.
+   d) The text of the source line that was clicked.
+
+5. Two newline characters.
+
+
+The initial window size should be able to accommodate 160 characters
+of the chosen font, plus the scrollbars, line numbers and diff maps.
+
+Do not generate sample data.  Require files to be provided.

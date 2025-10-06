@@ -67,6 +67,12 @@ class TkInterface(object):
             if term is not None:
                 vimdiff = [ term, "-e" ] + vimdiff
             cmd = vimdiff + [ base, modi ]
+        elif viewer == "Claude (experimental)":
+            notes = [ ]
+            if self.options_.arg_claude_note_file is not None:
+                notes = [ self.options_.arg_claude_note_file ]
+            cmd = [ "python3", "./scripts.d/claude.d/claude.py",
+                    base, modi ] + notes
         else:
             raise NotImplementedError("Unsupported viewer: '%s'" %
                                       (self.viewer_.get()))
@@ -76,12 +82,14 @@ class TkInterface(object):
         button.configure(bg=self.file_sel_bg_, fg=self.file_sel_fg_)
 
     def add_viewer_menu(self, menu):
+        claude = "Claude (experimental)"
         viewer = tkinter.Menu(menu, tearoff = 0)
         menu.add_cascade(label = "Viewer", menu = viewer)
         viewer.add_radiobutton(label = "Emacs" , variable = self.viewer_)
         viewer.add_radiobutton(label = "Meld"  , variable = self.viewer_)
         viewer.add_radiobutton(label = "TkDiff", variable = self.viewer_)
         viewer.add_radiobutton(label = "Vim"   , variable = self.viewer_)
+        viewer.add_radiobutton(label = claude  , variable = self.viewer_)
         self.viewer_.set("TkDiff")     # Start with tkdiff.
 
     def create_menu_bar(self):
@@ -207,7 +215,8 @@ class TkInterface(object):
             os.makedirs(p)
 
 
-    def __init__(self, review_name, dossier):
+    def __init__(self, options, review_name, dossier):
+        self.options_      = options
         self.notes_uns_bg_ = "grey"   # Color of Notes button.
         self.notes_uns_fg_ = "yellow"
 
@@ -250,7 +259,7 @@ Return Code:
     home       = os.getenv("HOME", os.path.expanduser("~"))
     review_dir = os.path.join(home, "review")
 
-    formatter = argparse. RawDescriptionHelpFormatter
+    formatter = argparse. RawTextHelpFormatter
     parser    = argparse.ArgumentParser(usage           = None,
                                         formatter_class = formatter,
                                         description     = description,
@@ -285,6 +294,28 @@ Return Code:
                    dest     = "arg_verbose")
 
 
+    o = parser.add_argument_group("Claude Viewer Options")
+    o.add_argument("--claude-note-file",
+                   help     = ("Sets pathname to which Claude UI will write "
+                               "notes.\n\n"
+                               "Notes can be created by double-clicking a "
+                               "single line of code,\n"
+                               "or by highlighting a range of lines and using "
+                               "the right-click\n"
+                               "context menu, 'Add Note'.\n\n"
+                               "The software will write the filename and line "
+                               "contents to the\n"
+                               "note file, allowing a reviewer to write review "
+                               "comments using\n"
+                               "the editor that makes them most productive, "
+                               "concurrent with\n"
+                               "diff viewing."),
+                   action   = "store",
+                   default  = None,
+                   required = False,
+                   dest     = "arg_claude_note_file")
+
+
     parser.add_argument("tail",
                         help  = "Command line tail",
                         nargs = "*")
@@ -303,8 +334,8 @@ def process_command_line():
     return options
 
 
-def generate(review_name, dossier):
-    tkintf   = TkInterface(review_name, dossier)
+def generate(options, review_name, dossier):
+    tkintf   = TkInterface(options, review_name, dossier)
     row      = 0                # Number of files.
     col      = 0                # Maximum pathname length, in chars
     base_dir = dossier["base"]
@@ -338,7 +369,7 @@ def main():
         with open(pathname, "r") as fp:
             dossier = json.load(fp)
 
-        generate(options.arg_review_name, dossier)
+        generate(options, options.arg_review_name, dossier)
 
     except KeyboardInterrupt:
         return 0
