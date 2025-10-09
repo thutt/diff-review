@@ -70,9 +70,13 @@ class TkInterface(object):
         elif viewer == "Claude (experimental)":
             notes = [ ]
             if self.options_.arg_claude_note_file is not None:
-                notes = [ self.options_.arg_claude_note_file ]
-            cmd = [ "python3", "./scripts.d/claude.d/claude.py",
-                    base, modi ] + notes
+                path   = os.path.split(sys.argv[0])
+                claude = os.path.abspath(os.path.join(path[0], "..",
+                                                      "claude.d", "claude.py"))
+                notes = [ "--note", self.options_.arg_claude_note_file ]
+            cmd = [ "python3", claude,
+                    "--base", base,
+                    "--modi", modi ] + notes
         else:
             raise NotImplementedError("Unsupported viewer: '%s'" %
                                       (self.viewer_.get()))
