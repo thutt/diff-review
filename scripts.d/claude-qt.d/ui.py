@@ -6,14 +6,15 @@ Installation:
     pip install PyQt6
 """
 import sys
+import os
 from typing import Optional
 
 try:
     from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                                   QHBoxLayout, QLabel, QScrollBar, QFrame, QMenu,
                                   QMessageBox, QPlainTextEdit, QDialog, QListWidget,
-                                  QPushButton, QListWidgetItem, QTextEdit)
-    from PyQt6.QtCore import Qt, pyqtSignal, QTimer
+                                  QPushButton, QListWidgetItem, QTextEdit, QCheckBox)
+    from PyQt6.QtCore import Qt, pyqtSignal, QTimer, QtMsgType, qInstallMessageHandler
     from PyQt6.QtGui import (QColor, QPainter, QFont, QTextCursor, QAction, 
                              QFontMetrics, QTextCharFormat, QPalette, QPen,
                              QTextBlockFormat)
@@ -23,34 +24,111 @@ except ImportError:
     sys.exit(1)
 
 
+# Custom message handler to suppress XKB warnings
+def qt_message_handler(mode, context, message):
+    # Suppress XKB compose warnings
+    if 'xkb' in message.lower() or 'compose' in message.lower():
+        return
+    # For other messages, print to stderr as normal
+    if mode == QtMsgType.QtDebugMsg:
+        print(f"Qt Debug: {message}", file=sys.stderr)
+    elif mode == QtMsgType.QtWarningMsg:
+        print(f"Qt Warning: {message}", file=sys.stderr)
+    elif mode == QtMsgType.QtCriticalMsg:
+        print(f"Qt Critical: {message}", file=sys.stderr)
+    elif mode == QtMsgType.QtFatalMsg:
+        print(f"Qt Fatal: {message}", file=sys.stderr)
+
+# Install the message handler
+qInstallMessageHandler(qt_message_handler)
+
+
+class SearchDialog(QDialog):
+    """Dialog to input search text"""
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.search_text = None
+        self.case_sensitive = False
+        
+        self.setWindowTitle("Search")
+        self.setMinimumWidth(400)
+        
+        layout = QVBoxLayout(self)
+        
+        # Search text input
+        input_layout = QHBoxLayout()
+        input_layout.addWidget(QLabel("Search for:"))
+        self.search_input = QPlainTextEdit()
+        self.search_input.setMaximumHeight(60)
+        self.search_input.setPlaceholderText("Enter search text...")
+        input_layout.addWidget(self.search_input)
+        layout.addLayout(input_layout)
+        
+        # Case sensitivity checkbox
+        self.case_checkbox = QCheckBox("Case sensitive")
+        self.case_checkbox.setChecked(False)
+        layout.addWidget(self.case_checkbox)
+        
+        # Buttons
+        button_layout = QHBoxLayout()
+        
+        self.search_button = QPushButton("Search")
+        self.search_button.clicked.connect(self.on_search)
+        self.search_button.setDefault(True)  # Make it default so Enter triggers it
+        
+        self.cancel_button = QPushButton("Cancel")
+        self.cancel_button.clicked.connect(self.reject)
+        
+        button_layout.addStretch()
+        button_layout.addWidget(self.search_button)
+        button_layout.addWidget(self.cancel_button)
+        
+        layout.addLayout(button_layout)
+        
+        # Focus on input field
+        self.search_input.setFocus()
+    
+    def on_search(self):
+        """Handle search button click"""
+        text = self.search_input.toPlainText().strip()
+        if text:
+            self.search_text = text
+            self.case_sensitive = self.case_checkbox.isChecked()
+            self.accept()
+
+
 class SearchResultDialog(QDialog):
     """Dialog to show search results and allow selection"""
     
-    def __init__(self, search_text, results, parent=None):
+    def __init__(self, search_text, parent=None, case_sensitive=False):
         super().__init__(parent)
         self.search_text = search_text
-        self.results = results
         self.selected_result = None
+        self.case_sensitive = case_sensitive
+        self.parent_viewer = parent
         
         self.setWindowTitle(f"Search Results for: {search_text}")
         self.setMinimumSize(600, 400)
         
         layout = QVBoxLayout(self)
         
+        # Case sensitivity checkbox
+        checkbox_layout = QHBoxLayout()
+        self.case_checkbox = QCheckBox("Case sensitive")
+        self.case_checkbox.setChecked(case_sensitive)
+        self.case_checkbox.stateChanged.connect(self.on_case_sensitivity_changed)
+        checkbox_layout.addWidget(self.case_checkbox)
+        checkbox_layout.addStretch()
+        layout.addLayout(checkbox_layout)
+        
         # Info label
-        info_label = QLabel(f"Found {len(results)} matches:")
-        layout.addWidget(info_label)
+        self.info_label = QLabel()
+        layout.addWidget(self.info_label)
         
         # Results list
         self.result_list = QListWidget()
         self.result_list.itemDoubleClicked.connect(self.on_select)
-        
-        for side, line_num, line_idx, line_text in results:
-            display_text = f"[{side.upper()}] Line {line_num}: {line_text}"
-            item = QListWidgetItem(display_text)
-            item.setData(Qt.ItemDataRole.UserRole, (side, line_num, line_idx))
-            self.result_list.addItem(item)
-        
         layout.addWidget(self.result_list)
         
         # Buttons
@@ -71,6 +149,55 @@ class SearchResultDialog(QDialog):
         
         # Enable/disable select button based on selection
         self.result_list.itemSelectionChanged.connect(self.on_selection_changed)
+        
+        # Initial search
+        self.perform_search()
+    
+    def on_case_sensitivity_changed(self, state):
+        """Handle case sensitivity checkbox change"""
+        self.case_sensitive = (state == Qt.CheckState.Checked.value)
+        self.perform_search()
+    
+    def perform_search(self):
+        """Perform the search and populate results"""
+        # Clear existing results
+        self.result_list.clear()
+        
+        if not self.parent_viewer:
+            return
+        
+        # Perform search
+        results = []
+        search_text = self.search_text
+        
+        # Determine comparison function based on case sensitivity
+        if self.case_sensitive:
+            matches = lambda line: search_text in line
+        else:
+            search_lower = search_text.lower()
+            matches = lambda line: search_lower in line.lower()
+        
+        # Search in base
+        for i, (line_text, line_num) in enumerate(zip(self.parent_viewer.base_display, 
+                                                       self.parent_viewer.base_line_nums)):
+            if line_num is not None and matches(line_text):
+                results.append(('base', line_num, i, line_text))
+        
+        # Search in modified
+        for i, (line_text, line_num) in enumerate(zip(self.parent_viewer.modified_display, 
+                                                       self.parent_viewer.modified_line_nums)):
+            if line_num is not None and matches(line_text):
+                results.append(('modified', line_num, i, line_text))
+        
+        # Update info label
+        self.info_label.setText(f"Found {len(results)} matches:")
+        
+        # Populate results list
+        for side, line_num, line_idx, line_text in results:
+            display_text = f"[{side.upper()}] Line {line_num}: {line_text}"
+            item = QListWidgetItem(display_text)
+            item.setData(Qt.ItemDataRole.UserRole, (side, line_num, line_idx))
+            self.result_list.addItem(item)
     
     def on_selection_changed(self):
         """Enable select button when an item is selected"""
@@ -84,9 +211,9 @@ class SearchResultDialog(QDialog):
             self.selected_result = item.data(Qt.ItemDataRole.UserRole)
             # Emit signal to parent but don't close dialog
             # Parent will handle navigation
-            if self.parent():
+            if self.parent_viewer:
                 side, line_num, line_idx = self.selected_result
-                self.parent().select_search_result(side, line_idx)
+                self.parent_viewer.select_search_result(side, line_idx)
 
 
 class LineNumberArea(QWidget):
@@ -785,6 +912,18 @@ class DiffViewer(QMainWindow):
         QTimer.singleShot(150, self.modified_line_area.update)
         QTimer.singleShot(150, self.base_text.viewport().update)
         QTimer.singleShot(150, self.modified_text.viewport().update)
+        
+        # Navigate to first change region if any exist
+        if self.change_regions:
+            QTimer.singleShot(200, self.navigate_to_first_region)
+    
+    def navigate_to_first_region(self):
+        """Navigate to the first change region on startup"""
+        if self.change_regions:
+            self.current_region = 0
+            _, start, *_ = self.change_regions[0]
+            self.center_on_line(start)
+            self.highlight_current_region()
     
     def build_change_regions(self):
         """Build change regions"""
@@ -1065,6 +1204,8 @@ class DiffViewer(QMainWindow):
             <li><b>P:</b> Jump to previous change region</li>
             <li><b>T:</b> Jump to top of document</li>
             <li><b>B:</b> Jump to bottom of document</li>
+            <li><b>Ctrl+S:</b> Open search dialog</li>
+            <li><b>Ctrl+N:</b> Take a note for the current line or selection</li>
             <li><b>Escape:</b> Close the viewer</li>
         </ul>
         
@@ -1101,13 +1242,31 @@ class DiffViewer(QMainWindow):
         </ul>
         
         <h3>Search Functionality</h3>
+        <p>There are two ways to search:</p>
         <ul>
-            <li><b>Select text</b> in either pane</li>
-            <li><b>Right-click</b> and select "Search"</li>
-            <li>Search is <b>case-insensitive</b> and searches both base and modified files</li>
-            <li>Results dialog shows all matches with line numbers</li>
-            <li><b>Select a result:</b> Navigate to that line</li>
-            <li><b>Dialog stays open</b> until you click "Cancel"</li>
+            <li><b>Ctrl+S:</b> Opens a search dialog where you can enter any text
+                <ul>
+                    <li>Enter your search text in the input box</li>
+                    <li>Optionally check "Case sensitive" for exact case matching</li>
+                    <li>Press Enter or click "Search" to find matches</li>
+                </ul>
+            </li>
+            <li><b>Right-click → Search:</b> Search for currently selected text
+                <ul>
+                    <li>Select text in either pane</li>
+                    <li>Right-click and choose "Search"</li>
+                    <li>Search is case-insensitive by default</li>
+                </ul>
+            </li>
+        </ul>
+        <p><b>Search Results Dialog:</b></p>
+        <ul>
+            <li>Shows all matches from both base and modified files</li>
+            <li>Displays side (BASE/MODIFIED), line number, and line content</li>
+            <li><b>Case sensitive checkbox:</b> Toggle to re-run search with/without case sensitivity</li>
+            <li><b>Select a result:</b> Click and press "Select" to navigate to that line</li>
+            <li><b>Dialog stays open:</b> Navigate to multiple results before closing</li>
+            <li><b>Cancel:</b> Close the search results dialog</li>
         </ul>
         
         <h3>Status Bar</h3>
@@ -1163,6 +1322,14 @@ class DiffViewer(QMainWindow):
         
         menu.exec(text_widget.mapToGlobal(pos))
     
+    def show_search_dialog(self):
+        """Show search input dialog (Ctrl+S)"""
+        dialog = SearchDialog(self)
+        if dialog.exec() == QDialog.DialogCode.Accepted and dialog.search_text:
+            # Show search results with the entered text and case sensitivity
+            results_dialog = SearchResultDialog(dialog.search_text, self, dialog.case_sensitive)
+            results_dialog.exec()
+    
     def search_selected_text(self, side):
         """Search for selected text in both base and modified sources"""
         text_widget = self.base_text if side == 'base' else self.modified_text
@@ -1172,28 +1339,10 @@ class DiffViewer(QMainWindow):
             return
         
         search_text = cursor.selectedText()
-        search_text_lower = search_text.lower()
-        
-        # Search in both sources
-        results = []
-        
-        # Search in base
-        for i, (line_text, line_num) in enumerate(zip(self.base_display, self.base_line_nums)):
-            if line_num is not None and search_text_lower in line_text.lower():
-                results.append(('base', line_num, i, line_text))
-        
-        # Search in modified
-        for i, (line_text, line_num) in enumerate(zip(self.modified_display, self.modified_line_nums)):
-            if line_num is not None and search_text_lower in line_text.lower():
-                results.append(('modified', line_num, i, line_text))
-        
-        if not results:
-            QMessageBox.information(self, 'Search Results', 
-                                  f'No matches found for: {search_text}')
-            return
         
         # Show search results dialog - it stays open until Cancel is clicked
-        dialog = SearchResultDialog(search_text, results, self)
+        # The dialog will perform the initial search
+        dialog = SearchResultDialog(search_text, self)
         dialog.exec()
     
     def select_search_result(self, side, line_idx):
@@ -1419,6 +1568,12 @@ class DiffViewer(QMainWindow):
     def keyPressEvent(self, event):
         """Handle keyboard shortcuts"""
         key = event.key()
+        modifiers = event.modifiers()
+        
+        # Check for Ctrl+S
+        if key == Qt.Key.Key_S and modifiers & Qt.KeyboardModifier.ControlModifier:
+            self.show_search_dialog()
+            return
         
         if key == Qt.Key.Key_Tab:
             
