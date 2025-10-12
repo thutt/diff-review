@@ -68,21 +68,21 @@ class TkInterface(object):
                 vimdiff = [ term, "-e" ] + vimdiff
             cmd = vimdiff + [ base, modi ]
         elif viewer == "Claude-QT (experimental)":
-            notes = [ ]
+            path   = os.path.split(sys.argv[0])
+            claude = os.path.abspath(os.path.join(path[0], "..",
+                                                  "claude-qt.d", "claude.py"))
+            notes  = [ ]
             if self.options_.arg_claude_note_file is not None:
-                path   = os.path.split(sys.argv[0])
-                claude = os.path.abspath(os.path.join(path[0], "..",
-                                                      "claude-qt.d", "claude.py"))
                 notes = [ "--note", self.options_.arg_claude_note_file ]
             cmd = [ "python3", "-B", claude,
                     "--base", base,
                     "--modi", modi ] + notes
         elif viewer == "Claude (experimental)":
-            notes = [ ]
-            if self.options_.arg_claude_note_file is not None:
-                path   = os.path.split(sys.argv[0])
-                claude = os.path.abspath(os.path.join(path[0], "..",
+            path   = os.path.split(sys.argv[0])
+            claude = os.path.abspath(os.path.join(path[0], "..",
                                                       "claude.d", "claude.py"))
+            notes  = [ ]
+            if self.options_.arg_claude_note_file is not None:
                 notes = [ "--note", self.options_.arg_claude_note_file ]
             cmd = [ "python3", "-B", claude,
                     "--base", base,
