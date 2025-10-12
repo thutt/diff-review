@@ -222,7 +222,7 @@ class DiffViewer:
         self.notes_label = tk.Label(self.status_frame, text="Notes: 0", anchor=tk.E)
         self.notes_label.pack(side=tk.RIGHT, padx=5)
         
-        # Create text widgets inside canvases
+        # Create text widgets
         self.setup_text_widgets()
         
         # Setup diff map
@@ -233,8 +233,6 @@ class DiffViewer:
         
         # Set initial window size
         self.set_initial_size()
-        
-        # Note: populate_content() is now called from finalize(), not here
         
     def setup_text_widgets(self):
         """Create text widgets for line numbers and content"""
@@ -314,8 +312,10 @@ class DiffViewer:
             text_widget.tag_config('NOTPRESENT', background='darkgrey')
             # Tag for current region selection box
             text_widget.tag_config('current_region', borderwidth=2, relief='solid')
-            # Ensure current_region appears on top but selection is still visible
-            text_widget.tag_lower('current_region')
+            
+            # CRITICAL FIX: Raise selection tag above all other tags
+            # This ensures text selection is always visible over background colors
+            text_widget.tag_raise('sel')
         
         # Populate base
         self.base_line_text.config(state=tk.NORMAL)
@@ -368,6 +368,13 @@ class DiffViewer:
             else:
                 # Apply highlighting based on runs
                 self.apply_runs_to_line(self.base_content_text, i, base_line)
+                
+                # Check if this line has any changes and highlight line number
+                if self.line_has_changes(base_line):
+                    self.base_line_text.config(state=tk.NORMAL)
+                    self.base_line_text.tag_add(f'changed_linenum_{i}', f"{i+1}.0", f"{i+1}.end")
+                    self.base_line_text.tag_config(f'changed_linenum_{i}', background='#ffeeee')
+                    self.base_line_text.config(state=tk.DISABLED)
             
             if modi_not_present:
                 # Apply dark grey background to entire line in modified
@@ -377,6 +384,17 @@ class DiffViewer:
             else:
                 # Apply highlighting based on runs
                 self.apply_runs_to_line(self.modified_content_text, i, modi_line)
+                
+                # Check if this line has any changes and highlight line number
+                if self.line_has_changes(modi_line):
+                    self.modified_line_text.config(state=tk.NORMAL)
+                    self.modified_line_text.tag_add(f'changed_linenum_{i}', f"{i+1}.0", f"{i+1}.end")
+                    self.modified_line_text.tag_config(f'changed_linenum_{i}', background='#eeffee')
+                    self.modified_line_text.config(state=tk.DISABLED)
+        
+        # CRITICAL: Re-raise selection tag after all highlighting is applied
+        self.base_content_text.tag_raise('sel')
+        self.modified_content_text.tag_raise('sel')
     
     def apply_runs_to_line(self, text_widget, line_idx, line_obj):
         """Apply TextRun highlighting to a specific line."""
@@ -390,71 +408,6 @@ class DiffViewer:
             # Use the color() return value directly as the tag name
             tag_name = run.color()
             text_widget.tag_add(tag_name, start_pos, end_pos)
-    
-    def apply_diff_highlighting(self):
-        """Apply line-level highlighting for changes"""
-        for tag, display_start, display_end, i1, i2, j1, j2 in self.change_regions:
-            if tag == 'delete':
-                # Deleted lines: 
-                # - Base side gets dark grey (all changes in base are dark grey)
-                # - Modified side: blank placeholder lines get RED background
-                for i in range(display_start, display_end):
-                    if self.base_line_nums[i] is not None:
-                        self.base_content_text.config(state=tk.NORMAL)
-                        self.base_content_text.tag_add('changed_line',
-                                                      f"{i+1}.0",
-                                                      f"{i+2}.0")
-                        self.base_content_text.config(state=tk.DISABLED)
-                    if self.modified_line_nums[i] is None:
-                        # Blank line on modified side - RED background bar
-                        self.modified_content_text.config(state=tk.NORMAL)
-                        self.modified_content_text.tag_add('deleted_line',
-                                                          f"{i+1}.0",
-                                                          f"{i+2}.0")
-                        self.modified_content_text.config(state=tk.DISABLED)
-            
-            elif tag == 'insert':
-                # Inserted lines: 
-                # - Modified side gets GREEN background extending full line
-                # - Base side: blank placeholder lines stay white (no coloring for implicit lines)
-                for i in range(display_start, display_end):
-                    if self.modified_line_nums[i] is not None:
-                        self.modified_content_text.config(state=tk.NORMAL)
-                        self.modified_content_text.tag_add('inserted_line',
-                                                          f"{i+1}.0",
-                                                          f"{i+2}.0")
-                        self.modified_content_text.config(state=tk.DISABLED)
-            
-            elif tag == 'replace':
-                # Changed lines: 
-                # - Base side gets dark grey background with light blue for text content
-                # - Modified side gets light yellow background with light blue for text content
-                for i in range(display_start, display_end):
-                    if self.base_line_nums[i] is not None:
-                        # Apply dark grey background to all changed lines in base - full line
-                        self.base_content_text.config(state=tk.NORMAL)
-                        self.base_content_text.tag_add('changed_line',
-                                                      f"{i+1}.0",
-                                                      f"{i+2}.0")
-                        # Add light blue highlight to the actual text content
-                        if self.base_display[i]:
-                            self.base_content_text.tag_add('intraline',
-                                                          f"{i+1}.0",
-                                                          f"{i+1}.end")
-                        self.base_content_text.config(state=tk.DISABLED)
-                    
-                    if self.modified_line_nums[i] is not None:
-                        # Apply light yellow background to modified lines - full line
-                        self.modified_content_text.config(state=tk.NORMAL)
-                        self.modified_content_text.tag_add('modified_line',
-                                                          f"{i+1}.0",
-                                                          f"{i+2}.0")
-                        # Add light blue highlight to the actual text content
-                        if self.modified_display[i]:
-                            self.modified_content_text.tag_add('intraline',
-                                                              f"{i+1}.0",
-                                                              f"{i+1}.end")
-                        self.modified_content_text.config(state=tk.DISABLED)
     
     def setup_diff_map(self):
         """Setup the diff map visualization"""
