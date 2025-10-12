@@ -1,6 +1,6 @@
 # Software Prerequisites
 
-- tkinter
+- <code>pyqt6</code>
 
 This Python module must be installed to be able to generate the
 Tcl/Tk-based menu used for viewing the generated diffs:
@@ -8,18 +8,33 @@ Tcl/Tk-based menu used for viewing the generated diffs:
 If this module is not installed, the `view-review` will stop
 with an error indicating such.
 
+On Ubuntu, this can be satisfied with:
+
+    sudo apt install python3-pyqt6
 
 
-At least one of the following utilities must be installed to fully use
-this tool.
+- Differencing Tools
 
-- TkDiff
+  At least one of the following utilities must be installed to fully use
+  this tool.
+
+  - TkDiff
+  - Meld
+
+  If these modules are not installed, selecting these viewers in the Viewer
+  menu will yield unsatsifactory results.
+
+# Supported Viewers
+
+This system currently supports the following side-by-side diff viewers,
+selectable from the <code>Viewer</code> menu.
+
+- Emacs
 - Meld
-
-If these modules are not installed, the buttons in the menu will not
-function, as each button is set to execute one of these programs to
-view the differences.
-
+- TkDiff
+- Vim
+- Native (Claude-generated, deprecated, tkinter)
+- Native (Claude-generated, experimental, pyqt6)
 
 
 # Description / Terminology
@@ -203,7 +218,7 @@ diff-review:  /home/thutt/review/default
   modify   test/lisp/textmodes/ispell-tests/ispell-international-ispell-tests.el
   modify   test/lisp/textmodes/ispell-tests/ispell-tests.el
 
-Changes:  committed [30 files, 378 lines]  
+Changes:  committed [30 files, 378 lines]
 Viewer :  view-review -R /home/thutt/review -r default
 Elapsed:  0:00:00.594228
 
@@ -212,7 +227,7 @@ Elapsed:  0:00:00.594228
 ## View uncommitted changes
 
 This example will show how untracked, unstaged and staged changes are
-processed. 
+processed.
 
 Execute the following:
 
@@ -292,3 +307,11 @@ Invoking either `dr` or `vr` with `--help` will show the current set
 options that the program takes.  Using these options will allow more
 complex invocations -- such as naming the output, or putting it into a
 different directory location.
+
+- Native (pyqt6)
+
+  This viewer program was entirely generated through conversations
+  with Claude.ai.  When it is deemed to be working well-enough, it
+  will likely become the default viewer, replacing TkDiff.
+
+  The Help menu describes how to use the features of the program.

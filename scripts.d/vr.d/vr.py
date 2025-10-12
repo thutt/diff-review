@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # Copyright (c) 2025  Logic Magicians Software (Taylor Hutt).
 # All Rights Reserved.
 # Licensed under Gnu GPL V3.
@@ -8,36 +9,137 @@ import os
 import subprocess
 import signal
 import sys
+
 try:
-    import tkinter
-except:
-    print("fatal: Python3 'tkinter' module must be installed.")
+    from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
+                                  QHBoxLayout, QScrollArea, QPushButton, QLabel,
+                                  QMenu, QMessageBox, QGridLayout, QFrame)
+    from PyQt6.QtCore import Qt
+    from PyQt6.QtGui import QAction, QActionGroup, QPalette, QColor
+except ImportError:
+    print("fatal: Python3 'PyQt6' module must be installed.")
+    print("Install with: pip install PyQt6")
     sys.exit(10)
+
 import traceback
 
 
-class TkInterface(object):
-    def create_root_window(self, review_name):
-        root = tkinter.Tk()
-        root.title(review_name)
-        root.columnconfigure(0, weight=1)
-        root.rowconfigure(0, weight = 1)
-        root.columnconfigure(0, weight = 1)
-        root.bind("<Escape>", lambda event: self.quit())
-        return root
+class QtInterface(QMainWindow):
+    def __init__(self, options, review_name, dossier):
+        # Initialize QApplication if it doesn't exist
+        if QApplication.instance() is None:
+            self.app = QApplication(sys.argv)
+        else:
+            self.app = QApplication.instance()
 
-    def create_frame(self):
-        frm = tkinter.Frame(self.root_)
-        frm.grid(row = 0, column = 0, sticky = "nsew")
-        frm.columnconfigure(0, weight = 1)
-        frm.rowconfigure(0, weight = 1)
-        return frm
+        super().__init__()
+
+        self.options_ = options
+        self.notes_uns_bg_ = "grey"     # Color of Notes button
+        self.notes_uns_fg_ = "yellow"
+
+        self.file_uns_bg_ = "white"    # Color before file button poked
+        self.file_uns_fg_ = "black"
+
+        self.file_sel_bg_ = "black"     # Color after file button poked
+        self.file_sel_fg_ = "white"
+
+        self.dossier_ = dossier
+        self.review_name_ = review_name
+        self.subp_ = []
+        self.notes_ = None
+        self.viewer_name_ = "TkDiff"    # Default viewer
+
+        self.create_ui(review_name)
+
+    def create_ui(self, review_name):
+        self.setWindowTitle(review_name)
+
+        # Create central widget
+        central = QWidget()
+        self.setCentralWidget(central)
+        main_layout = QVBoxLayout(central)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
+
+        # Create menu bar
+        self.create_menu_bar()
+
+        # Create scroll area
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+
+        # Create content widget with grid layout
+        self.content_widget = QWidget()
+        self.content_layout = QGridLayout(self.content_widget)
+        self.content_layout.setSpacing(2)
+
+        scroll_area.setWidget(self.content_widget)
+        main_layout.addWidget(scroll_area)
+
+        # Keyboard shortcut for Escape
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key.Key_Escape:
+            self.quit()
+        else:
+            super().keyPressEvent(event)
+
+    def create_menu_bar(self):
+        menubar = self.menuBar()
+
+        # Viewer menu
+        viewer_menu = menubar.addMenu("Viewer")
+        self.viewer_group = QActionGroup(self)
+        self.viewer_group.setExclusive(True)
+
+        viewers = ["Emacs", "Meld", "TkDiff", "Vim",
+                   "Claude (deprecated)", "Claude-QT (experimental)"]
+
+        for viewer in viewers:
+            action = QAction(viewer, self)
+            action.setCheckable(True)
+            action.triggered.connect(lambda checked, v=viewer: self.set_viewer(v))
+            self.viewer_group.addAction(action)
+            viewer_menu.addAction(action)
+
+            if viewer == "TkDiff":
+                action.setChecked(True)
+
+        # Notes menu
+        self.create_notes_menu(menubar)
+
+    def set_viewer(self, viewer):
+        self.viewer_name_ = viewer
+
+    def create_notes_menu(self, menubar):
+        notes_menu = menubar.addMenu("Notes")
+        filename = self.notes_filename()
+
+        # If ${EDITOR} is defined, put it first
+        editor = os.getenv("EDITOR", None)
+        if editor is not None:
+            action = QAction(f"{editor} '{filename}'", self)
+            action.triggered.connect(lambda: self.open_notes(editor, filename))
+            notes_menu.addAction(action)
+            notes_menu.addSeparator()
+
+        # Add emacs and vi
+        emacs_action = QAction(f"emacs '{filename}'", self)
+        emacs_action.triggered.connect(lambda: self.open_notes("/usr/bin/emacs", filename))
+        notes_menu.addAction(emacs_action)
+
+        vi_action = QAction(f"vi '{filename}'", self)
+        vi_action.triggered.connect(lambda: self.open_notes("/usr/bin/vi", filename))
+        notes_menu.addAction(vi_action)
 
     def execute_viewer(self, button, base, modi):
-        viewer = self.viewer_.get()
-
+        viewer = self.viewer_name_
         if viewer == "Emacs":
-            cmd = [ "/usr/bin/emacs", # Assumes window-ed emacs.
+            cmd = [ "/usr/bin/emacs", # Assumes windowed emacs.
                     "--eval", "(ediff-files \"%s\" \"%s\")" % (base, modi) ]
         elif viewer == "Meld":
             cmd = [ "/usr/bin/meld", base, modi ]
@@ -77,10 +179,10 @@ class TkInterface(object):
             cmd = [ "python3", "-B", claude,
                     "--base", base,
                     "--modi", modi ] + notes
-        elif viewer == "Claude (experimental)":
+        elif viewer == "Claude (deprecated)":
             path   = os.path.split(sys.argv[0])
             claude = os.path.abspath(os.path.join(path[0], "..",
-                                                      "claude.d", "claude.py"))
+                                                  "claude.d", "claude.py"))
             notes  = [ ]
             if self.options_.arg_claude_note_file is not None:
                 notes = [ "--note", self.options_.arg_claude_note_file ]
@@ -89,56 +191,66 @@ class TkInterface(object):
                     "--modi", modi ] + notes
         else:
             raise NotImplementedError("Unsupported viewer: '%s'" %
-                                      (self.viewer_.get()))
+                                      (viewer))
 
         subp = subprocess.Popen(cmd, start_new_session = True)
         self.subp_.append(subp)
-        button.configure(bg=self.file_sel_bg_, fg=self.file_sel_fg_)
 
-    def add_viewer_menu(self, menu):
-        claude    = "Claude (experimental)"
-        claude_qt = "Claude-QT (experimental)"
-        viewer    = tkinter.Menu(menu, tearoff = 0)
-        menu.add_cascade(label = "Viewer", menu = viewer)
-        viewer.add_radiobutton(label = "Emacs"  , variable = self.viewer_)
-        viewer.add_radiobutton(label = "Meld"   , variable = self.viewer_)
-        viewer.add_radiobutton(label = "TkDiff" , variable = self.viewer_)
-        viewer.add_radiobutton(label = "Vim"    , variable = self.viewer_)
-        viewer.add_radiobutton(label = claude   , variable = self.viewer_)
-        viewer.add_radiobutton(label = claude_qt, variable = self.viewer_)
-        self.viewer_.set("TkDiff")     # Start with tkdiff.
+        # Change button color to indicate it's been selected
+        palette = button.palette()
+        palette.setColor(QPalette.ColorRole.Button, QColor(self.file_sel_bg_))
+        palette.setColor(QPalette.ColorRole.ButtonText, QColor(self.file_sel_fg_))
+        button.setPalette(palette)
+        button.setAutoFillBackground(True)
 
-    def create_menu_bar(self):
-        menu = tkinter.Menu(self.frame_)
-        self.add_viewer_menu(menu)
-        self.add_notes_menu(menu)
-        return menu
+    def unselect_button(self, button):
+        palette = button.palette()
+        palette.setColor(QPalette.ColorRole.Button, QColor(self.file_uns_bg_))
+        palette.setColor(QPalette.ColorRole.ButtonText, QColor(self.file_uns_fg_))
+        button.setPalette(palette)
+        button.setAutoFillBackground(True)
 
-    def create_canvas(self):
-        canvas = tkinter.Canvas(self.frame_)
-        canvas.grid(row = 0, column = 0, sticky = "nsew")
-        return canvas
+    def add_button(self, row, action, base, modi, rel_modi):
+        label = QLabel(action)
+        button = QPushButton(rel_modi)
 
-    def create_scrollbar(self):
-        sb = tkinter.Scrollbar(self.frame_,
-                               orient  = "vertical",
-                               command = self.canvas_.yview)
-        sb.grid(row = 0, column = 1, sticky = "ns")
-        self.canvas_.configure(yscrollcommand = sb.set)
-        return sb
+        # Set initial button colors
+        palette = button.palette()
+        palette.setColor(QPalette.ColorRole.Button, QColor(self.file_uns_bg_))
+        palette.setColor(QPalette.ColorRole.ButtonText, QColor(self.file_uns_fg_))
+        button.setPalette(palette)
+        button.setAutoFillBackground(True)
 
-    def create_content_frame(self):
-        cf = tkinter.Frame(self.canvas_)
-        cf.bind("<Configure>",
-                lambda e: self.canvas_.configure(scrollregion =
-                                                 self.canvas_.bbox("all")))
-        self.canvas_.create_window((0, 0), window = cf, anchor = "nw")
-        return cf
+        # Connect button click
+        button.clicked.connect(lambda: self.execute_viewer(button, base, modi))
+
+        # Right-click to reset color
+        button.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        button.customContextMenuRequested.connect(lambda pos: self.unselect_button(button))
+
+        self.content_layout.addWidget(label, row, 0)
+        self.content_layout.addWidget(button, row, 1)
+
+    def add_quit(self, row):
+        quit_button = QPushButton("Quit")
+        quit_button.clicked.connect(self.quit)
+
+        # Set red background
+        palette = quit_button.palette()
+        palette.setColor(QPalette.ColorRole.Button, QColor("red"))
+        palette.setColor(QPalette.ColorRole.ButtonText, QColor("white"))
+        quit_button.setPalette(palette)
+        quit_button.setAutoFillBackground(True)
+
+        self.content_layout.addWidget(quit_button, row, 1)
 
     def quit(self):
         for subp in self.subp_:
-            os.killpg(os.getpgid(subp.pid), signal.SIGTERM)
-        self.root_.destroy()
+            try:
+                os.killpg(os.getpgid(subp.pid), signal.SIGTERM)
+            except:
+                pass
+        self.close()
 
     def notes_filename(self):
         filename = "%s.%s.%s" % (self.dossier_["user"],
@@ -166,95 +278,22 @@ class TkInterface(object):
         # This subprocess is not put on the list of processes to kill
         # because the buffer may not be written to disk.
 
-    def unselect_button(self, button):
-        button.configure(bg=self.file_uns_bg_, fg=self.file_uns_fg_)
-
-    def add_button(self, row, action, base, modi, rel_modi):
-        label  = tkinter.Label(self.content_, text=action)
-        button = tkinter.Button(self.content_, text=rel_modi)
-
-        lamb = lambda slf=self, button=button, \
-                      b=base, m=modi: slf.execute_viewer(button, b, m)
-
-        button.configure(command=lamb,
-                         bg=self.file_uns_bg_, fg=self.file_uns_fg_)
-        label.grid(column=0, row=row, sticky="nsew")
-        button.grid(column=1, row=row, sticky="nsew")
-
-        # Set right click to reset color.
-        button.bind("<Button-3>",
-                    lambda event, button = button: self.unselect_button(button))
-
-    def add_quit(self, row):
-        quit = tkinter.Button(self.frame_,
-                              text    = "Quit",
-                              command = self.quit)
-        quit.configure(bg = "red", fg = "white")
-        quit.grid(column = 1, row = row, sticky = "nsew")
-
-    def add_notes_menu(self, menu):
-        notes    = tkinter.Menu(menu, tearoff = 0)
-        filename = self.notes_filename()
-        menu.add_cascade(label = "Notes", menu = notes)
-
-        # If ${EDITOR} is defined, put it first in the list, as that
-        # will be the one someone wants to use most.
-        editor = os.getenv("EDITOR", None)
-        if editor is not None:
-            notes.add_command(label   = "%s '%s'" % (editor, filename),
-                              command = (lambda editor=editor,
-                                         filename=filename:
-                                         self.open_notes(editor, filename)))
-            notes.add_separator()
-
-        # Put vi and emacs, even if they duplicate the first entry.
-        notes.add_command(label   = "emacs '%s'" % (filename),
-                          command = (lambda editor="/usr/bin/emacs",
-                                     filename=filename:
-                                     self.open_notes(editor, filename)))
-        notes.add_command(label   = "vi '%s'" % (filename),
-                          command = (lambda editor="/usr/bin/vi",
-                                     filename=filename:
-                                     self.open_notes(editor, filename)))
-
     def size_window(self, rows, cols):
         char_pixel_width  =  8 * cols
-        char_pixel_height = 40 * rows;
+        char_pixel_height = 40 * rows
         Y                 = char_pixel_height
         X                 = 150 + char_pixel_width
         Y                 = min(1000, Y)
         X                 = min( 700, X)
-        self.root_.geometry("%dx%d" % (X, Y))
+        self.resize(X, Y)
 
     def mktree(self, p):
         if not os.path.exists(p):
             os.makedirs(p)
 
-
-    def __init__(self, options, review_name, dossier):
-        self.options_      = options
-        self.notes_uns_bg_ = "grey"   # Color of Notes button.
-        self.notes_uns_fg_ = "yellow"
-
-        self.file_uns_bg_  = "grey92" # Color before file button poked.
-        self.file_uns_fg_  = "black"
-
-        self.file_sel_bg_  = "black"  # Color after file button poked.
-        self.file_sel_fg_  = "white"
-        self.dossier_      = dossier
-        self.review_name_  = review_name
-        self.subp_         = [ ]
-        self.notes_        = None
-
-        self.root_         = self.create_root_window(review_name)
-
-        self.viewer_       = tkinter.StringVar() # Must be after root creation.
-        self.frame_        = self.create_frame()
-        self.menu_         = self.create_menu_bar()
-        self.canvas_       = self.create_canvas()
-        self.scrollbar_    = self.create_scrollbar()
-        self.content_      = self.create_content_frame()
-        self.root_.config(menu = self.menu_)
+    def run(self):
+        self.show()
+        return self.app.exec()
 
 
 def configure_parser():
@@ -275,7 +314,7 @@ Return Code:
     home       = os.getenv("HOME", os.path.expanduser("~"))
     review_dir = os.path.join(home, "review")
 
-    formatter = argparse. RawTextHelpFormatter
+    formatter = argparse.RawTextHelpFormatter
     parser    = argparse.ArgumentParser(usage           = None,
                                         formatter_class = formatter,
                                         description     = description,
@@ -351,29 +390,31 @@ def process_command_line():
 
 
 def generate(options, review_name, dossier):
-    tkintf   = TkInterface(options, review_name, dossier)
+    qt_intf = QtInterface(options, review_name, dossier)
     row      = 0                # Number of files.
     col      = 0                # Maximum pathname length, in chars
     base_dir = dossier["base"]
     modi_dir = dossier["modi"]
+
     for f in sorted(dossier['files'],
                     key=lambda item: item["modi_rel_path"]):
         action   = f["action"]
         rel_base = f["base_rel_path"]
         rel_modi = f["modi_rel_path"]
 
-        base   = os.path.join(base_dir, rel_base)
-        modi   = os.path.join(modi_dir, rel_modi)
+        base     = os.path.join(base_dir, rel_base)
+        modi     = os.path.join(modi_dir, rel_modi)
 
         col = max(max(col, len(rel_base)), len(rel_modi))
 
-        tkintf.add_button(row, action, base, modi, rel_modi)
+        qt_intf.add_button(row, action, base, modi, rel_modi)
         row = row + 1
 
-    tkintf.add_quit(row)
-    tkintf.size_window(row + 1, # Number of rows, including 'quit'.
-                       col)
-    tkintf.root_.mainloop()
+    qt_intf.add_quit(row)
+    qt_intf.size_window(row + 1, # Number of rows, including 'quit'.
+                        col)
+
+    return qt_intf.run()
 
 
 def main():
@@ -385,7 +426,7 @@ def main():
         with open(pathname, "r") as fp:
             dossier = json.load(fp)
 
-        generate(options, options.arg_review_name, dossier)
+        return generate(options, options.arg_review_name, dossier)
 
     except KeyboardInterrupt:
         return 0
@@ -393,7 +434,7 @@ def main():
     except NotImplementedError as exc:
         print("")
         print(traceback.format_exc())
-        return 1;
+        return 1
 
     except Exception as e:
         print("internal error: unexpected exception\n%s" % str(e))
