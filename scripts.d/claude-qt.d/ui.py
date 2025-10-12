@@ -1210,6 +1210,8 @@ class DiffViewer(QMainWindow):
     def take_note(self, side):
         """Take note from selection"""
         if not self.note_file:
+            QMessageBox.information(self, 'Note Taking Disabled',
+                                  'No note file supplied.')
             return
         
         text_widget = self.base_text if side == 'base' else self.modified_text
@@ -1307,8 +1309,19 @@ class DiffViewer(QMainWindow):
     
     def next_change(self):
         """Go to next change"""
-        if not self.change_regions or self.current_region >= len(self.change_regions) - 1:
+        if not self.change_regions:
             return
+        
+        # If we're at the last region, wrap to the first
+        if self.current_region >= len(self.change_regions) - 1:
+            if len(self.change_regions) == 1:
+                # Single region - just navigate to it
+                _, start, *_ = self.change_regions[0]
+                self.center_on_line(start)
+                self.highlight_current_region()
+                self.update_status()
+            return
+        
         self.current_region += 1
         _, start, *_ = self.change_regions[self.current_region]
         self.center_on_line(start)
@@ -1317,8 +1330,19 @@ class DiffViewer(QMainWindow):
     
     def prev_change(self):
         """Go to previous change"""
-        if not self.change_regions or self.current_region <= 0:
+        if not self.change_regions:
             return
+        
+        # If we're at the first region, handle single region case
+        if self.current_region <= 0:
+            if len(self.change_regions) == 1:
+                # Single region - just navigate to it
+                _, start, *_ = self.change_regions[0]
+                self.center_on_line(start)
+                self.highlight_current_region()
+                self.update_status()
+            return
+        
         self.current_region -= 1
         _, start, *_ = self.change_regions[self.current_region]
         self.center_on_line(start)
