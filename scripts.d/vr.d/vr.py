@@ -67,6 +67,16 @@ class TkInterface(object):
             if term is not None:
                 vimdiff = [ term, "-e" ] + vimdiff
             cmd = vimdiff + [ base, modi ]
+        elif viewer == "Claude-QT (experimental)":
+            notes = [ ]
+            if self.options_.arg_claude_note_file is not None:
+                path   = os.path.split(sys.argv[0])
+                claude = os.path.abspath(os.path.join(path[0], "..",
+                                                      "claude-qt.d", "claude.py"))
+                notes = [ "--note", self.options_.arg_claude_note_file ]
+            cmd = [ "python3", "-B", claude,
+                    "--base", base,
+                    "--modi", modi ] + notes
         elif viewer == "Claude (experimental)":
             notes = [ ]
             if self.options_.arg_claude_note_file is not None:
@@ -74,7 +84,7 @@ class TkInterface(object):
                 claude = os.path.abspath(os.path.join(path[0], "..",
                                                       "claude.d", "claude.py"))
                 notes = [ "--note", self.options_.arg_claude_note_file ]
-            cmd = [ "python3", claude,
+            cmd = [ "python3", "-B", claude,
                     "--base", base,
                     "--modi", modi ] + notes
         else:
@@ -86,14 +96,16 @@ class TkInterface(object):
         button.configure(bg=self.file_sel_bg_, fg=self.file_sel_fg_)
 
     def add_viewer_menu(self, menu):
-        claude = "Claude (experimental)"
-        viewer = tkinter.Menu(menu, tearoff = 0)
+        claude    = "Claude (experimental)"
+        claude_qt = "Claude-QT (experimental)"
+        viewer    = tkinter.Menu(menu, tearoff = 0)
         menu.add_cascade(label = "Viewer", menu = viewer)
-        viewer.add_radiobutton(label = "Emacs" , variable = self.viewer_)
-        viewer.add_radiobutton(label = "Meld"  , variable = self.viewer_)
-        viewer.add_radiobutton(label = "TkDiff", variable = self.viewer_)
-        viewer.add_radiobutton(label = "Vim"   , variable = self.viewer_)
-        viewer.add_radiobutton(label = claude  , variable = self.viewer_)
+        viewer.add_radiobutton(label = "Emacs"  , variable = self.viewer_)
+        viewer.add_radiobutton(label = "Meld"   , variable = self.viewer_)
+        viewer.add_radiobutton(label = "TkDiff" , variable = self.viewer_)
+        viewer.add_radiobutton(label = "Vim"    , variable = self.viewer_)
+        viewer.add_radiobutton(label = claude   , variable = self.viewer_)
+        viewer.add_radiobutton(label = claude_qt, variable = self.viewer_)
         self.viewer_.set("TkDiff")     # Start with tkdiff.
 
     def create_menu_bar(self):
@@ -392,7 +404,6 @@ def main():
 
     finally:
         subprocess.Popen([ "/usr/bin/stty", "sane" ])
-
 
 
 if __name__ == "__main__":

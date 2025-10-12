@@ -1,0 +1,74 @@
+I need you to create a professional side-by-side diff viewer
+application in Python using PyQt6. This should be a complete GUI
+application that compares two text files and displays them with
+synchronized scrolling, highlighting differences at both the line and
+character level.
+
+The viewer needs to have two main text panes showing the base and
+modified files side-by-side. Between them, include a minimap
+visualization that shows where changes are located throughout the
+document - using green for insertions, red for deletions, and salmon
+for modifications. Users should be able to click on this minimap to
+jump to different parts of the files.
+
+Each pane should have its own line number column on the left that
+displays the actual line numbers from the source files. The line
+numbers need to account for lines that don't exist in one file or the
+other (showing them as gray/not present). Add a blue circle indicator
+next to the line number for whichever pane currently has focus, and
+draw a thick gray border around the currently focused line in the
+active pane.
+
+For highlighting changes, use subtle background colors - light pink
+for changed lines in the base file, light green for changed lines in
+the modified file. For character-level differences within lines,
+highlight those specific characters in yellow. Lines that don't exist
+in one file should have a dark gray background.
+
+Include keyboard navigation with arrow keys, Page Up/Down, Home/End,
+and importantly, Tab key to switch focus between the two panes while
+keeping the cursor on the same line number. Add shortcuts: N for next
+change, P for previous change, T for top, B for bottom, and Escape to
+close.
+
+Implement a note-taking feature that lets users double-click a line or
+right-click and select "Take Note" to save selected lines to an
+optional notes file. Mark noted lines with a red arrow
+indicator. Support Ctrl+N as a keyboard shortcut for taking notes on
+the current line or selection.
+
+Add a right-click context menu with two main options: "Search" and
+"Take Note". The Search option should only be enabled when text is
+selected. When clicked, it performs a case-insensitive search across
+both the base and modified files, showing all matches in a dialog
+window. The dialog should list each match with its side
+(BASE/MODIFIED), line number, and the actual line text. Users should
+be able to select results and click "Select" to navigate to them, with
+the dialog remaining open until they click "Cancel" so they can
+explore multiple results.
+
+Include external vertical and horizontal scrollbars that control both
+panes simultaneously. The scrolling should be perfectly synchronized
+between both text areas, including when using the mouse wheel.
+
+At the top, show the filenames for each pane in labeled panels. At the
+bottom, include a status bar showing the current change region number
+and total regions, plus the count of notes taken.
+
+Add a Help menu in the menu bar with a "How to Use" option that opens
+a comprehensive help dialog explaining all the keyboard shortcuts,
+visual indicators, navigation methods, and features. The help should
+be formatted nicely with HTML including sections for navigation,
+visual indicators, the diff map, note-taking, search functionality,
+the status bar, and usage tips.
+
+The application should handle edge cases gracefully - lines that don't
+exist in one file, very long lines, rapid scrolling, and switching
+focus between panes. Make sure all the visual elements (line numbers,
+focus indicators, highlighted regions) update correctly when scrolling
+or navigating.
+
+Make it robust and production-ready with proper error handling, and
+structure it so it can be imported as a module or run standalone from
+the command line with arguments for the base file, modified file, and
+optional notes file.
