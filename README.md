@@ -1,5 +1,9 @@
 # Software Prerequisites
 
+- <code>python3</code>
+
+  An executable named <code>python3</code> must be installed and on ${PATH}. 
+
 - <code>pyqt6</code>
 
 This Python module must be installed to be able to generate the
