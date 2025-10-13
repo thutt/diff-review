@@ -50,6 +50,8 @@ class SearchDialog(QDialog):
         super().__init__(parent)
         self.search_text = None
         self.case_sensitive = False
+        self.search_base = True
+        self.search_modi = True
         
         self.setWindowTitle("Search")
         self.setMinimumWidth(400)
@@ -65,10 +67,27 @@ class SearchDialog(QDialog):
         input_layout.addWidget(self.search_input)
         layout.addLayout(input_layout)
         
+        # Checkboxes row
+        checkbox_layout = QHBoxLayout()
+        
         # Case sensitivity checkbox
         self.case_checkbox = QCheckBox("Case sensitive")
         self.case_checkbox.setChecked(False)
-        layout.addWidget(self.case_checkbox)
+        checkbox_layout.addWidget(self.case_checkbox)
+        
+        checkbox_layout.addStretch()
+        
+        # Base file checkbox
+        self.base_checkbox = QCheckBox("Base")
+        self.base_checkbox.setChecked(True)
+        checkbox_layout.addWidget(self.base_checkbox)
+        
+        # Modified file checkbox
+        self.modi_checkbox = QCheckBox("Modi")
+        self.modi_checkbox.setChecked(True)
+        checkbox_layout.addWidget(self.modi_checkbox)
+        
+        layout.addLayout(checkbox_layout)
         
         # Buttons
         button_layout = QHBoxLayout()
@@ -95,17 +114,21 @@ class SearchDialog(QDialog):
         if text:
             self.search_text = text
             self.case_sensitive = self.case_checkbox.isChecked()
+            self.search_base = self.base_checkbox.isChecked()
+            self.search_modi = self.modi_checkbox.isChecked()
             self.accept()
 
 
 class SearchResultDialog(QDialog):
     """Dialog to show search results and allow selection"""
     
-    def __init__(self, search_text, parent=None, case_sensitive=False):
+    def __init__(self, search_text, parent=None, case_sensitive=False, search_base=True, search_modi=True):
         super().__init__(parent)
         self.search_text = search_text
         self.selected_result = None
         self.case_sensitive = case_sensitive
+        self.search_base = search_base
+        self.search_modi = search_modi
         self.parent_viewer = parent
         
         self.setWindowTitle(f"Search Results for: {search_text}")
@@ -113,13 +136,29 @@ class SearchResultDialog(QDialog):
         
         layout = QVBoxLayout(self)
         
-        # Case sensitivity checkbox
+        # Checkboxes row
         checkbox_layout = QHBoxLayout()
+        
+        # Case sensitivity checkbox
         self.case_checkbox = QCheckBox("Case sensitive")
         self.case_checkbox.setChecked(case_sensitive)
-        self.case_checkbox.stateChanged.connect(self.on_case_sensitivity_changed)
+        self.case_checkbox.stateChanged.connect(self.on_checkbox_changed)
         checkbox_layout.addWidget(self.case_checkbox)
+        
         checkbox_layout.addStretch()
+        
+        # Base file checkbox
+        self.base_checkbox = QCheckBox("Base")
+        self.base_checkbox.setChecked(search_base)
+        self.base_checkbox.stateChanged.connect(self.on_checkbox_changed)
+        checkbox_layout.addWidget(self.base_checkbox)
+        
+        # Modified file checkbox
+        self.modi_checkbox = QCheckBox("Modi")
+        self.modi_checkbox.setChecked(search_modi)
+        self.modi_checkbox.stateChanged.connect(self.on_checkbox_changed)
+        checkbox_layout.addWidget(self.modi_checkbox)
+        
         layout.addLayout(checkbox_layout)
         
         # Info label
@@ -153,9 +192,11 @@ class SearchResultDialog(QDialog):
         # Initial search
         self.perform_search()
     
-    def on_case_sensitivity_changed(self, state):
-        """Handle case sensitivity checkbox change"""
-        self.case_sensitive = (state == Qt.CheckState.Checked.value)
+    def on_checkbox_changed(self, state):
+        """Handle checkbox changes"""
+        self.case_sensitive = self.case_checkbox.isChecked()
+        self.search_base = self.base_checkbox.isChecked()
+        self.search_modi = self.modi_checkbox.isChecked()
         self.perform_search()
     
     def perform_search(self):
@@ -177,17 +218,19 @@ class SearchResultDialog(QDialog):
             search_lower = search_text.lower()
             matches = lambda line: search_lower in line.lower()
         
-        # Search in base
-        for i, (line_text, line_num) in enumerate(zip(self.parent_viewer.base_display, 
-                                                       self.parent_viewer.base_line_nums)):
-            if line_num is not None and matches(line_text):
-                results.append(('base', line_num, i, line_text))
+        # Search in base (only if checkbox is selected)
+        if self.search_base:
+            for i, (line_text, line_num) in enumerate(zip(self.parent_viewer.base_display, 
+                                                           self.parent_viewer.base_line_nums)):
+                if line_num is not None and matches(line_text):
+                    results.append(('base', line_num, i, line_text))
         
-        # Search in modified
-        for i, (line_text, line_num) in enumerate(zip(self.parent_viewer.modified_display, 
-                                                       self.parent_viewer.modified_line_nums)):
-            if line_num is not None and matches(line_text):
-                results.append(('modified', line_num, i, line_text))
+        # Search in modified (only if checkbox is selected)
+        if self.search_modi:
+            for i, (line_text, line_num) in enumerate(zip(self.parent_viewer.modified_display, 
+                                                           self.parent_viewer.modified_line_nums)):
+                if line_num is not None and matches(line_text):
+                    results.append(('modified', line_num, i, line_text))
         
         # Update info label
         self.info_label.setText(f"Found {len(results)} matches:")
@@ -756,6 +799,29 @@ class DiffViewer(QMainWindow):
         
         self.setup_gui()
     
+    def extract_display_path(self, filepath):
+        """Extract the display path starting after base.d/ or modi.d/"""
+        # Look for 'base.d/' or 'modi.d/' in the path and return what comes after
+        if 'base.d/' in filepath:
+            idx = filepath.find('base.d/')
+            return filepath[idx + len('base.d/'):]
+        elif 'modi.d/' in filepath:
+            idx = filepath.find('modi.d/')
+            return filepath[idx + len('modi.d/'):]
+        elif 'base.d' in filepath:
+            # Handle case without trailing slash
+            idx = filepath.find('base.d')
+            remaining = filepath[idx + len('base.d'):]
+            return remaining.lstrip('/')
+        elif 'modi.d' in filepath:
+            # Handle case without trailing slash
+            idx = filepath.find('modi.d')
+            remaining = filepath[idx + len('modi.d'):]
+            return remaining.lstrip('/')
+        else:
+            # If neither found, return the original path
+            return filepath
+    
     def setup_gui(self):
         """Setup the GUI"""
         self.setWindowTitle(f"Diff Viewer: {self.base_file} vs {self.modified_file}")
@@ -778,13 +844,32 @@ class DiffViewer(QMainWindow):
         
         # File labels
         label_layout = QHBoxLayout()
-        base_label = QLabel(self.base_file)
-        base_label.setFrameStyle(QFrame.Shape.Panel | QFrame.Shadow.Sunken)
-        label_layout.addWidget(base_label, 1)
-        label_layout.addWidget(QLabel(""), 0)  # Spacer for diff map
-        modified_label = QLabel(self.modified_file)
-        modified_label.setFrameStyle(QFrame.Shape.Panel | QFrame.Shadow.Sunken)
-        label_layout.addWidget(modified_label, 1)
+        
+        # Base side with label
+        base_container = QHBoxLayout()
+        base_type_label = QLabel("Base")
+        base_type_label.setStyleSheet("font-weight: bold; color: blue; padding: 2px 5px;")
+        base_file_label = QLabel(self.extract_display_path(self.base_file))
+        base_file_label.setFrameStyle(QFrame.Shape.Panel | QFrame.Shadow.Sunken)
+        base_container.addWidget(base_type_label)
+        base_container.addWidget(base_file_label, 1)
+        
+        # Spacer for diff map
+        spacer = QLabel("")
+        
+        # Modified side with label
+        modified_container = QHBoxLayout()
+        modified_type_label = QLabel("Modified")
+        modified_type_label.setStyleSheet("font-weight: bold; color: green; padding: 2px 5px;")
+        modified_file_label = QLabel(self.extract_display_path(self.modified_file))
+        modified_file_label.setFrameStyle(QFrame.Shape.Panel | QFrame.Shadow.Sunken)
+        modified_container.addWidget(modified_type_label)
+        modified_container.addWidget(modified_file_label, 1)
+        
+        # Add to main layout
+        label_layout.addLayout(base_container, 1)
+        label_layout.addWidget(spacer, 0)
+        label_layout.addLayout(modified_container, 1)
         main_layout.addLayout(label_layout)
         
         # Content area
@@ -1169,7 +1254,8 @@ class DiffViewer(QMainWindow):
         
         with open(self.note_file, 'a') as f:
             prefix = '(base): ' if side == 'base' else '(modi): '
-            f.write(f"{prefix}{filename}\n")
+            clean_filename = self.extract_display_path(filename)
+            f.write(f"{prefix}{clean_filename}\n")
             f.write(f"  {line_nums[line_idx]}: {display_lines[line_idx]}\n\n")
         
         self.mark_noted_line(side, line_nums[line_idx])
@@ -1192,6 +1278,7 @@ class DiffViewer(QMainWindow):
         
         <h3>Overview</h3>
         <p>This diff viewer displays side-by-side comparison of two files with synchronized scrolling and highlighting of changes.</p>
+        <p>The left pane shows the <b>Base</b> file (original version) and the right pane shows the <b>Modified</b> file (changed version). Each pane is clearly labeled at the top.</p>
         
         <h3>Navigation</h3>
         <ul>
@@ -1202,6 +1289,7 @@ class DiffViewer(QMainWindow):
             <li><b>Tab:</b> Switch focus between base and modified panes</li>
             <li><b>N:</b> Jump to next change region</li>
             <li><b>P:</b> Jump to previous change region</li>
+            <li><b>C:</b> Center on the currently selected region</li>
             <li><b>T:</b> Jump to top of document</li>
             <li><b>B:</b> Jump to bottom of document</li>
             <li><b>Ctrl+S:</b> Open search dialog</li>
@@ -1211,6 +1299,8 @@ class DiffViewer(QMainWindow):
         
         <h3>Visual Indicators</h3>
         <ul>
+            <li><b>"Base" Label (Blue):</b> Identifies the left pane showing the original file</li>
+            <li><b>"Modified" Label (Green):</b> Identifies the right pane showing the changed file</li>
             <li><b>Line Numbers:</b> Displayed on the left side of each pane</li>
             <li><b>Blue Circle:</b> Indicates the currently focused line in the active pane</li>
             <li><b>Grey Border:</b> Highlights the focused line</li>
@@ -1229,7 +1319,11 @@ class DiffViewer(QMainWindow):
             <li><b>Red:</b> Deletions</li>
             <li><b>Salmon:</b> Replacements/modifications</li>
             <li><b>Gray Box:</b> Current viewport position</li>
-            <li><b>Click:</b> Jump to that location in the document</li>
+            <li><b>Click:</b> Jump to that location and select the nearest change region</li>
+            <li>Clicking anywhere near a region will select it (no need for pixel-perfect accuracy)</li>
+            <li>If you click in an area with no changes, the nearest region in the document is selected</li>
+            <li>The selected region will be highlighted with a blue box and shown in the status bar</li>
+            <li><b>Tip:</b> If the selected region is not visible, press <b>C</b> to center it on screen</li>
         </ul>
         
         <h3>Taking Notes</h3>
@@ -1248,6 +1342,8 @@ class DiffViewer(QMainWindow):
                 <ul>
                     <li>Enter your search text in the input box</li>
                     <li>Optionally check "Case sensitive" for exact case matching</li>
+                    <li><b>Base checkbox:</b> Include/exclude matches from the base file (checked by default)</li>
+                    <li><b>Modi checkbox:</b> Include/exclude matches from the modified file (checked by default)</li>
                     <li>Press Enter or click "Search" to find matches</li>
                 </ul>
             </li>
@@ -1255,15 +1351,18 @@ class DiffViewer(QMainWindow):
                 <ul>
                     <li>Select text in either pane</li>
                     <li>Right-click and choose "Search"</li>
-                    <li>Search is case-insensitive by default</li>
+                    <li>Search is case-insensitive by default and searches both files</li>
                 </ul>
             </li>
         </ul>
         <p><b>Search Results Dialog:</b></p>
         <ul>
-            <li>Shows all matches from both base and modified files</li>
+            <li>Shows matches based on selected options</li>
             <li>Displays side (BASE/MODIFIED), line number, and line content</li>
             <li><b>Case sensitive checkbox:</b> Toggle to re-run search with/without case sensitivity</li>
+            <li><b>Base checkbox:</b> Toggle to show/hide matches from base file</li>
+            <li><b>Modi checkbox:</b> Toggle to show/hide matches from modified file</li>
+            <li>Results update immediately when any checkbox is toggled</li>
             <li><b>Select a result:</b> Click and press "Select" to navigate to that line</li>
             <li><b>Dialog stays open:</b> Navigate to multiple results before closing</li>
             <li><b>Cancel:</b> Close the search results dialog</li>
@@ -1326,8 +1425,11 @@ class DiffViewer(QMainWindow):
         """Show search input dialog (Ctrl+S)"""
         dialog = SearchDialog(self)
         if dialog.exec() == QDialog.DialogCode.Accepted and dialog.search_text:
-            # Show search results with the entered text and case sensitivity
-            results_dialog = SearchResultDialog(dialog.search_text, self, dialog.case_sensitive)
+            # Show search results with all parameters from the search dialog
+            results_dialog = SearchResultDialog(dialog.search_text, self, 
+                                               dialog.case_sensitive,
+                                               dialog.search_base,
+                                               dialog.search_modi)
             results_dialog.exec()
     
     def search_selected_text(self, side):
@@ -1390,7 +1492,8 @@ class DiffViewer(QMainWindow):
         
         with open(self.note_file, 'a') as f:
             prefix = '(base): ' if side == 'base' else '(modi): '
-            f.write(f"{prefix}{filename}\n")
+            clean_filename = self.extract_display_path(filename)
+            f.write(f"{prefix}{clean_filename}\n")
             
             for i in range(start_block_num, end_block_num + 1):
                 if i < len(line_nums) and line_nums[i] is not None:
@@ -1420,12 +1523,31 @@ class DiffViewer(QMainWindow):
     
     def on_diff_map_click(self, line):
         """Handle diff map click"""
+        # First, try to find a region that contains this line
+        found_region = False
         for i, (tag, start, end, *_) in enumerate(self.change_regions):
             if start <= line < end:
                 self.current_region = i
+                found_region = True
                 break
         
+        # If no exact match, find the nearest region
+        if not found_region and self.change_regions:
+            # Find the closest region (either before or after the clicked line)
+            min_distance = float('inf')
+            nearest_region = 0
+            
+            for i, (tag, start, end, *_) in enumerate(self.change_regions):
+                # Calculate distance to region (use start of region)
+                distance = abs(start - line)
+                if distance < min_distance:
+                    min_distance = distance
+                    nearest_region = i
+            
+            self.current_region = nearest_region
+        
         self.center_on_line(line)
+        self.highlight_current_region()
         self.update_status()
     
     def center_on_line(self, line):
@@ -1455,6 +1577,14 @@ class DiffViewer(QMainWindow):
         
         # Update diff map viewport after navigation
         self.update_diff_map_viewport()
+    
+    def center_current_region(self):
+        """Center on the currently selected region"""
+        if self.change_regions and 0 <= self.current_region < len(self.change_regions):
+            _, start, *_ = self.change_regions[self.current_region]
+            self.center_on_line(start)
+            self.highlight_current_region()
+            self.update_status()
     
     def next_change(self):
         """Go to next change"""
@@ -1609,6 +1739,8 @@ class DiffViewer(QMainWindow):
             self.next_change()
         elif key == Qt.Key.Key_P:
             self.prev_change()
+        elif key == Qt.Key.Key_C:
+            self.center_current_region()
         elif key == Qt.Key.Key_T:
             self.current_region = 0
             if self.change_regions:
