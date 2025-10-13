@@ -893,6 +893,7 @@ class DiffViewer(QMainWindow):
         # Diff map
         self.diff_map = DiffMapWidget()
         self.diff_map.clicked.connect(self.on_diff_map_click)
+        self.diff_map_visible = True  # Track visibility state
         content_layout.addWidget(self.diff_map)
         
         # Modified side
@@ -1292,6 +1293,7 @@ class DiffViewer(QMainWindow):
             <li><b>C:</b> Center on the currently selected region</li>
             <li><b>T:</b> Jump to top of document</li>
             <li><b>B:</b> Jump to bottom of document</li>
+            <li><b>Alt+H:</b> Toggle diff map visibility (hides/shows center column)</li>
             <li><b>Ctrl+S:</b> Open search dialog</li>
             <li><b>Ctrl+N:</b> Take a note for the current line or selection</li>
             <li><b>Escape:</b> Close the viewer</li>
@@ -1695,10 +1697,24 @@ class DiffViewer(QMainWindow):
         # For all other events, use default handling
         return super().event(event)
     
+    def toggle_diff_map(self):
+        """Toggle diff map visibility"""
+        if self.diff_map_visible:
+            self.diff_map.hide()
+            self.diff_map_visible = False
+        else:
+            self.diff_map.show()
+            self.diff_map_visible = True
+    
     def keyPressEvent(self, event):
         """Handle keyboard shortcuts"""
         key = event.key()
         modifiers = event.modifiers()
+        
+        # Check for Alt+H to toggle diff map
+        if key == Qt.Key.Key_H and modifiers & Qt.KeyboardModifier.AltModifier:
+            self.toggle_diff_map()
+            return
         
         # Check for Ctrl+S
         if key == Qt.Key.Key_S and modifiers & Qt.KeyboardModifier.ControlModifier:
