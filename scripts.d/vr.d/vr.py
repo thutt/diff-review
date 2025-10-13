@@ -417,6 +417,23 @@ def generate(options, review_name, dossier):
     return qt_intf.run()
 
 
+def restore_terminal():
+    if os.name == "posix":      # Not POSIX -> no stty
+        trusted_paths = [
+            "/bin/stty",
+            "/usr/bin/stty",
+        ]
+
+        stty_path = None
+        for p in trusted_paths:
+            if os.access(p, os.X_OK):
+                stty_path = p
+                break
+
+        if stty_path is not None:
+            subprocess.Popen([ stty_path, "sane" ])
+
+
 def main():
     try:
         options = process_command_line()
@@ -444,7 +461,7 @@ def main():
         return 1
 
     finally:
-        subprocess.Popen([ "/usr/bin/stty", "sane" ])
+        restore_terminal()
 
 
 if __name__ == "__main__":
