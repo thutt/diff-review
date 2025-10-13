@@ -96,8 +96,13 @@ class QtInterface(QMainWindow):
         self.viewer_group = QActionGroup(self)
         self.viewer_group.setExclusive(True)
 
-        viewers = ["Emacs", "Meld", "TkDiff", "Vim",
-                   "Claude (deprecated)", "Claude-QT (experimental)"]
+        viewers = [
+            "Claude-QT (experimental)",
+            "Emacs",
+            "Meld",
+            "TkDiff",
+            "Vim"
+        ]
 
         for viewer in viewers:
             action = QAction(viewer, self)
@@ -173,16 +178,6 @@ class QtInterface(QMainWindow):
             path   = os.path.split(sys.argv[0])
             claude = os.path.abspath(os.path.join(path[0], "..",
                                                   "claude-qt.d", "claude.py"))
-            notes  = [ ]
-            if self.options_.arg_claude_note_file is not None:
-                notes = [ "--note", self.options_.arg_claude_note_file ]
-            cmd = [ "python3", "-B", claude,
-                    "--base", base,
-                    "--modi", modi ] + notes
-        elif viewer == "Claude (deprecated)":
-            path   = os.path.split(sys.argv[0])
-            claude = os.path.abspath(os.path.join(path[0], "..",
-                                                  "claude.d", "claude.py"))
             notes  = [ ]
             if self.options_.arg_claude_note_file is not None:
                 notes = [ "--note", self.options_.arg_claude_note_file ]

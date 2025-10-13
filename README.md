@@ -33,13 +33,11 @@ On Ubuntu, this can be satisfied with:
 This system currently supports the following side-by-side diff viewers,
 selectable from the <code>Viewer</code> menu.
 
+- Claude-QT (Claude-generated, experimental, pyqt6)
 - Emacs
 - Meld
 - TkDiff
 - Vim
-- Native (Claude-generated, deprecated, tkinter)
-- Native (Claude-generated, experimental, pyqt6)
-
 
 # Description / Terminology
 
@@ -312,7 +310,7 @@ options that the program takes.  Using these options will allow more
 complex invocations -- such as naming the output, or putting it into a
 different directory location.
 
-- Native (pyqt6)
+- Claude-QT (pyqt6)
 
   This viewer program was entirely generated through conversations
   with Claude.ai.  When it is deemed to be working well-enough, it
