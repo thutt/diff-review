@@ -11,9 +11,10 @@ import signal
 import sys
 
 try:
-    from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
-                                  QHBoxLayout, QScrollArea, QPushButton, QLabel,
-                                  QMenu, QMessageBox, QGridLayout, QFrame)
+    from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget,
+                                 QVBoxLayout, QHBoxLayout, QScrollArea,
+                                 QPushButton, QLabel, QMenu, QMessageBox,
+                                 QGridLayout, QFrame, QDialog, QTextEdit)
     from PyQt6.QtCore import Qt
     from PyQt6.QtGui import QAction, QActionGroup, QPalette, QColor
 except ImportError:
@@ -22,6 +23,26 @@ except ImportError:
     sys.exit(10)
 
 import traceback
+
+class DescriptionDialog(QDialog):
+    def __init__(self, items, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Change Description")
+        self.resize(600, 300)
+
+        # Layout
+        layout = QVBoxLayout(self)
+
+        # Text area
+        text_box = QTextEdit(self)
+        text_box.setPlainText("\n".join(items))
+        text_box.setReadOnly(True)
+        layout.addWidget(text_box)
+
+        # Close button
+        close_button = QPushButton("Close", self)
+        close_button.clicked.connect(self.accept)  # closes the dialog
+        layout.addWidget(close_button)
 
 
 class QtInterface(QMainWindow):
@@ -239,6 +260,23 @@ class QtInterface(QMainWindow):
 
         self.content_layout.addWidget(quit_button, row, 1)
 
+    def description_dialog(self, description):
+        self.description_dialog_ = DescriptionDialog(description)
+        self.description_dialog_.show()
+
+    def add_description(self, row, description):
+        quit_button = QPushButton("Description")
+        quit_button.clicked.connect(lambda: self.description_dialog(description))
+
+        # Set red background
+        palette = quit_button.palette()
+        palette.setColor(QPalette.ColorRole.Button, QColor("blue"))
+        palette.setColor(QPalette.ColorRole.ButtonText, QColor("yellow"))
+        quit_button.setPalette(palette)
+        quit_button.setAutoFillBackground(True)
+
+        self.content_layout.addWidget(quit_button, row, 0)
+
     def quit(self):
         for subp in self.subp_:
             try:
@@ -385,11 +423,12 @@ def process_command_line():
 
 
 def generate(options, review_name, dossier):
-    qt_intf = QtInterface(options, review_name, dossier)
-    row      = 0                # Number of files.
-    col      = 0                # Maximum pathname length, in chars
-    base_dir = dossier["base"]
-    modi_dir = dossier["modi"]
+    qt_intf     = QtInterface(options, review_name, dossier)
+    row         = 0                # Number of files.
+    col         = 0                # Maximum pathname length, in chars
+    base_dir    = dossier["base"]
+    modi_dir    = dossier["modi"]
+    description = dossier["description"]
 
     for f in sorted(dossier['files'],
                     key=lambda item: item["modi_rel_path"]):
@@ -405,6 +444,8 @@ def generate(options, review_name, dossier):
         qt_intf.add_button(row, action, base, modi, rel_modi)
         row = row + 1
 
+    if description is not None:
+        qt_intf.add_description(row, description)
     qt_intf.add_quit(row)
     qt_intf.size_window(row + 1, # Number of rows, including 'quit'.
                         col)

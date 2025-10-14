@@ -182,6 +182,7 @@ class SCM(object):
         self.dossier_         = None # None -> no change to review.
         self.verbose_         = options.arg_verbose
         self.n_threads_       = options.arg_threads
+        self.description_     = None # Change description, if present.
 
         if options.arg_scm == "git":
             self.scm_path_ = options.arg_git_path
@@ -253,13 +254,14 @@ class SCM(object):
             # menu.
             #
             info = {
-                'user'  : getpass.getuser(),
-                'name'  : self.review_name_,
-                'root'  : self.review_dir_,
-                'base'  : self.review_base_dir_,
-                'modi'  : self.review_modi_dir_,
-                'time'  : timestamp,
-                'files' : [ ]
+                'user'        : getpass.getuser(),
+                'name'        : self.review_name_,
+                'root'        : self.review_dir_,
+                'base'        : self.review_base_dir_,
+                'modi'        : self.review_modi_dir_,
+                'time'        : timestamp,
+                'description' : self.description_,
+                'files'       : [ ]
             }
             for f in self.dossier_:
                 assert(f.modi_file_info_ is not None)

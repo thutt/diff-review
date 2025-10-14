@@ -158,6 +158,20 @@ def git_get_status_short(scm, untracked):
                      (drutil.qualid_(), ' '.join(cmd)))
 
 
+def git_get_description(scm, beg_sha, end_sha):
+    cmd = [ scm.scm_path_, "show",
+            "-s",
+            "--format=%B",
+            "%s..%s" % (beg_sha, end_sha) ]
+    (stdout, stderr, rc) = drutil.execute(scm.verbose_, cmd)
+
+    if rc == 0:
+        return stdout
+    else:
+        drutil.fatal("%s: Unable to execute '%s'." %
+                     (drutil.qualid_(), ' '.join(cmd)))
+
+
 class ChangedFile(drscm.ChangedFile):
     def __init__(self, scm, action, base_file, modi_file):
         super().__init__(scm)
@@ -405,9 +419,10 @@ class GitCommitted(Git):
         return msg
 
     def generate_dossier_(self):
-        (base_sha, modi_sha) = self.get_change_range()
+        (beg_sha, end_sha) = self.get_change_range()
 
-        diff = git_diff_tree(self, base_sha, modi_sha)
+        self.description_ = git_get_description(self, beg_sha, end_sha)
+        diff = git_diff_tree(self, beg_sha, end_sha)
         result = [ ]
         for l in diff:
             l = l.replace(' ', '\t') # Line has both space and tab.
