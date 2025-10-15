@@ -16,6 +16,10 @@ On Ubuntu, this can be satisfied with:
 
     sudo apt install python3-pyqt6
 
+# Supported Operating Systems
+
+- Linux
+- MacOS
 
 # Supported Viewers
 
@@ -153,7 +157,7 @@ Viewer :  view-review -R /home/thutt/review -r default
 Elapsed:  0:00:00.111161
 ```
 
-The line beginning with `view-review` iss a commands that can be
+The line beginning with `view-review` is a command that can be
 executed to view the diffs (or, the alias `vr` can also be used).
 
 ```

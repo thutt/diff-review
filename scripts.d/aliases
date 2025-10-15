@@ -7,9 +7,41 @@
 #  and 'view-review' respectively.  It provides direct access to the
 #  utilities without having to modify PATH.
 #
-if [[ "${BASH_SOURCE[0]}" != "${0}" ]]; then
-    script="$(readlink -f ${BASH_SOURCE[0]})";
-    dir="$(readlink -f $(dirname "${script}")/..)";
+function readlinkf ()
+{
+    local pn="${1}";
+    local sourced="0";          # False
+
+    if [[ "${pn}" != /* ]]; then
+        ${pn}="$(pwd)/${pn}";
+    fi
+
+    while [ -L "${pn}" ]; do
+        ${pn}=$(ls -l "${pn}" | sed 's/.*-> //');
+
+        if [[ "${pn}" != /* ]]; then
+            ${pn}="$(dirname "$1")/${pn}";
+        fi;
+    done;
+
+    echo "$(cd "$(dirname "${pn}")" && pwd)/$(basename "${pn}")";
+}
+
+BASH_MAJOR_VERSION=$(bash --version|head -n 1|awk '{print $4}'|cut -d '.' -f1);
+if [[ ${BASH_MAJOR_VERSION} -lt 4 ]] ; then
+    # Bash on MacOS is less than version 4.  Arrays are not supported.
+    if [[ "${BASH_SOURCE}" != "${0}" ]]; then
+        sourced="1";            # True
+    fi;
+else
+    if [[ "${BASH_SOURCE[0]}" != "${0}" ]]; then
+        sourced="1";            # True
+    fi;
+fi;
+
+if [[ "${sourced}" = "1" ]]; then
+    script="$(readlinkf ${BASH_SOURCE[0]})";
+    dir="$(readlinkf $(dirname "${script}")/..)";
     eval alias dr='${dir}/diff-review'
     eval alias vr='${dir}/view-review'
 
@@ -32,4 +64,3 @@ EOF
 else
     echo "This script cannot be executed.  It must be sourced.";
 fi
-

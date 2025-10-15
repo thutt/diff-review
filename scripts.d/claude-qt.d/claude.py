@@ -143,10 +143,6 @@ def main():
 
         return 1
 
-    finally:
-        subprocess.Popen([ "/usr/bin/stty", "sane" ])
-
-
 
 if __name__ == "__main__":
     sys.exit(main())
