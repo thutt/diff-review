@@ -2,7 +2,7 @@
 
 - <code>python3</code>
 
-  An executable named <code>python3</code> must be installed and on ${PATH}. 
+  An executable named <code>python3</code> must be installed and on ${PATH}.
 
 - <code>pyqt6</code>
 
@@ -17,17 +17,6 @@ On Ubuntu, this can be satisfied with:
     sudo apt install python3-pyqt6
 
 
-- Differencing Tools
-
-  At least one of the following utilities must be installed to fully use
-  this tool.
-
-  - TkDiff
-  - Meld
-
-  If these modules are not installed, selecting these viewers in the Viewer
-  menu will yield unsatsifactory results.
-
 # Supported Viewers
 
 This system currently supports the following side-by-side diff viewers,
@@ -38,6 +27,11 @@ selectable from the <code>Viewer</code> menu.
 - Meld
 - TkDiff
 - Vim
+
+If any of Emacs, Meld, TkDiff or Vim cannot be found in commonly-used
+install paths for that program, it will not be included in the
+<code>Viewer</code> menu.
+
 
 # Description / Terminology
 
@@ -159,9 +153,8 @@ Viewer :  view-review -R /home/thutt/review -r default
 Elapsed:  0:00:00.111161
 ```
 
-The lines beginning with `TkDiff` and `Meld` are commands that can be
-executed to view the diffs.  But, in this case since `dr` was used,
-`vr` can be run to load the viewer for the diff.
+The line beginning with `view-review` iss a commands that can be
+executed to view the diffs (or, the alias `vr` can also be used).
 
 ```
 vr

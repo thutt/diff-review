@@ -69,7 +69,42 @@ class QtInterface(QMainWindow):
         self.review_name_ = review_name
         self.subp_ = []
         self.notes_ = None
-        self.viewer_name_ = "TkDiff"    # Default viewer
+        self.viewer_name_ = "Claude-QT"  # Default viewer
+
+        self.emacs_ = find_executable([
+            "/usr/bin/emacs",
+            "/usr/local/bin/emacs",
+            "/opt/homebrew/bin/emacs",
+            "/opt/local/bin/emacs",
+            "Applications/Emacs.app",
+            # Windows usually has emacs version in pathname; punt.
+        ])
+
+        self.meld_ = find_executable([
+            "/usr/bin/meld",
+            "/usr/local/bin/meld",
+            "/bin/meld",
+            "/Applications/Meld.app",
+            "/Applications/Meld.app/Contents/MacOS/Meld",
+            "c:/program files (x86)/meld/meld.exe"
+        ])
+
+        self.tkdiff_ = find_executable([
+            "/usr/bin/tkdiff",
+            "/usr/local/bin/tkdiff",
+            "/opt/local/bin/tkdiff",
+            "/opt/homebrew/bin/tkdiff",
+            "/opt/local/bin/tkdiff",
+            "/bin/tkdiff",
+        ])
+
+        self.vim_ = find_executable([
+            "/usr/bin/vimdiff",
+            "/usr/local/bin/vimdiff",
+            "/opt/homebrew/bin/vimdiff",
+            "/opt/local/bin/vimdiff",
+            # Windows usually has vim version in pathname; punt.
+        ])
 
         self.create_ui(review_name)
 
@@ -117,13 +152,28 @@ class QtInterface(QMainWindow):
         self.viewer_group = QActionGroup(self)
         self.viewer_group.setExclusive(True)
 
-        viewers = [
-            "Claude-QT (experimental)",
-            "Emacs",
-            "Meld",
-            "TkDiff",
-            "Vim"
-        ]
+        emacs  = [ ]
+        meld   = [ ]
+        tkdiff = [ ]
+        vim    = [ ]
+
+        if self.emacs_ is not None:
+            emacs = [ "Emacs" ]
+
+        if self.meld_ is not None:
+            meld = [ "Meld" ]
+
+        if self.tkdiff_ is not None:
+            tkdiff = [ "TkDiff" ]
+
+        if self.vim_ is not None:
+            vim = [ "Vim" ]
+
+        viewers = ([ "Claude-QT", ] +
+                   emacs  +
+                   tkdiff +
+                   meld   +
+                   vim)
 
         for viewer in viewers:
             action = QAction(viewer, self)
@@ -132,7 +182,7 @@ class QtInterface(QMainWindow):
             self.viewer_group.addAction(action)
             viewer_menu.addAction(action)
 
-            if viewer == "TkDiff":
+            if viewer == self.viewer_name_:
                 action.setChecked(True)
 
         # Notes menu
@@ -154,23 +204,27 @@ class QtInterface(QMainWindow):
             notes_menu.addSeparator()
 
         # Add emacs and vi
-        emacs_action = QAction(f"emacs '{filename}'", self)
-        emacs_action.triggered.connect(lambda: self.open_notes("/usr/bin/emacs", filename))
-        notes_menu.addAction(emacs_action)
+        if self.emacs_ is not None:
+            emacs_action = QAction(f"emacs '{filename}'", self)
+            emacs_action.triggered.connect(lambda: self.open_notes(self.emacs_,
+                                                                   filename))
+            notes_menu.addAction(emacs_action)
 
-        vi_action = QAction(f"vi '{filename}'", self)
-        vi_action.triggered.connect(lambda: self.open_notes("/usr/bin/vi", filename))
-        notes_menu.addAction(vi_action)
+        if self.vim_ is not None:
+            vi_action = QAction(f"vim '{filename}'", self)
+            vi_action.triggered.connect(lambda: self.open_notes(self.vim_,
+                                                                filename))
+            notes_menu.addAction(vi_action)
 
     def execute_viewer(self, button, base, modi):
         viewer = self.viewer_name_
         if viewer == "Emacs":
-            cmd = [ "/usr/bin/emacs", # Assumes windowed emacs.
+            cmd = [ self.emacs_, # Assumes windowed emacs.
                     "--eval", "(ediff-files \"%s\" \"%s\")" % (base, modi) ]
         elif viewer == "Meld":
-            cmd = [ "/usr/bin/meld", base, modi ]
+            cmd = [ self.meld_, base, modi ]
         elif viewer == "TkDiff":
-            cmd = [ "/usr/bin/tkdiff", base, modi ]
+            cmd = [ self.tkdiff_, base, modi ]
         elif viewer == "Vim":
             # Vimdiff starts in the terminal from which this script
             # has been launched.  It also mucks with the stty
@@ -190,12 +244,12 @@ class QtInterface(QMainWindow):
             #       launched, due to the say that vim functions with
             #       'swp' files.
             #
-            vimdiff = [ "/usr/bin/vimdiff" ]
+            vimdiff = [ self.vim_ ]
             term    = os.getenv("TERM", None)
             if term is not None:
                 vimdiff = [ term, "-e" ] + vimdiff
             cmd = vimdiff + [ base, modi ]
-        elif viewer == "Claude-QT (experimental)":
+        elif viewer == "Claude-QT":
             path   = os.path.split(sys.argv[0])
             claude = os.path.abspath(os.path.join(path[0], "..",
                                                   "claude-qt.d", "claude.py"))
@@ -453,22 +507,19 @@ def generate(options, review_name, dossier):
     return qt_intf.run()
 
 
+def find_executable(search_paths):
+    for pn in search_paths:
+        if os.access(pn, os.X_OK):
+            return pn
+    return None
+
+
 def restore_terminal():
     if os.name == "posix":      # Not POSIX -> no stty
-        trusted_paths = [
-            "/bin/stty",
-            "/usr/bin/stty",
-        ]
-
-        stty_path = None
-        for p in trusted_paths:
-            if os.access(p, os.X_OK):
-                stty_path = p
-                break
-
+        stty_path = find_executable([ "/bin/stty",
+                                      "/usr/bin/stty" ])
         if stty_path is not None:
             subprocess.Popen([ stty_path, "sane" ])
-
 
 def main():
     try:
