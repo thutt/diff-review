@@ -18,8 +18,9 @@ On Ubuntu, this can be satisfied with:
 
 # Supported Operating Systems
 
-- Linux
-- MacOS
+ - Linux
+ - MacOS (basic functionality)
+ - Windows (proof-of-concept functionality)
 
 # Supported Viewers
 
