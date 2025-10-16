@@ -152,33 +152,30 @@ class QtInterface(QMainWindow):
         self.viewer_group = QActionGroup(self)
         self.viewer_group.setExclusive(True)
 
-        emacs  = [ ]
-        meld   = [ ]
-        tkdiff = [ ]
-        vim    = [ ]
+        emacs  = "Emacs"
+        meld   = "Meld"
+        tkdiff = "TkDiff"
+        vim    = "Vim"
+        na     = "(not available)"
+        if self.emacs_ is None:
+            emacs = "%s %s" % (emacs, na)
 
-        if self.emacs_ is not None:
-            emacs = [ "Emacs" ]
+        if self.meld_ is None:
+            meld = "%s %s" % (meld, na)
 
-        if self.meld_ is not None:
-            meld = [ "Meld" ]
+        if self.tkdiff_ is None:
+            tkdiff = "%s %s" % (tkdiff, na)
 
-        if self.tkdiff_ is not None:
-            tkdiff = [ "TkDiff" ]
+        if self.vim_ is None:
+            vim = "%s %s" % (vim, na)
 
-        if self.vim_ is not None:
-            vim = [ "Vim" ]
-
-        viewers = ([ "Claude-QT", ] +
-                   emacs  +
-                   tkdiff +
-                   meld   +
-                   vim)
+        viewers = [ "Claude-QT", emacs, tkdiff, meld, vim ]
 
         for viewer in viewers:
             action = QAction(viewer, self)
             action.setCheckable(True)
             action.triggered.connect(lambda checked, v=viewer: self.set_viewer(v))
+            action.setEnabled(na not in viewer)
             self.viewer_group.addAction(action)
             viewer_menu.addAction(action)
 
