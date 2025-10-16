@@ -580,9 +580,29 @@ class SyncedPlainTextEdit(QPlainTextEdit):
             
             # Check if it's a navigation key before processing
             key = event.key()
+            modifiers = event.modifiers()
+            
             is_nav_key = key in (Qt.Key.Key_Up, Qt.Key.Key_Down, Qt.Key.Key_PageUp, 
                                  Qt.Key.Key_PageDown, Qt.Key.Key_Home, Qt.Key.Key_End,
                                  Qt.Key.Key_Left, Qt.Key.Key_Right)
+            
+            # Check if it's a parent window command key (N, P, C, T, B, Escape)
+            is_parent_command = key in (Qt.Key.Key_N, Qt.Key.Key_P, Qt.Key.Key_C,
+                                       Qt.Key.Key_T, Qt.Key.Key_B, Qt.Key.Key_Escape)
+            
+            # Check if it's Alt+H or Alt+L
+            is_alt_command = ((key == Qt.Key.Key_H or key == Qt.Key.Key_L) and 
+                            modifiers & Qt.KeyboardModifier.AltModifier)
+            
+            # Forward parent command keys and Alt commands to the main window
+            if (is_parent_command or is_alt_command) and not (modifiers & Qt.KeyboardModifier.ControlModifier):
+                parent = self.parent()
+                while parent and not isinstance(parent, QMainWindow):
+                    parent = parent.parent()
+                if parent:
+                    parent.keyPressEvent(event)
+                    self._in_key_event = False
+                    return
             
             
             if is_nav_key:
@@ -796,6 +816,9 @@ class DiffViewer(QMainWindow):
         
         # Store region highlight data
         self.current_region_highlight = None
+        
+        # Track the target region during navigation to prevent scroll interference
+        self._target_region = None
         
         self.setup_gui()
     
@@ -1216,6 +1239,10 @@ class DiffViewer(QMainWindow):
     
     def update_current_region_from_scroll(self):
         """Update current region based on first visible line"""
+        # Don't interfere with explicit navigation to a target region
+        if self._target_region is not None:
+            return
+            
         if not self.change_regions:
             return
         
@@ -1587,10 +1614,38 @@ class DiffViewer(QMainWindow):
     def center_current_region(self):
         """Center on the currently selected region"""
         if self.change_regions and 0 <= self.current_region < len(self.change_regions):
+            self._target_region = self.current_region
+            
             _, start, *_ = self.change_regions[self.current_region]
             self.center_on_line(start)
             self.highlight_current_region()
             self.update_status()
+            
+            # Check if navigation completed after scroll settles
+            QTimer.singleShot(200, self.check_navigation_complete)
+    
+    def check_navigation_complete(self):
+        """Check if we've reached the target region and clear the lock"""
+        if self._target_region is None:
+            return
+        
+        # Check if the target region is now visible
+        if not self.change_regions or self._target_region >= len(self.change_regions):
+            self._target_region = None
+            return
+        
+        _, start, end, *_ = self.change_regions[self._target_region]
+        block = self.base_text.firstVisibleBlock()
+        first_visible = block.blockNumber()
+        
+        viewport_height = self.base_text.viewport().height()
+        line_height = self.base_text.fontMetrics().height()
+        visible_lines = viewport_height // line_height if line_height > 0 else 10
+        last_visible = first_visible + visible_lines
+        
+        # If the target region is in the visible range, we're done navigating
+        if start >= first_visible and start < last_visible:
+            self._target_region = None
     
     def next_change(self):
         """Go to next change"""
@@ -1601,17 +1656,24 @@ class DiffViewer(QMainWindow):
         if self.current_region >= len(self.change_regions) - 1:
             if len(self.change_regions) == 1:
                 # Single region - just navigate to it
+                self._target_region = 0
+                self.current_region = 0
                 _, start, *_ = self.change_regions[0]
                 self.center_on_line(start)
                 self.highlight_current_region()
                 self.update_status()
+                QTimer.singleShot(200, self.check_navigation_complete)
             return
         
         self.current_region += 1
+        self._target_region = self.current_region
         _, start, *_ = self.change_regions[self.current_region]
         self.center_on_line(start)
         self.highlight_current_region()
         self.update_status()
+        
+        # Check if navigation completed after scroll settles
+        QTimer.singleShot(200, self.check_navigation_complete)
     
     def prev_change(self):
         """Go to previous change"""
@@ -1622,17 +1684,24 @@ class DiffViewer(QMainWindow):
         if self.current_region <= 0:
             if len(self.change_regions) == 1:
                 # Single region - just navigate to it
+                self._target_region = 0
+                self.current_region = 0
                 _, start, *_ = self.change_regions[0]
                 self.center_on_line(start)
                 self.highlight_current_region()
                 self.update_status()
+                QTimer.singleShot(200, self.check_navigation_complete)
             return
         
         self.current_region -= 1
+        self._target_region = self.current_region
         _, start, *_ = self.change_regions[self.current_region]
         self.center_on_line(start)
         self.highlight_current_region()
         self.update_status()
+        
+        # Check if navigation completed after scroll settles
+        QTimer.singleShot(200, self.check_navigation_complete)
     
     def highlight_current_region(self):
         """Highlight the current region with a box"""
