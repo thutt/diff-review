@@ -910,6 +910,9 @@ class DiffViewer(QMainWindow):
         modified_container.setLayout(modified_layout)
         content_layout.addWidget(modified_container, 1)
         
+        # Track line number visibility
+        self.line_numbers_visible = True
+        
         # External scrollbars
         self.v_scrollbar = QScrollBar(Qt.Orientation.Vertical)
         self.v_scrollbar.valueChanged.connect(self.on_v_scroll)
@@ -1294,6 +1297,7 @@ class DiffViewer(QMainWindow):
             <li><b>T:</b> Jump to top of document</li>
             <li><b>B:</b> Jump to bottom of document</li>
             <li><b>Alt+H:</b> Toggle diff map visibility (hides/shows center column)</li>
+            <li><b>Alt+L:</b> Toggle line numbers visibility (hides/shows line number columns)</li>
             <li><b>Ctrl+S:</b> Open search dialog</li>
             <li><b>Ctrl+N:</b> Take a note for the current line or selection</li>
             <li><b>Escape:</b> Close the viewer</li>
@@ -1706,6 +1710,17 @@ class DiffViewer(QMainWindow):
             self.diff_map.show()
             self.diff_map_visible = True
     
+    def toggle_line_numbers(self):
+        """Toggle line number visibility"""
+        if self.line_numbers_visible:
+            self.base_line_area.hide()
+            self.modified_line_area.hide()
+            self.line_numbers_visible = False
+        else:
+            self.base_line_area.show()
+            self.modified_line_area.show()
+            self.line_numbers_visible = True
+    
     def keyPressEvent(self, event):
         """Handle keyboard shortcuts"""
         key = event.key()
@@ -1714,6 +1729,11 @@ class DiffViewer(QMainWindow):
         # Check for Alt+H to toggle diff map
         if key == Qt.Key.Key_H and modifiers & Qt.KeyboardModifier.AltModifier:
             self.toggle_diff_map()
+            return
+        
+        # Check for Alt+L to toggle line numbers
+        if key == Qt.Key.Key_L and modifiers & Qt.KeyboardModifier.AltModifier:
+            self.toggle_line_numbers()
             return
         
         # Check for Ctrl+S
