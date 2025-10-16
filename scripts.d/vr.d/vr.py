@@ -46,7 +46,7 @@ class DescriptionDialog(QDialog):
 
 
 class QtInterface(QMainWindow):
-    def __init__(self, options, review_name, dossier):
+    def __init__(self, options, review_name, dossier, commit_msg):
         # Initialize QApplication if it doesn't exist
         if QApplication.instance() is None:
             self.app = QApplication(sys.argv)
@@ -69,6 +69,7 @@ class QtInterface(QMainWindow):
         self.review_name_ = review_name
         self.subp_ = []
         self.notes_ = None
+        self.commit_msg_ = commit_msg
         self.viewer_name_ = "Claude-QT"  # Default viewer
 
         self.emacs_ = find_executable([
@@ -253,9 +254,13 @@ class QtInterface(QMainWindow):
             notes  = [ ]
             if self.options_.arg_claude_note_file is not None:
                 notes = [ "--note", self.options_.arg_claude_note_file ]
+
+            commit_msg = [ ]
+            if self.commit_msg_ is not None:
+                commit_msg = [ "--description", self.commit_msg_ ]
             cmd = [ "python3", "-B", claude,
                     "--base", base,
-                    "--modi", modi ] + notes
+                    "--modi", modi ] + notes + commit_msg
         else:
             raise NotImplementedError("Unsupported viewer: '%s'" %
                                       (viewer))
@@ -473,8 +478,8 @@ def process_command_line():
     return options
 
 
-def generate(options, review_name, dossier):
-    qt_intf     = QtInterface(options, review_name, dossier)
+def generate(options, review_name, dossier, commit_msg):
+    qt_intf     = QtInterface(options, review_name, dossier, commit_msg)
     row         = 0                # Number of files.
     col         = 0                # Maximum pathname length, in chars
     base_dir    = dossier["base"]
@@ -518,6 +523,19 @@ def restore_terminal():
         if stty_path is not None:
             subprocess.Popen([ stty_path, "sane" ])
 
+
+def write_description_file(options, dossier):
+    description = dossier["description"]
+    commit_msg = None
+    if description is not None:
+        commit_msg = os.path.join(options.arg_review_dir,
+                                  options.arg_review_name,
+                                  "commit_message.text")
+        with open(commit_msg, "w") as fp:
+            for l in description:
+                fp.write("%s\n" % (l))
+    return commit_msg           # Return pathname or None.
+
 def main():
     try:
         options = process_command_line()
@@ -527,7 +545,9 @@ def main():
         with open(pathname, "r") as fp:
             dossier = json.load(fp)
 
-        return generate(options, options.arg_review_name, dossier)
+        commit_msg = write_description_file(options, dossier)
+
+        return generate(options, options.arg_review_name, dossier, commit_msg)
 
     except KeyboardInterrupt:
         return 0

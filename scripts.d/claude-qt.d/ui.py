@@ -787,7 +787,7 @@ class SyncedPlainTextEdit(QPlainTextEdit):
 
 
 class DiffViewer(QMainWindow):
-    def __init__(self, base_file: str, modified_file: str, note_file: Optional[str] = None):
+    def __init__(self, base_file: str, modified_file: str, note_file: Optional[str] = None, description_file: Optional[str] = None):
         # Ensure QApplication exists
         if QApplication.instance() is None:
             self._app = QApplication(sys.argv)
@@ -799,6 +799,7 @@ class DiffViewer(QMainWindow):
         self.base_file = base_file
         self.modified_file = modified_file
         self.note_file = note_file
+        self.description_file = description_file
         self.note_count = 0
         
         self.base_noted_lines = set()
@@ -951,8 +952,16 @@ class DiffViewer(QMainWindow):
         status_layout = QHBoxLayout()
         self.region_label = QLabel("Region: 0 of 0")
         self.notes_label = QLabel("Notes: 0")
+        
+        # Description button
+        self.description_button = QPushButton("Description")
+        self.description_button.clicked.connect(self.show_description)
+        if not self.description_file:
+            self.description_button.setEnabled(False)
+        
         status_layout.addWidget(self.region_label)
         status_layout.addStretch()
+        status_layout.addWidget(self.description_button)
         status_layout.addWidget(self.notes_label)
         status_frame = QFrame()
         status_frame.setFrameStyle(QFrame.Shape.Panel | QFrame.Shadow.Sunken)
@@ -1404,7 +1413,22 @@ class DiffViewer(QMainWindow):
         <h3>Status Bar</h3>
         <ul>
             <li><b>Region:</b> Shows current change region number and total</li>
+            <li><b>Description:</b> Button to view commit description (if provided)</li>
             <li><b>Notes:</b> Shows number of notes taken</li>
+        </ul>
+        
+        <h3>Commit Description</h3>
+        <p>The fourth command-line argument specifies the description file. Use 'None' for no description, or provide the absolute path to a text file containing the commit message or change description. When provided, the Description button in the status bar will be enabled and clicking it opens a window showing the description.</p>
+        <p><b>Description Window Features:</b></p>
+        <ul>
+            <li>Non-modal window (can use main diff viewer while description is open)</li>
+            <li><b>Ctrl+S:</b> Search within the description text</li>
+            <li><b>Right-click → Search:</b> Search for selected text in description</li>
+            <li><b>Ctrl+N:</b> Take a note for the current line or selection</li>
+            <li><b>Right-click → Take Note:</b> Take a note for selected text</li>
+            <li>Search results dialog shows all matches with line numbers</li>
+            <li>Notes are saved with "(desc):" prefix to indicate they're from the description</li>
+            <li>Same font as source code for consistency</li>
         </ul>
         
         <h3>Tips</h3>
@@ -1424,6 +1448,317 @@ class DiffViewer(QMainWindow):
         layout.addWidget(close_button)
         
         help_dialog.exec()
+    
+    def show_description(self):
+        """Show commit description dialog"""
+        if not self.description_file:
+            return
+        
+        # If dialog already exists and is visible, just raise it
+        if hasattr(self, 'description_dialog') and self.description_dialog.isVisible():
+            self.description_dialog.raise_()
+            self.description_dialog.activateWindow()
+            return
+        
+        # Read description file
+        try:
+            with open(self.description_file, 'r') as f:
+                description_text = f.read()
+        except Exception as e:
+            QMessageBox.warning(self, 'Error Reading Description',
+                              f'Could not read description file:\n{e}')
+            return
+        
+        # Create dialog
+        self.description_dialog = QDialog(self, Qt.WindowType.Window)  # Window flag removes stay-on-top
+        self.description_dialog.setWindowTitle("Commit Description")
+        
+        # Calculate width for 100 characters using the font
+        font = QFont("Courier", 12, QFont.Weight.Bold)
+        fm = QFontMetrics(font)
+        char_width = fm.horizontalAdvance('0')
+        
+        # Width: 100 characters + margins/padding
+        dialog_width = (100 * char_width) + 40  # Extra for margins and scrollbar
+        dialog_height = 500
+        
+        self.description_dialog.resize(dialog_width, dialog_height)
+        
+        # Store reference to text area for search functionality
+        self.description_text_area = QPlainTextEdit()
+        self.description_text_area.setReadOnly(True)
+        self.description_text_area.setPlainText(description_text)
+        
+        # Use same font as source code
+        font = QFont("Courier", 12, QFont.Weight.Bold)
+        self.description_text_area.setFont(font)
+        
+        layout = QVBoxLayout(self.description_dialog)
+        
+        # Add Ctrl+S search functionality - shows results dialog
+        def show_search_dialog_from_description():
+            # Create simple search dialog without Base/Modi checkboxes
+            search_dialog = QDialog(self.description_dialog)
+            search_dialog.setWindowTitle("Search")
+            search_dialog.setMinimumWidth(400)
+            
+            dialog_layout = QVBoxLayout(search_dialog)
+            
+            # Search text input
+            input_layout = QHBoxLayout()
+            input_layout.addWidget(QLabel("Search for:"))
+            search_input = QPlainTextEdit()
+            search_input.setMaximumHeight(60)
+            search_input.setPlaceholderText("Enter search text...")
+            input_layout.addWidget(search_input)
+            dialog_layout.addLayout(input_layout)
+            
+            # Case sensitivity checkbox only
+            case_checkbox = QCheckBox("Case sensitive")
+            case_checkbox.setChecked(False)
+            dialog_layout.addWidget(case_checkbox)
+            
+            # Buttons
+            button_layout = QHBoxLayout()
+            search_button = QPushButton("Search")
+            search_button.setDefault(True)
+            cancel_button = QPushButton("Cancel")
+            cancel_button.clicked.connect(search_dialog.reject)
+            button_layout.addStretch()
+            button_layout.addWidget(search_button)
+            button_layout.addWidget(cancel_button)
+            dialog_layout.addLayout(button_layout)
+            
+            search_input.setFocus()
+            
+            # Handle search
+            def do_search():
+                text = search_input.toPlainText().strip()
+                if text:
+                    search_dialog.accept()
+                    self.show_description_search_results(text, case_checkbox.isChecked())
+            
+            search_button.clicked.connect(do_search)
+            
+            search_dialog.exec()
+        
+        # Add right-click context menu with search
+        def show_context_menu_description(pos):
+            menu = QMenu(self.description_dialog)
+            cursor = self.description_text_area.textCursor()
+            has_selection = cursor.hasSelection()
+            
+            # Add Search action
+            search_action = QAction("Search", self.description_dialog)
+            search_action.setEnabled(has_selection)
+            if has_selection:
+                search_action.triggered.connect(lambda: search_selected_text_description())
+            menu.addAction(search_action)
+            
+            # Add separator
+            menu.addSeparator()
+            
+            # Add Take Note action
+            if has_selection and self.note_file:
+                note_action = QAction("Take Note", self.description_dialog)
+                note_action.triggered.connect(lambda: take_note_from_description())
+                menu.addAction(note_action)
+            else:
+                note_action = QAction("Take Note (no selection)" if self.note_file else 
+                                   "Take Note (no file supplied)", self.description_dialog)
+                note_action.setEnabled(False)
+                menu.addAction(note_action)
+            
+            menu.exec(self.description_text_area.mapToGlobal(pos))
+        
+        def search_selected_text_description():
+            cursor = self.description_text_area.textCursor()
+            if not cursor.hasSelection():
+                return
+            
+            search_text = cursor.selectedText()
+            # Show search results dialog (case-insensitive by default)
+            self.show_description_search_results(search_text, False)
+        
+        def take_note_from_description():
+            """Take note from description selection"""
+            if not self.note_file:
+                QMessageBox.information(self.description_dialog, 'Note Taking Disabled',
+                                      'No note file supplied.')
+                return
+            
+            cursor = self.description_text_area.textCursor()
+            if not cursor.hasSelection():
+                return
+            
+            # Get selected text
+            selected_text = cursor.selectedText()
+            # Qt uses U+2029 (paragraph separator) for newlines in selectedText
+            selected_text = selected_text.replace('\u2029', '\n')
+            
+            # Write to note file
+            with open(self.note_file, 'a') as f:
+                f.write("(desc): Commit Description\n")
+                # Indent each line
+                for line in selected_text.split('\n'):
+                    f.write(f"  {line}\n")
+                f.write('\n')
+            
+            self.note_count += 1
+            self.update_status()
+        
+        # Set up context menu
+        self.description_text_area.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.description_text_area.customContextMenuRequested.connect(show_context_menu_description)
+        
+        # Install event filter for Ctrl+S and Ctrl+N
+        from PyQt6.QtCore import QObject
+        class DescriptionEventFilter(QObject):
+            def __init__(self, parent, search_func, note_func):
+                super().__init__(parent)
+                self.search_func = search_func
+                self.note_func = note_func
+            
+            def eventFilter(self, obj, event):
+                if event.type() == event.Type.KeyPress:
+                    if (event.key() == Qt.Key.Key_S and 
+                        event.modifiers() & Qt.KeyboardModifier.ControlModifier):
+                        self.search_func()
+                        return True
+                    elif (event.key() == Qt.Key.Key_N and 
+                          event.modifiers() & Qt.KeyboardModifier.ControlModifier):
+                        # Handle Ctrl+N for note taking
+                        cursor = obj.textCursor() if hasattr(obj, 'textCursor') else None
+                        if cursor and not cursor.hasSelection():
+                            # Select the current line if no selection
+                            cursor.movePosition(QTextCursor.MoveOperation.StartOfBlock)
+                            cursor.movePosition(QTextCursor.MoveOperation.EndOfBlock, 
+                                              QTextCursor.MoveMode.KeepAnchor)
+                            obj.setTextCursor(cursor)
+                        self.note_func()
+                        return True
+                return False
+        
+        search_filter = DescriptionEventFilter(self.description_dialog, 
+                                               show_search_dialog_from_description,
+                                               take_note_from_description)
+        self.description_text_area.installEventFilter(search_filter)
+        self.description_dialog.installEventFilter(search_filter)
+        
+        layout.addWidget(self.description_text_area)
+        
+        # Close button
+        close_button = QPushButton("Close")
+        close_button.clicked.connect(self.description_dialog.close)
+        layout.addWidget(close_button)
+        
+        # Show non-modal
+        self.description_dialog.show()
+    
+    def show_description_search_results(self, search_text, case_sensitive):
+        """Show search results for description text"""
+        # Create results dialog
+        results_dialog = QDialog(self.description_dialog)
+        results_dialog.setWindowTitle(f"Search Results for: {search_text}")
+        results_dialog.setMinimumSize(600, 400)
+        
+        layout = QVBoxLayout(results_dialog)
+        
+        # Case sensitivity checkbox
+        case_checkbox = QCheckBox("Case sensitive")
+        case_checkbox.setChecked(case_sensitive)
+        layout.addWidget(case_checkbox)
+        
+        # Info label
+        info_label = QLabel()
+        layout.addWidget(info_label)
+        
+        # Results list
+        result_list = QListWidget()
+        result_list.itemDoubleClicked.connect(lambda item: self.select_description_search_result(item))
+        layout.addWidget(result_list)
+        
+        # Function to perform search and update results
+        def perform_search():
+            result_list.clear()
+            
+            # Search in description text
+            description_lines = self.description_text_area.toPlainText().split('\n')
+            results = []
+            
+            is_case_sensitive = case_checkbox.isChecked()
+            
+            if is_case_sensitive:
+                matches = lambda line: search_text in line
+            else:
+                search_lower = search_text.lower()
+                matches = lambda line: search_lower in line.lower()
+            
+            for line_num, line_text in enumerate(description_lines):
+                if matches(line_text):
+                    results.append((line_num, line_text))
+            
+            # Populate results
+            info_label.setText(f"Found {len(results)} matches:")
+            
+            for line_num, line_text in results:
+                display_text = f"Line {line_num + 1}: {line_text}"
+                item = QListWidgetItem(display_text)
+                item.setData(Qt.ItemDataRole.UserRole, line_num)
+                result_list.addItem(item)
+        
+        # Connect checkbox to re-run search
+        case_checkbox.stateChanged.connect(perform_search)
+        
+        # Initial search
+        perform_search()
+        
+        # Buttons
+        button_layout = QHBoxLayout()
+        
+        select_button = QPushButton("Select")
+        select_button.clicked.connect(lambda: self.select_description_search_result(result_list.currentItem()))
+        select_button.setEnabled(False)
+        
+        cancel_button = QPushButton("Cancel")
+        cancel_button.clicked.connect(results_dialog.reject)
+        
+        result_list.itemSelectionChanged.connect(
+            lambda: select_button.setEnabled(len(result_list.selectedItems()) > 0))
+        
+        button_layout.addStretch()
+        button_layout.addWidget(select_button)
+        button_layout.addWidget(cancel_button)
+        
+        layout.addLayout(button_layout)
+        
+        results_dialog.exec()
+    
+    def select_description_search_result(self, item):
+        """Navigate to selected search result in description"""
+        if not item:
+            return
+        
+        line_num = item.data(Qt.ItemDataRole.UserRole)
+        
+        # Move cursor to that line
+        cursor = self.description_text_area.textCursor()
+        cursor.movePosition(QTextCursor.MoveOperation.Start)
+        
+        # Move down to the target line
+        for _ in range(line_num):
+            cursor.movePosition(QTextCursor.MoveOperation.Down)
+        
+        # Select the entire line
+        cursor.movePosition(QTextCursor.MoveOperation.StartOfBlock)
+        cursor.movePosition(QTextCursor.MoveOperation.EndOfBlock, QTextCursor.MoveMode.KeepAnchor)
+        
+        self.description_text_area.setTextCursor(cursor)
+        self.description_text_area.centerCursor()
+        
+        # Raise the description window
+        self.description_dialog.raise_()
+        self.description_dialog.activateWindow()
     
     def show_context_menu(self, pos, side):
         """Show context menu with search option"""
@@ -1873,13 +2208,16 @@ class DiffViewer(QMainWindow):
 
 
 if __name__ == '__main__':
-    if len(sys.argv) < 3:
-        print("Usage: python diff_viewer_qt.py <base_file> <modified_file> [note_file]")
+    if len(sys.argv) < 5:
+        print("Usage: python diff_viewer_qt.py <base_file> <modified_file> <note_file> <description_file>")
+        print("  note_file: path to note file or 'None' for no notes")
+        print("  description_file: path to description file or 'None' for no description")
         sys.exit(1)
     
     base_file = sys.argv[1]
     modified_file = sys.argv[2]
-    note_file = sys.argv[3] if len(sys.argv) > 3 else None
+    note_file = sys.argv[3] if sys.argv[3] != 'None' else None
+    description_file = sys.argv[4] if sys.argv[4] != 'None' else None
     
     try:
         with open(base_file, 'r') as f:
@@ -1887,7 +2225,7 @@ if __name__ == '__main__':
         with open(modified_file, 'r') as f:
             modified_lines = f.readlines()
         
-        viewer = DiffViewer(base_file, modified_file, note_file)
+        viewer = DiffViewer(base_file, modified_file, note_file, description_file)
         viewer.run()
     except FileNotFoundError as e:
         print(f"Error: {e}")

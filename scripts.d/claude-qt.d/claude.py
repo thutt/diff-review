@@ -23,7 +23,7 @@ def fatal(msg):
 def configure_parser():
     description = ("""
 
-view-review facilitates viewing the contents of an already-generated diff.
+claude facilitates viewing the contents of an already-generated diff.
 
 """)
 
@@ -68,6 +68,14 @@ Return Code:
                    required = False,
                    dest     = "arg_note")
 
+    o = parser.add_argument_group("Change Description Options")
+    o.add_argument("--description",
+                   help     = ("Path of file containing commit message."),
+                   action   = "store",
+                   default  = None,
+                   required = False,
+                   dest     = "arg_description")
+
     o = parser.add_argument_group("Output Options")
     o.add_argument("--verbose",
                    help     = ("Turn on verbose diagnostic output"),
@@ -108,9 +116,9 @@ def add_diff_to_viewer(desc, viewer):
     viewer.apply_highlighting()
 
 
-def generate(options, base, modi, note):
+def generate(options, base, modi, note, commit_msg):
     application = PyQt6.QtWidgets.QApplication(sys.argv)
-    viewer      = ui.DiffViewer(base, modi, note)
+    viewer      = ui.DiffViewer(base, modi, note, commit_msg)
 
     desc = diffmgr.create_diff_descriptor(options.arg_verbose,
                                           options.arg_base,
@@ -125,8 +133,9 @@ def generate(options, base, modi, note):
 def main():
     try:
         options = process_command_line()
+
         return generate(options, options.arg_base, options.arg_modi,
-                        options.arg_note)
+                        options.arg_note, options.arg_description)
 
     except KeyboardInterrupt:
         return 0
