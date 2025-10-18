@@ -9,9 +9,8 @@ import sys
 from typing import Optional
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                               QHBoxLayout, QLabel, QScrollBar, QFrame, QMenu,
-                              QMessageBox, QPlainTextEdit, QDialog, QTextEdit, 
-                              QPushButton, QCheckBox)
-from PyQt6.QtCore import Qt, QTimer, QObject
+                              QMessageBox, QDialog, QPushButton)
+from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import (QColor, QFont, QTextCursor, QAction, QFontMetrics,
                          QTextCharFormat, QTextBlockFormat)
 
@@ -19,6 +18,7 @@ from utils import extract_display_path
 from search_dialogs import SearchDialog, SearchResultDialog
 from ui_components import LineNumberArea, DiffMapWidget, SyncedPlainTextEdit
 from help_dialog import HelpDialog
+from description_dialog import DescriptionDialog
 
 
 class DiffViewer(QMainWindow):
@@ -462,21 +462,8 @@ class DiffViewer(QMainWindow):
         if not hasattr(self, 'description_dialog') or not self.description_dialog.isVisible():
             self.show_description()
         
-        if hasattr(self, 'description_text_area'):
-            cursor = self.description_text_area.textCursor()
-            cursor.movePosition(QTextCursor.MoveOperation.Start)
-            
-            for _ in range(line_idx):
-                cursor.movePosition(QTextCursor.MoveOperation.Down)
-            
-            cursor.movePosition(QTextCursor.MoveOperation.StartOfBlock)
-            cursor.movePosition(QTextCursor.MoveOperation.EndOfBlock, QTextCursor.MoveMode.KeepAnchor)
-            
-            self.description_text_area.setTextCursor(cursor)
-            self.description_text_area.centerCursor()
-            
-            self.description_dialog.raise_()
-            self.description_dialog.activateWindow()
+        if hasattr(self, 'description_dialog'):
+            self.description_dialog.select_line(line_idx)
     
     def show_help(self):
         help_dialog = HelpDialog(self)
@@ -491,139 +478,7 @@ class DiffViewer(QMainWindow):
             self.description_dialog.activateWindow()
             return
         
-        try:
-            with open(self.description_file, 'r') as f:
-                description_text = f.read()
-        except Exception as e:
-            QMessageBox.warning(self, 'Error Reading Description',
-                              f'Could not read description file:\n{e}')
-            return
-        
-        self.description_dialog = QDialog(self, Qt.WindowType.Window)
-        self.description_dialog.setWindowTitle("Commit Description")
-        
-        font = QFont("Courier", 12, QFont.Weight.Bold)
-        fm = QFontMetrics(font)
-        char_width = fm.horizontalAdvance('0')
-        
-        dialog_width = (100 * char_width) + 40
-        dialog_height = 500
-        
-        self.description_dialog.resize(dialog_width, dialog_height)
-        
-        self.description_text_area = QPlainTextEdit()
-        self.description_text_area.setReadOnly(True)
-        self.description_text_area.setPlainText(description_text)
-        self.description_text_area.setFont(font)
-        
-        layout = QVBoxLayout(self.description_dialog)
-        
-        def show_search_dialog_from_description():
-            search_dialog = SearchDialog(self.description_dialog, has_description=True)
-            if search_dialog.exec() == QDialog.DialogCode.Accepted and search_dialog.search_text:
-                results_dialog = SearchResultDialog(search_dialog.search_text, self, 
-                                                   search_dialog.case_sensitive,
-                                                   search_dialog.search_base,
-                                                   search_dialog.search_modi,
-                                                   search_dialog.search_desc)
-                results_dialog.exec()
-        
-        def show_context_menu_description(pos):
-            menu = QMenu(self.description_dialog)
-            cursor = self.description_text_area.textCursor()
-            has_selection = cursor.hasSelection()
-            
-            search_action = QAction("Search", self.description_dialog)
-            search_action.setEnabled(has_selection)
-            if has_selection:
-                search_action.triggered.connect(lambda: search_selected_text_description())
-            menu.addAction(search_action)
-            
-            menu.addSeparator()
-            
-            if has_selection and self.note_file:
-                note_action = QAction("Take Note", self.description_dialog)
-                note_action.triggered.connect(lambda: take_note_from_description())
-                menu.addAction(note_action)
-            else:
-                note_action = QAction("Take Note (no selection)" if self.note_file else 
-                                   "Take Note (no file supplied)", self.description_dialog)
-                note_action.setEnabled(False)
-                menu.addAction(note_action)
-            
-            menu.exec(self.description_text_area.mapToGlobal(pos))
-        
-        def search_selected_text_description():
-            cursor = self.description_text_area.textCursor()
-            if not cursor.hasSelection():
-                return
-            
-            search_text = cursor.selectedText()
-            dialog = SearchResultDialog(search_text, self, case_sensitive=False,
-                                       search_base=True, search_modi=True, search_desc=True)
-            dialog.exec()
-        
-        def take_note_from_description():
-            if not self.note_file:
-                QMessageBox.information(self.description_dialog, 'Note Taking Disabled',
-                                      'No note file supplied.')
-                return
-            
-            cursor = self.description_text_area.textCursor()
-            if not cursor.hasSelection():
-                return
-            
-            selected_text = cursor.selectedText()
-            selected_text = selected_text.replace('\u2029', '\n')
-            
-            with open(self.note_file, 'a') as f:
-                f.write("(desc): Commit Description\n")
-                for line in selected_text.split('\n'):
-                    f.write(f"  {line}\n")
-                f.write('\n')
-            
-            self.note_count += 1
-            self.update_status()
-        
-        self.description_text_area.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self.description_text_area.customContextMenuRequested.connect(show_context_menu_description)
-        
-        class DescriptionEventFilter(QObject):
-            def __init__(self, parent, search_func, note_func):
-                super().__init__(parent)
-                self.search_func = search_func
-                self.note_func = note_func
-            
-            def eventFilter(self, obj, event):
-                if event.type() == event.Type.KeyPress:
-                    if (event.key() == Qt.Key.Key_S and 
-                        event.modifiers() & Qt.KeyboardModifier.ControlModifier):
-                        self.search_func()
-                        return True
-                    elif (event.key() == Qt.Key.Key_N and 
-                          event.modifiers() & Qt.KeyboardModifier.ControlModifier):
-                        cursor = obj.textCursor() if hasattr(obj, 'textCursor') else None
-                        if cursor and not cursor.hasSelection():
-                            cursor.movePosition(QTextCursor.MoveOperation.StartOfBlock)
-                            cursor.movePosition(QTextCursor.MoveOperation.EndOfBlock, 
-                                              QTextCursor.MoveMode.KeepAnchor)
-                            obj.setTextCursor(cursor)
-                        self.note_func()
-                        return True
-                return False
-        
-        search_filter = DescriptionEventFilter(self.description_dialog, 
-                                               show_search_dialog_from_description,
-                                               take_note_from_description)
-        self.description_text_area.installEventFilter(search_filter)
-        self.description_dialog.installEventFilter(search_filter)
-        
-        layout.addWidget(self.description_text_area)
-        
-        close_button = QPushButton("Close")
-        close_button.clicked.connect(self.description_dialog.close)
-        layout.addWidget(close_button)
-        
+        self.description_dialog = DescriptionDialog(self.description_file, self, self)
         self.description_dialog.show()
     
     def show_context_menu(self, pos, side):
