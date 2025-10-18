@@ -499,17 +499,68 @@ class DiffViewer(QMainWindow):
             <li><b>N:</b> Jump to next change region</li>
             <li><b>P:</b> Jump to previous change region</li>
             <li><b>C:</b> Center on the currently selected region</li>
-            <li><b>Ctrl+S:</b> Open search dialog</li>
-            <li><b>Ctrl+N:</b> Take a note</li>
+            <li><b>T:</b> Jump to top of file</li>
+            <li><b>B:</b> Jump to bottom of file</li>
+            <li><b>Escape:</b> Close the viewer</li>
+        </ul>
+        
+        <h3>Color Coding</h3>
+        <ul>
+            <li><b>Light Green:</b> Added lines or content</li>
+            <li><b>Light Red/Pink:</b> Deleted lines or content</li>
+            <li><b>Yellow:</b> Modified content within a line (intraline changes)</li>
+            <li><b>Dark Gray:</b> Lines that don't exist in one version (placeholder lines)</li>
         </ul>
         
         <h3>Search Functionality</h3>
-        <p>Search across all sources (base file, modified file, and description):</p>
         <ul>
-            <li><b>Ctrl+S:</b> Opens search dialog with Base/Modi/Desc checkboxes</li>
-            <li><b>Right-click → Search:</b> Search for selected text across all sources</li>
-            <li>Results show matches from all selected sources</li>
-            <li>Click result to navigate to that line</li>
+            <li><b>Ctrl+S:</b> Open search dialog to search across base, modified, and description files</li>
+            <li><b>Right-click → Search:</b> Search for currently selected text</li>
+            <li>Use checkboxes in search dialog to choose which sources to search (Base/Modi/Desc)</li>
+            <li>Toggle case sensitivity in search dialog</li>
+            <li>Double-click search results to jump to that location</li>
+        </ul>
+        
+        <h3>Note Taking</h3>
+        <ul>
+            <li><b>Double-click:</b> Quick note - adds the clicked line to your notes file</li>
+            <li><b>Right-click → Take Note:</b> Add selected text to notes file</li>
+            <li><b>Ctrl+N:</b> Take note of selected text (works in description view too)</li>
+            <li>Notes are marked with a blue dot in the line number area</li>
+            <li>All notes are appended to the notes file specified at startup</li>
+        </ul>
+        
+        <h3>Diff Map</h3>
+        <ul>
+            <li>Vertical bar on the right shows overview of all changes in the file</li>
+            <li><b>Red:</b> Deletions</li>
+            <li><b>Green:</b> Insertions</li>
+            <li><b>Yellow:</b> Modifications</li>
+            <li><b>Blue rectangle:</b> Current viewport position</li>
+            <li><b>Click on diff map:</b> Jump to that location in the file</li>
+            <li><b>Alt+H:</b> Toggle diff map visibility</li>
+        </ul>
+        
+        <h3>Line Numbers</h3>
+        <ul>
+            <li>Shows original line numbers from each file</li>
+            <li>Background colors indicate changed lines (pink for base, light green for modified)</li>
+            <li>Blue dots mark lines you've taken notes on</li>
+            <li><b>Alt+L:</b> Toggle line number visibility</li>
+        </ul>
+        
+        <h3>Status Bar</h3>
+        <ul>
+            <li><b>Region:</b> Shows current change region number and total regions</li>
+            <li><b>Description:</b> Button to view commit description (if available)</li>
+            <li><b>Notes:</b> Count of notes taken during this session</li>
+        </ul>
+        
+        <h3>Description View</h3>
+        <ul>
+            <li>Click "Description" button to view commit message/description</li>
+            <li>Search and note-taking work the same way in description view</li>
+            <li>Ctrl+S and Ctrl+N shortcuts work in description window</li>
         </ul>
         """)
         
