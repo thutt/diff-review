@@ -1,0 +1,21 @@
+from diff_viewer_tabs import DiffViewerTabWidget
+from diff_viewer import DiffViewer
+
+# Create the tab widget
+tab_widget = DiffViewerTabWidget()
+
+# Create and configure your DiffViewer instances
+viewer1 = DiffViewer("base1.txt", "modified1.txt", "notes.txt", "description1.txt")
+viewer1.add_line(...)  # Add your lines
+viewer1.finalize()     # Finalize the viewer
+
+viewer2 = DiffViewer("base2.py", "modified2.py", "notes.txt", "description2.txt")
+viewer2.add_line(...)
+viewer2.finalize()
+
+# Add viewers to tabs
+tab_widget.add_viewer(viewer1)  # Auto-generates tab title
+tab_widget.add_viewer(viewer2, "Custom Tab Title")  # Or provide custom title
+
+# Start running
+tab_widget.run()  # This shows the window and starts the event loop

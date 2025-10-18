@@ -170,7 +170,7 @@ class QtInterface(QMainWindow):
         if self.vim_ is None:
             vim = "%s %s" % (vim, na)
 
-        viewers = [ "Claude-QT", emacs, tkdiff, meld, vim ]
+        viewers = [ "Claude-QT", "Claude-tabs", emacs, tkdiff, meld, vim ]
 
         for viewer in viewers:
             action = QAction(viewer, self)
@@ -247,6 +247,23 @@ class QtInterface(QMainWindow):
             if term is not None:
                 vimdiff = [ term, "-e" ] + vimdiff
             cmd = vimdiff + [ base, modi ]
+        elif viewer == "Claude-tabs":
+            path   = os.path.split(sys.argv[0])
+            claude = os.path.abspath(os.path.join(path[0], "..",
+                                                  "claude-tabs.d", "claude.py"))
+            search_path = os.path.abspath(os.path.join(path[0], "..",
+                                                       "claude-qt.d"))
+            os.environ["PYTHONPATH"] = search_path
+            notes  = [ ]
+            if self.options_.arg_claude_note_file is not None:
+                notes = [ "--note", self.options_.arg_claude_note_file ]
+
+            commit_msg = [ ]
+            if self.commit_msg_ is not None:
+                commit_msg = [ "--description", self.commit_msg_ ]
+            cmd = [ "python3", "-B", claude,
+                    "--base", base,
+                    "--modi", modi ] + notes + commit_msg
         elif viewer == "Claude-QT":
             path   = os.path.split(sys.argv[0])
             claude = os.path.abspath(os.path.join(path[0], "..",
