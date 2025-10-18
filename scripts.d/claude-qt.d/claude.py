@@ -12,7 +12,7 @@ import sys
 import traceback
 
 import diffmgr
-import ui
+import diff_viewer
 
 
 def fatal(msg):
@@ -118,7 +118,7 @@ def add_diff_to_viewer(desc, viewer):
 
 def generate(options, base, modi, note, commit_msg):
     application = PyQt6.QtWidgets.QApplication(sys.argv)
-    viewer      = ui.DiffViewer(base, modi, note, commit_msg)
+    viewer      = diff_viewer.DiffViewer(base, modi, note, commit_msg)
 
     desc = diffmgr.create_diff_descriptor(options.arg_verbose,
                                           options.arg_base,
