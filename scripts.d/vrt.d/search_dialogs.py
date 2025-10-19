@@ -89,7 +89,8 @@ class SearchDialog(QDialog):
             self.search_base = True
             self.search_modi = True
             self.search_commit_msg = True
-            if self.has_multiple_tabs:
+            # Get search_all_tabs state from checkbox if it exists
+            if self.has_multiple_tabs and hasattr(self, 'all_tabs_checkbox'):
                 self.search_all_tabs = self.all_tabs_checkbox.isChecked()
             self.accept()
 
@@ -109,7 +110,7 @@ class SearchResultDialog(QDialog):
         self.search_commit_msg = search_commit_msg
         self.search_all_tabs = search_all_tabs
         self.parent_tab_widget = parent
-        
+ 
         # Check if we have multiple tabs
         self.has_multiple_tabs = False
         if hasattr(parent, 'tab_widget'):
@@ -133,7 +134,7 @@ class SearchResultDialog(QDialog):
         if self.has_multiple_tabs:
             checkbox_layout.addStretch()
             self.all_tabs_checkbox = QCheckBox("Search all tabs")
-            self.all_tabs_checkbox.setChecked(search_all_tabs)
+            self.all_tabs_checkbox.setChecked(self.search_all_tabs)  # Use self.search_all_tabs
             self.all_tabs_checkbox.stateChanged.connect(self.on_all_tabs_changed)
             checkbox_layout.addWidget(self.all_tabs_checkbox)
         
@@ -227,13 +228,8 @@ class SearchResultDialog(QDialog):
                                 results.append((tab_index, tab_title, 'modified', 
                                               line_num, i, line_text))
                     
-                    # Search in commit message
-                    if self.search_commit_msg and viewer.commit_msg_file:
-                        commit_msg_lines = viewer.get_commit_msg_lines()
-                        for line_num, line_text in enumerate(commit_msg_lines):
-                            if matches(line_text):
-                                results.append((tab_index, tab_title, 'commit_msg', 
-                                              line_num + 1, line_num, line_text))
+                    # Don't search viewer's commit message file when searching all tabs
+                    # The commit message tab is separate and will be searched in its own iteration
         else:
             # Search current tab only
             current_widget = self.parent_tab_widget.tab_widget.currentWidget()

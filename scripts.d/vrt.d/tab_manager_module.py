@@ -8,7 +8,7 @@ with a sidebar for file selection.
 import sys
 from PyQt6.QtWidgets import (QApplication, QTabWidget, QMainWindow, QHBoxLayout, 
                               QVBoxLayout, QWidget, QPushButton, QScrollArea, QSplitter,
-                              QPlainTextEdit, QMenu, QMessageBox)
+                              QPlainTextEdit, QMenu, QMessageBox, QProgressDialog)
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QAction, QFont
 
@@ -288,14 +288,17 @@ class DiffViewerTabWidget(QMainWindow):
         
         dialog = SearchDialog(self, has_commit_msg=has_commit_msg)
         if dialog.exec() == dialog.DialogCode.Accepted and dialog.search_text:
-            if viewer:
-                # Pass self (tab widget) as parent so search results can navigate properly
-                results_dialog = SearchResultDialog(dialog.search_text, self,
-                                                   dialog.case_sensitive,
-                                                   dialog.search_base,
-                                                   dialog.search_modi,
-                                                   dialog.search_commit_msg)
-                results_dialog.exec()
+            # Pass self (tab widget) as parent so search results can navigate properly
+            results_dialog = SearchResultDialog(
+                search_text=dialog.search_text,
+                parent=self,
+                case_sensitive=dialog.case_sensitive,
+                search_base=dialog.search_base,
+                search_modi=dialog.search_modi,
+                search_commit_msg=dialog.search_commit_msg,
+                search_all_tabs=dialog.search_all_tabs
+            )
+            results_dialog.exec()
     
     def search_selected_text(self, text_widget):
         """Search for selected text from any text widget"""
@@ -400,8 +403,28 @@ class DiffViewerTabWidget(QMainWindow):
     
     def open_all_files(self):
         """Open all files in tabs"""
-        for file_class in self.file_classes:
+        if not self.file_classes:
+            return
+        
+        # Create progress dialog
+        progress = QProgressDialog("Loading files...", "Cancel", 0, len(self.file_classes), self)
+        progress.setWindowTitle("Opening Files")
+        progress.setWindowModality(Qt.WindowModality.WindowModal)
+        progress.setMinimumDuration(500)  # Only show if takes more than 500ms
+        
+        for i, file_class in enumerate(self.file_classes):
+            if progress.wasCanceled():
+                break
+            
+            # Update progress
+            progress.setValue(i)
+            progress.setLabelText(f"Loading {file_class.button_label()}...")
+            QApplication.processEvents()  # Keep UI responsive
+            
             self.on_file_clicked(file_class)
+        
+        progress.setValue(len(self.file_classes))
+        progress.close()
     
     def on_file_clicked(self, file_class):
         """Handle file button click"""
