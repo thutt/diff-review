@@ -77,11 +77,6 @@ class LineNumberArea(QWidget):
             if line_num is not None:
                 painter.setPen(QColor("black"))
                 painter.drawText(10, y_pos + fm.ascent(), f"{line_num:6d} ")
-                
-                if block_num in self.noted_lines:
-                    painter.setPen(QColor("red"))
-                    arrow_x = 10 + fm.horizontalAdvance(f"{line_num:6d} ")
-                    painter.drawText(arrow_x, y_pos + fm.ascent(), "►")
             else:
                 painter.fillRect(0, y_pos, self.width(), line_height,
                                QColor("darkgray"))
@@ -163,6 +158,7 @@ class SyncedPlainTextEdit(QPlainTextEdit):
         self.region_highlight_start = -1
         self.region_highlight_end = -1
         self.focused_line = -1
+        self.noted_lines = set()  # Track which lines have notes
         
         self.setReadOnly(True)
         self.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
@@ -348,6 +344,23 @@ class SyncedPlainTextEdit(QPlainTextEdit):
         
         first_visible_block = self.firstVisibleBlock()
         first_visible = first_visible_block.blockNumber()
+        
+        # Draw noted lines with background color
+        if self.noted_lines:
+            viewport_lines = self.viewport().height() // line_height if line_height > 0 else 0
+            for line_idx in self.noted_lines:
+                if (line_idx >= first_visible and 
+                    line_idx < first_visible + viewport_lines):
+                    
+                    block = self.document().findBlockByNumber(line_idx)
+                    if block.isValid():
+                        block_geom = self.blockBoundingGeometry(block)
+                        y_pos = int(block_geom.translated(self.contentOffset()).top())
+                        block_height = int(block_geom.height())
+                        
+                        # Light yellow/cream background for noted lines
+                        painter.fillRect(0, y_pos, self.viewport().width(), 
+                                       block_height, QColor(255, 255, 200, 100))
         
         # Draw current line indicator - blue if focused, gray if not
         if self.focused_line >= 0:

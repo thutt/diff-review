@@ -65,6 +65,13 @@ class HelpDialog(QDialog):
             <li><b>Escape:</b> Close the application</li>
         </ul>
         
+        <h3>Visual Indicators</h3>
+        <ul>
+            <li><b>Blue Border:</b> Thin blue box around current line in the focused pane</li>
+            <li><b>Gray Border:</b> Thin gray box around current line in the non-focused pane</li>
+            <li><b>Yellow Background:</b> Lines where notes have been taken</li>
+        </ul>
+        
         <h3>Color Coding</h3>
         <ul>
             <li><b>Light Green:</b> Added lines or content</li>
@@ -87,7 +94,7 @@ class HelpDialog(QDialog):
             <li><b>Double-click:</b> Quick note - adds the clicked line to your notes file</li>
             <li><b>Right-click → Take Note:</b> Add selected text to notes file</li>
             <li><b>Ctrl+N:</b> Take note of selected text (works in commit message view too)</li>
-            <li>Notes are marked with a blue dot in the line number area</li>
+            <li><b>Yellow background:</b> Lines where notes have been taken are highlighted</li>
             <li>All notes are appended to the notes file specified at startup</li>
         </ul>
         
@@ -106,20 +113,18 @@ class HelpDialog(QDialog):
         <ul>
             <li>Shows original line numbers from each file</li>
             <li>Background colors indicate changed lines (pink for base, light green for modified)</li>
-            <li>Blue dots mark lines you've taken notes on</li>
             <li><b>Alt+L:</b> Toggle line number visibility</li>
         </ul>
         
         <h3>Status Bar</h3>
         <ul>
             <li><b>Region:</b> Shows current change region number and total regions</li>
-            <li><b>Commit Message:</b> Button to view commit message (if available)</li>
             <li><b>Notes:</b> Count of notes taken during this session</li>
         </ul>
         
         <h3>Commit Message View</h3>
         <ul>
-            <li>Click "Commit Message" button to view commit message/description</li>
+            <li>Click "Commit Message" in sidebar to view commit message/description</li>
             <li>Search and note-taking work the same way in commit message view</li>
             <li>Ctrl+S and Ctrl+N shortcuts work in commit message window</li>
         </ul>

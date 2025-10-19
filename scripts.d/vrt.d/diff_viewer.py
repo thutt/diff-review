@@ -97,11 +97,6 @@ class DiffViewer(QMainWindow):
         self.base_text = SyncedPlainTextEdit()
         self.base_line_area.set_text_widget(self.base_text)
         self.base_text.set_line_number_area(self.base_line_area)
-        self.base_text.setStyleSheet("""
-            QPlainTextEdit:focus {
-                selection-background-color: rgba(0, 100, 255, 30);
-            }
-        """)
         base_layout.addWidget(self.base_line_area)
         base_layout.addWidget(self.base_text)
         base_container = QWidget()
@@ -120,11 +115,6 @@ class DiffViewer(QMainWindow):
         self.modified_text = SyncedPlainTextEdit()
         self.modified_line_area.set_text_widget(self.modified_text)
         self.modified_text.set_line_number_area(self.modified_line_area)
-        self.modified_text.setStyleSheet("""
-            QPlainTextEdit:focus {
-                selection-background-color: rgba(0, 100, 255, 30);
-            }
-        """)
         modified_layout.addWidget(self.modified_line_area)
         modified_layout.addWidget(self.modified_text)
         modified_container = QWidget()
@@ -503,11 +493,22 @@ class DiffViewer(QMainWindow):
             for i, num in enumerate(self.base_line_nums):
                 if num == line_num:
                     self.base_line_area.mark_noted(i)
+                    # Mark the line with background color in the text widget
+                    self.mark_text_line_noted(self.base_text, i)
         else:
             self.modified_noted_lines.add(line_num)
             for i, num in enumerate(self.modified_line_nums):
                 if num == line_num:
                     self.modified_line_area.mark_noted(i)
+                    # Mark the line with background color in the text widget
+                    self.mark_text_line_noted(self.modified_text, i)
+    
+    def mark_text_line_noted(self, text_widget, line_idx):
+        """Mark a line as noted with a background color"""
+        if not hasattr(text_widget, 'noted_lines'):
+            text_widget.noted_lines = set()
+        text_widget.noted_lines.add(line_idx)
+        text_widget.viewport().update()
     
     def on_diff_map_click(self, line):
         found_region = False
