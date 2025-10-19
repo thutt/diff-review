@@ -53,8 +53,6 @@ class LineNumberArea(QWidget):
         fm = painter.fontMetrics()
         line_height = fm.height()
         
-        widget_has_focus = self.text_widget.hasFocus()
-        
         first_visible_block = self.text_widget.firstVisibleBlock()
         viewport_height = self.height()
         current_block = first_visible_block
@@ -75,13 +73,6 @@ class LineNumberArea(QWidget):
             if block_num in self.line_backgrounds:
                 painter.fillRect(0, y_pos, self.width(), line_height, 
                                self.line_backgrounds[block_num])
-            
-            if widget_has_focus and block_num == self.text_widget.focused_line:
-                painter.setBrush(QColor(100, 150, 255))
-                painter.setPen(Qt.PenStyle.NoPen)
-                circle_x = 2
-                circle_y = y_pos + line_height // 2
-                painter.drawEllipse(circle_x - 3, circle_y - 3, 6, 6)
             
             if line_num is not None:
                 painter.setPen(QColor("black"))
@@ -193,6 +184,7 @@ class SyncedPlainTextEdit(QPlainTextEdit):
             self.line_number_area.update()
         if self.other_widget and self.other_widget.line_number_area:
             self.other_widget.line_number_area.update()
+        self.viewport().update()
     
     def focusOutEvent(self, event):
         super().focusOutEvent(event)
@@ -200,6 +192,7 @@ class SyncedPlainTextEdit(QPlainTextEdit):
             self.line_number_area.update()
         if self.other_widget and self.other_widget.line_number_area:
             self.other_widget.line_number_area.update()
+        self.viewport().update()
     
     def set_other_widget(self, other):
         self.other_widget = other
@@ -356,6 +349,7 @@ class SyncedPlainTextEdit(QPlainTextEdit):
         first_visible_block = self.firstVisibleBlock()
         first_visible = first_visible_block.blockNumber()
         
+        # Draw current line indicator - blue if focused, gray if not
         if self.focused_line >= 0:
             viewport_lines = self.viewport().height() // line_height if line_height > 0 else 0
             if (self.focused_line >= first_visible and 
@@ -367,12 +361,18 @@ class SyncedPlainTextEdit(QPlainTextEdit):
                     y_pos = int(block_geom.translated(self.contentOffset()).top())
                     block_height = int(block_geom.height())
                     
-                    pen = QPen(QColor(80, 80, 80))
+                    # Use blue if this widget has focus, gray otherwise
+                    if self.hasFocus():
+                        pen = QPen(QColor(0, 100, 255))  # Blue
+                    else:
+                        pen = QPen(QColor(80, 80, 80))  # Gray
+                    
                     pen.setWidth(3)
                     painter.setPen(pen)
                     painter.setBrush(Qt.BrushStyle.NoBrush)
                     painter.drawRect(1, y_pos + 1, self.viewport().width() - 3, block_height - 3)
         
+        # Draw region highlight
         if self.region_highlight_start >= 0 and self.region_highlight_end > self.region_highlight_start:
             painter.setPen(QColor(0, 0, 255, 128))
             
