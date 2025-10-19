@@ -50,12 +50,10 @@ def report(options, changed_info, elapsed_time):
 
         print("\n"
               "Changes:  %s" % (changed_info))
-        print("Viewer :  view-review -R %s -r %s" %
+        print("Viewer :  vrt -R %s -r %s" %
               (options.arg_review_dir, options.arg_review_name))
-        print("Viewer :  view-review-tabs -R %s -r %s --dossier %s" %
-              (options.arg_review_dir, options.arg_review_name,
-               os.path.join(options.arg_review_dir,
-                            options.arg_review_name, "dossier.json")))
+        print("Viewer :  vr -R %s -r %s" %
+              (options.arg_review_dir, options.arg_review_name))
         print("Elapsed:  %s" % (elapsed_time))
     else:
         if options.arg_change_id is None:
