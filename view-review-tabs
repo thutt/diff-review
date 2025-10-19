@@ -63,11 +63,6 @@ EOF
     fi;
 
     if [ -r "${vrt}" ] ; then
-        if [ -z "${PYTHONPATH:-}" ] ; then
-            export PYTHONPATH="${claudeqt}";
-        else
-            export PYTHONPATH="${PYTHONPATH}:${claudeqt}";
-        fi;
         exec ${python} ${options} "${vrt}" "$@";
     else
         fatal "Unable to read '${vrt}'";
