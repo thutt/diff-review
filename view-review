@@ -61,6 +61,7 @@ EOF
     fi;
 
     if [ -r "${vr}" ] ; then
+        export QT_LOGGING_RULES="qt.xkb.compose=false";
         exec ${python} ${options} "${vr}" "$@";
     else
         fatal "Unable to read '${vr}'";

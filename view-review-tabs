@@ -63,7 +63,8 @@ EOF
     fi;
 
     if [ -r "${vrt}" ] ; then
-        exec ${python} ${options} "${vrt}" "$@";
+       export QT_LOGGING_RULES="qt.xkb.compose=false";
+       exec ${python} ${options} "${vrt}" "$@";
     else
         fatal "Unable to read '${vrt}'";
     fi;
