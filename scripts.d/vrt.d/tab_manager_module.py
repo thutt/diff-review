@@ -695,6 +695,10 @@ class DiffViewerTabWidget(QMainWindow):
             
             # Update button states after closing
             self.update_button_states()
+            
+            # If no tabs remain, ensure sidebar is visible
+            if self.tab_widget.count() == 0 and not self.sidebar_visible:
+                self.toggle_sidebar()
     
     def close_current_tab(self):
         """Close the currently active tab"""
