@@ -156,10 +156,7 @@ class DiffViewer(QMainWindow):
         
         self.base_text.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.modified_text.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self.base_text.customContextMenuRequested.connect(
-            lambda pos: self.show_context_menu(pos, 'base'))
-        self.modified_text.customContextMenuRequested.connect(
-            lambda pos: self.show_context_menu(pos, 'modified'))
+        # Context menus will be handled by the tab widget
         
         self.base_text.mouseDoubleClickEvent = lambda e: self.on_double_click(e, 'base')
         self.modified_text.mouseDoubleClickEvent = lambda e: self.on_double_click(e, 'modified')

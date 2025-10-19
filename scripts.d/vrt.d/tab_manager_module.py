@@ -272,6 +272,43 @@ class DiffViewerTabWidget(QMainWindow):
         # Update button state
         self.update_button_states()
     
+    def show_search_dialog(self):
+        """Show search dialog for current tab"""
+        viewer = self.get_current_viewer()
+        current_widget = self.tab_widget.currentWidget()
+        
+        # Determine if we have a commit message
+        has_commit_msg = False
+        if viewer and viewer.commit_msg_file:
+            has_commit_msg = True
+        elif hasattr(current_widget, 'is_commit_msg') and current_widget.is_commit_msg:
+            has_commit_msg = True
+        
+        dialog = SearchDialog(self, has_commit_msg=has_commit_msg)
+        if dialog.exec() == dialog.DialogCode.Accepted and dialog.search_text:
+            if viewer:
+                results_dialog = SearchResultDialog(dialog.search_text, viewer,
+                                                   dialog.case_sensitive,
+                                                   dialog.search_base,
+                                                   dialog.search_modi,
+                                                   dialog.search_commit_msg)
+                results_dialog.exec()
+    
+    def search_selected_text(self, text_widget):
+        """Search for selected text from any text widget"""
+        cursor = text_widget.textCursor()
+        if not cursor.hasSelection():
+            return
+        
+        search_text = cursor.selectedText()
+        viewer = self.get_current_viewer()
+        
+        if viewer:
+            dialog = SearchResultDialog(search_text, viewer, case_sensitive=False,
+                                       search_base=True, search_modi=True,
+                                       search_commit_msg=True)
+            dialog.exec()
+    
     def show_commit_msg_context_menu(self, pos, text_widget):
         """Show context menu for commit message"""
         menu = QMenu(self)
@@ -281,8 +318,7 @@ class DiffViewerTabWidget(QMainWindow):
         search_action = QAction("Search", self)
         search_action.setEnabled(has_selection)
         if has_selection:
-            search_action.triggered.connect(
-                lambda: self.search_commit_msg_selected_text(text_widget))
+            search_action.triggered.connect(lambda: self.search_selected_text(text_widget))
         menu.addAction(search_action)
         
         menu.addSeparator()
@@ -301,22 +337,6 @@ class DiffViewerTabWidget(QMainWindow):
             menu.addAction(note_action)
         
         menu.exec(text_widget.mapToGlobal(pos))
-    
-    def search_commit_msg_selected_text(self, text_widget):
-        """Search for selected text in commit message"""
-        cursor = text_widget.textCursor()
-        if not cursor.hasSelection():
-            return
-        
-        search_text = cursor.selectedText()
-        
-        # Get current viewer if any (for search compatibility)
-        viewer = self.get_current_viewer()
-        if viewer:
-            dialog = SearchResultDialog(search_text, viewer, case_sensitive=False,
-                                       search_base=True, search_modi=True, 
-                                       search_commit_msg=True)
-            dialog.exec()
     
     def take_commit_msg_note(self, text_widget, note_file):
         """Take note from commit message"""
@@ -435,6 +455,12 @@ class DiffViewerTabWidget(QMainWindow):
         diff_viewer.base_text.installEventFilter(self)
         diff_viewer.modified_text.installEventFilter(self)
         
+        # Set up context menus for text widgets
+        diff_viewer.base_text.customContextMenuRequested.connect(
+            lambda pos: self.show_diff_context_menu(pos, diff_viewer.base_text, 'base'))
+        diff_viewer.modified_text.customContextMenuRequested.connect(
+            lambda pos: self.show_diff_context_menu(pos, diff_viewer.modified_text, 'modified'))
+        
         # Track file to tab mapping
         if file_class:
             self.file_to_tab_index[file_class] = index
@@ -446,6 +472,45 @@ class DiffViewerTabWidget(QMainWindow):
         self.update_button_states()
         
         return index
+    
+    def show_diff_context_menu(self, pos, text_widget, side):
+        """Show context menu for diff viewer text widgets"""
+        menu = QMenu(self)
+        viewer = self.get_current_viewer()
+        
+        if not viewer:
+            return
+        
+        has_selection = text_widget.textCursor().hasSelection()
+        
+        search_action = QAction("Search", self)
+        search_action.setEnabled(has_selection)
+        search_action.triggered.connect(lambda: self.search_selected_text(text_widget))
+        menu.addAction(search_action)
+        
+        menu.addSeparator()
+        
+        if has_selection and viewer.note_file:
+            note_action = QAction("Take Note", self)
+            note_action.triggered.connect(lambda: viewer.take_note(side))
+            menu.addAction(note_action)
+        else:
+            note_action = QAction("Take Note (no selection)" if viewer.note_file else 
+                           "Take Note (no file supplied)", self)
+            note_action.setEnabled(False)
+            menu.addAction(note_action)
+        
+        menu.exec(text_widget.mapToGlobal(pos))
+    
+    def select_search_result(self, side, line_idx):
+        """Navigate to a search result in the current viewer"""
+        viewer = self.get_current_viewer()
+        if viewer:
+            viewer.center_on_line(line_idx)
+            if side == 'base':
+                viewer.base_text.setFocus()
+            else:
+                viewer.modified_text.setFocus()
     
     def on_tab_changed(self, index):
         """Handle tab change to update sidebar button states"""
@@ -626,7 +691,7 @@ class DiffViewerTabWidget(QMainWindow):
         
         # Ctrl+S - Search
         if key == Qt.Key.Key_S and modifiers & Qt.KeyboardModifier.ControlModifier:
-            viewer.show_search_dialog()
+            self.show_search_dialog()
             return
         
         # Ctrl+N - Take note
@@ -684,17 +749,8 @@ class DiffViewerTabWidget(QMainWindow):
             
             # Ctrl+S - Search (works for both commit message and diff viewers)
             if key == Qt.Key.Key_S and modifiers & Qt.KeyboardModifier.ControlModifier:
-                if is_commit_msg:
-                    dialog = SearchDialog(self, has_commit_msg=True)
-                    if dialog.exec() == dialog.DialogCode.Accepted and dialog.search_text:
-                        if viewer:
-                            results = SearchResultDialog(dialog.search_text, viewer,
-                                                        dialog.case_sensitive,
-                                                        dialog.search_base,
-                                                        dialog.search_modi,
-                                                        dialog.search_commit_msg)
-                            results.exec()
-                    return True
+                self.show_search_dialog()
+                return True
             
             # Ctrl+N - Take note (works for both)
             if key == Qt.Key.Key_N and modifiers & Qt.KeyboardModifier.ControlModifier:
