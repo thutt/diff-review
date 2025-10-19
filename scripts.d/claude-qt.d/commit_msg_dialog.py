@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Description dialog for diff_review
+Commit Message dialog for diff_review
 
-This module contains the dialog for viewing commit descriptions.
+This module contains the dialog for viewing commit messages.
 """
 from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QPlainTextEdit, QPushButton, 
                               QMenu, QMessageBox)
@@ -12,23 +12,23 @@ from PyQt6.QtGui import QFont, QFontMetrics, QAction, QTextCursor
 from search_dialogs import SearchDialog, SearchResultDialog
 
 
-class DescriptionDialog(QDialog):
-    """Dialog for viewing and interacting with commit descriptions"""
+class CommitMsgDialog(QDialog):
+    """Dialog for viewing and interacting with commit messages"""
     
-    def __init__(self, description_file, parent_viewer, parent=None):
+    def __init__(self, commit_msg_file, parent_viewer, parent=None):
         super().__init__(parent, Qt.WindowType.Window)
-        self.description_file = description_file
+        self.commit_msg_file = commit_msg_file
         self.parent_viewer = parent_viewer
         
-        self.setWindowTitle("Commit Description")
+        self.setWindowTitle("Commit Message")
         
-        # Read description file
+        # Read commit message file
         try:
-            with open(description_file, 'r') as f:
-                description_text = f.read()
+            with open(commit_msg_file, 'r') as f:
+                commit_msg_text = f.read()
         except Exception as e:
-            QMessageBox.warning(self, 'Error Reading Description',
-                              f'Could not read description file:\n{e}')
+            QMessageBox.warning(self, 'Error Reading Commit Message',
+                              f'Could not read commit message file:\n{e}')
             return
         
         # Setup font and size
@@ -42,32 +42,32 @@ class DescriptionDialog(QDialog):
         self.resize(dialog_width, dialog_height)
         
         # Create text area
-        self.description_text_area = QPlainTextEdit()
-        self.description_text_area.setReadOnly(True)
-        self.description_text_area.setPlainText(description_text)
-        self.description_text_area.setFont(font)
+        self.commit_msg_text_area = QPlainTextEdit()
+        self.commit_msg_text_area.setReadOnly(True)
+        self.commit_msg_text_area.setPlainText(commit_msg_text)
+        self.commit_msg_text_area.setFont(font)
         
         # Setup context menu
-        self.description_text_area.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self.description_text_area.customContextMenuRequested.connect(self.show_context_menu)
+        self.commit_msg_text_area.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.commit_msg_text_area.customContextMenuRequested.connect(self.show_context_menu)
         
         # Install event filter for keyboard shortcuts
-        event_filter = DescriptionEventFilter(self, self.show_search_dialog, self.take_note)
-        self.description_text_area.installEventFilter(event_filter)
+        event_filter = CommitMsgEventFilter(self, self.show_search_dialog, self.take_note)
+        self.commit_msg_text_area.installEventFilter(event_filter)
         self.installEventFilter(event_filter)
         
         # Layout
         layout = QVBoxLayout(self)
-        layout.addWidget(self.description_text_area)
+        layout.addWidget(self.commit_msg_text_area)
         
         close_button = QPushButton("Close")
         close_button.clicked.connect(self.close)
         layout.addWidget(close_button)
     
     def show_context_menu(self, pos):
-        """Show context menu for description text area"""
+        """Show context menu for commit message text area"""
         menu = QMenu(self)
-        cursor = self.description_text_area.textCursor()
+        cursor = self.commit_msg_text_area.textCursor()
         has_selection = cursor.hasSelection()
         
         search_action = QAction("Search", self)
@@ -88,11 +88,11 @@ class DescriptionDialog(QDialog):
             note_action.setEnabled(False)
             menu.addAction(note_action)
         
-        menu.exec(self.description_text_area.mapToGlobal(pos))
+        menu.exec(self.commit_msg_text_area.mapToGlobal(pos))
     
     def show_search_dialog(self):
         """Show search dialog"""
-        search_dialog = SearchDialog(self, has_description=True)
+        search_dialog = SearchDialog(self, has_commit_msg=True)
         if search_dialog.exec() == QDialog.DialogCode.Accepted and search_dialog.search_text:
             results_dialog = SearchResultDialog(search_dialog.search_text, self.parent_viewer, 
                                                search_dialog.case_sensitive,
@@ -103,7 +103,7 @@ class DescriptionDialog(QDialog):
     
     def search_selected_text(self):
         """Search for selected text"""
-        cursor = self.description_text_area.textCursor()
+        cursor = self.commit_msg_text_area.textCursor()
         if not cursor.hasSelection():
             return
         
@@ -119,7 +119,7 @@ class DescriptionDialog(QDialog):
                                   'No note file supplied.')
             return
         
-        cursor = self.description_text_area.textCursor()
+        cursor = self.commit_msg_text_area.textCursor()
         if not cursor.hasSelection():
             return
         
@@ -127,7 +127,7 @@ class DescriptionDialog(QDialog):
         selected_text = selected_text.replace('\u2029', '\n')
         
         with open(self.parent_viewer.note_file, 'a') as f:
-            f.write("(desc): Commit Description\n")
+            f.write("(desc): Commit Message\n")
             for line in selected_text.split('\n'):
                 f.write(f"  {line}\n")
             f.write('\n')
@@ -136,8 +136,8 @@ class DescriptionDialog(QDialog):
         self.parent_viewer.update_status()
     
     def select_line(self, line_idx):
-        """Select and highlight a specific line in the description"""
-        cursor = self.description_text_area.textCursor()
+        """Select and highlight a specific line in the commit message"""
+        cursor = self.commit_msg_text_area.textCursor()
         cursor.movePosition(QTextCursor.MoveOperation.Start)
         
         for _ in range(line_idx):
@@ -146,15 +146,15 @@ class DescriptionDialog(QDialog):
         cursor.movePosition(QTextCursor.MoveOperation.StartOfBlock)
         cursor.movePosition(QTextCursor.MoveOperation.EndOfBlock, QTextCursor.MoveMode.KeepAnchor)
         
-        self.description_text_area.setTextCursor(cursor)
-        self.description_text_area.centerCursor()
+        self.commit_msg_text_area.setTextCursor(cursor)
+        self.commit_msg_text_area.centerCursor()
         
         self.raise_()
         self.activateWindow()
 
 
-class DescriptionEventFilter(QObject):
-    """Event filter for keyboard shortcuts in description dialog"""
+class CommitMsgEventFilter(QObject):
+    """Event filter for keyboard shortcuts in commit message dialog"""
     
     def __init__(self, parent, search_func, note_func):
         super().__init__(parent)

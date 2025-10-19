@@ -44,6 +44,7 @@ if [[ "${sourced}" = "1" ]]; then
     dir="$(readlinkf $(dirname "${script}")/..)";
     eval alias dr='${dir}/diff-review'
     eval alias vr='${dir}/view-review'
+    eval alias vrt='${dir}/view-review-tabs'
 
     cat <<EOF
 
@@ -57,6 +58,15 @@ This alias, also present in the shell, provides access to
 'view-review'
 
   $(alias vr)
+
+
+  $(alias dr)
+
+
+This alias, also present in the shell, provides access to
+'view-review-tabs'
+
+  $(alias vrt)
 
 
 EOF

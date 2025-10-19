@@ -68,13 +68,13 @@ Return Code:
                    required = False,
                    dest     = "arg_note")
 
-    o = parser.add_argument_group("Change Description Options")
-    o.add_argument("--description",
+    o = parser.add_argument_group("Commit Message Options")
+    o.add_argument("--commit-msg",
                    help     = ("Path of file containing commit message."),
                    action   = "store",
                    default  = None,
                    required = False,
-                   dest     = "arg_description")
+                   dest     = "arg_commit_msg")
 
     o = parser.add_argument_group("Output Options")
     o.add_argument("--verbose",
@@ -135,7 +135,7 @@ def main():
         options = process_command_line()
 
         return generate(options, options.arg_base, options.arg_modi,
-                        options.arg_note, options.arg_description)
+                        options.arg_note, options.arg_commit_msg)
 
     except KeyboardInterrupt:
         return 0

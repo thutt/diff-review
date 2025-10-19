@@ -182,7 +182,9 @@ class SCM(object):
         self.dossier_         = None # None -> no change to review.
         self.verbose_         = options.arg_verbose
         self.n_threads_       = options.arg_threads
-        self.description_     = None # Change description, if present.
+        self.commit_msg_      = None # Change description /
+                                     # commit message, if present.
+        self.commit_msg_file_ = None # Pathname of file.
 
         if options.arg_scm == "git":
             self.scm_path_ = options.arg_git_path
@@ -248,20 +250,30 @@ class SCM(object):
             review_dir = os.path.join(options.arg_review_dir,
                                       options.arg_review_name)
 
+            if self.commit_msg_ is not None:
+                # Write commit message / change description file.
+                self.commit_msg_file_ = os.path.join(self.review_dir_,
+                                                     "commit_msg.text")
+                with open(self.commit_msg_file_, "w") as fp:
+                    for l in self.commit_msg_:
+                        fp.write("%s\n" % (l))
+            else:
+                self.commit_msg_file_ = None
+
             # Create a JSON dictionary that contains information about the
             # files written to the review directory.  This is used by the
             # 'view-review' program to display the review file-selection
             # menu.
             #
             info = {
-                'user'        : getpass.getuser(),
-                'name'        : self.review_name_,
-                'root'        : self.review_dir_,
-                'base'        : self.review_base_dir_,
-                'modi'        : self.review_modi_dir_,
-                'time'        : timestamp,
-                'description' : self.description_,
-                'files'       : [ ]
+                'user'       : getpass.getuser(),
+                'name'       : self.review_name_,
+                'root'       : self.review_dir_,
+                'base'       : self.review_base_dir_,
+                'modi'       : self.review_modi_dir_,
+                'time'       : timestamp,
+                'commit_msg' : self.commit_msg_file_, # Can be None
+                'files'      : [ ]
             }
             for f in self.dossier_:
                 assert(f.modi_file_info_ is not None)
@@ -274,6 +286,6 @@ class SCM(object):
                 }
                 info['files'].append(finfo)
 
-            fname = os.path.join(self.review_dir_, "diff.json")
+            fname = os.path.join(self.review_dir_, "dossier.json")
             with open(fname, "w") as fp:
                 json.dump(info, fp, indent = 2)

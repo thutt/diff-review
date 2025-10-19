@@ -3,16 +3,16 @@
 Diff Review - Main entry point
 
 A PyQt6-based diff viewer with unified search across base, modified, 
-and description files.
+and commit message files.
 
 Installation:
     pip install PyQt6
 
 Usage:
-    python diff_review.py <base_file> <modified_file> <note_file> <description_file>
+    python diff_review.py <base_file> <modified_file> <note_file> <commit_msg_file>
     
     note_file: path to note file or 'None' for no notes
-    description_file: path to description file or 'None' for no description
+    commit_msg_file: path to commit message file or 'None' for no commit message.
 """
 import sys
 
@@ -28,15 +28,15 @@ def main():
     
     # Check command line arguments
     if len(sys.argv) < 5:
-        print("Usage: python diff_review.py <base_file> <modified_file> <note_file> <description_file>")
+        print("Usage: python diff_review.py <base_file> <modified_file> <note_file> <commit_msg_file>")
         print("  note_file: path to note file or 'None' for no notes")
-        print("  description_file: path to description file or 'None' for no description")
+        print("  commit_msg_file: path to commit message file or 'None' for no commit message")
         sys.exit(1)
     
     base_file = sys.argv[1]
     modified_file = sys.argv[2]
     note_file = sys.argv[3] if sys.argv[3] != 'None' else None
-    description_file = sys.argv[4] if sys.argv[4] != 'None' else None
+    commit_msg_file = sys.argv[4] if sys.argv[4] != 'None' else None
     
     # Verify files exist
     try:
@@ -49,7 +49,7 @@ def main():
         sys.exit(1)
     
     # Create and run viewer
-    viewer = DiffViewer(base_file, modified_file, note_file, description_file)
+    viewer = DiffViewer(base_file, modified_file, note_file, commit_msg_file)
     viewer.run()
 
 

@@ -158,7 +158,7 @@ def git_get_status_short(scm, untracked):
                      (drutil.qualid_(), ' '.join(cmd)))
 
 
-def git_get_description(scm, beg_sha, end_sha):
+def git_get_commit_msg(scm, beg_sha, end_sha):
     cmd = [ scm.scm_path_, "show",
             "-s",
             "--format=%B",
@@ -421,7 +421,7 @@ class GitCommitted(Git):
     def generate_dossier_(self):
         (beg_sha, end_sha) = self.get_change_range()
 
-        self.description_ = git_get_description(self, beg_sha, end_sha)
+        self.commit_msg_ = git_get_commit_msg(self, beg_sha, end_sha)
         diff = git_diff_tree(self, beg_sha, end_sha)
         result = [ ]
         for l in diff:

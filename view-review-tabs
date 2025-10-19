@@ -17,7 +17,6 @@ SCRIPT_DIR=$(dirname "${SCRIPT}");
 function readlinkf ()
 {
     local pn="${1}";
-    local sourced="0";          # False
 
     if [[ "${pn}" != /* ]]; then
         pn="$(pwd)/${pn}";
@@ -46,9 +45,12 @@ function fatal ()
 
 function main()
 {
+    readlinkf ${SCRIPT_DIR}/scripts.d/claude-qt.d
+
     local python=$(which python3);
-    local options="-b -B -E";
-    local dr="$(readlinkf ${SCRIPT_DIR}/scripts.d/dr.d/dr.py)";
+    local options="-b -B";
+    local claudeqt="$(readlinkf ${SCRIPT_DIR}/scripts.d/claude-qt.d)";
+    local vrt="$(readlinkf ${SCRIPT_DIR}/scripts.d/vrt.d/vrt.py)";
 
     if [ -z "${python}" ] ; then
         cat <<EOF
@@ -60,10 +62,15 @@ EOF
         fatal "No Python 3 interpreter on \${PATH}.";
     fi;
 
-    if [ -r "${dr}" ] ; then
-        exec ${python} ${options} "${dr}" "$@";
+    if [ -r "${vrt}" ] ; then
+        if [ -z "${PYTHONPATH:-}" ] ; then
+            export PYTHONPATH="${claudeqt}";
+        else
+            export PYTHONPATH="${PYTHONPATH}:${claudeqt}";
+        fi;
+        exec ${python} ${options} "${vrt}" "$@";
     else
-        fatal "Unable to read '${dr}'";
+        fatal "Unable to read '${vrt}'";
     fi;
 }
 

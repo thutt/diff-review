@@ -15,6 +15,32 @@ import diffmgr
 import diff_viewer
 import tab_manager_module
 
+home                = os.getenv("HOME", os.path.expanduser("~"))
+default_review_dir  = os.path.join(home, "review")
+default_review_name = "default"
+
+
+class FileButton (object):
+    def __init__(self, options, action,
+                 root_path, base_rel_path, modi_rel_path):
+        self.options_       = options
+        self.action_        = action
+        self.root_path_     = root_path
+        self.base_rel_path_ = base_rel_path
+        self.modi_rel_path_ = modi_rel_path
+
+    def button_label(self):
+        return self.modi_rel_path_
+
+    def add_viewer(self, tab_widget):
+        base = os.path.join(self.root_path_, "base.d", self.base_rel_path_)
+        modi = os.path.join(self.root_path_, "modi.d", self.modi_rel_path_)
+        viewer  = make_viewer(self.options_, base, modi,
+                              self.options_.arg_note,
+                              self.options_.dossier_["commit_msg"])
+        tab_widget.add_viewer(viewer)
+
+
 def fatal(msg):
     print("fatal: %s" % (msg))
     sys.exit(1)
@@ -34,10 +60,6 @@ Return Code:
   0       : success
   non-zero: failure
 """)
-
-    home       = os.getenv("HOME", os.path.expanduser("~"))
-    review_dir = os.path.join(home, "review")
-
     formatter = argparse. RawTextHelpFormatter
     parser    = argparse.ArgumentParser(usage           = None,
                                         formatter_class = formatter,
@@ -46,19 +68,31 @@ Return Code:
                                         prog            = "diff-review")
 
     o = parser.add_argument_group("Diff Specification Options")
-    o.add_argument("--base",
-                   help     = ("Base file"),
+    o.add_argument("-R", "--review-directory",
+                   help     = ("Specifies root directory where diffs will be "
+                               "written."),
                    action   = "store",
-                   default  = None,
-                   required = True,
-                   dest     = "arg_base")
+                   default  = default_review_dir,
+                   metavar  = "<pathname>",
+                   required = False,
+                   dest     = "arg_review_dir")
 
-    o.add_argument("--modi",
-                   help     = ("Modified file"),
+    o.add_argument("-r", "--review-name",
+                   help     = ("Specifies the name of the diffs as they will "
+                               "be written."),
+                   action   = "store",
+                   default  = default_review_name,
+                   metavar  = "<name>",
+                   required = False,
+                   dest     = "arg_review_name")
+
+    o = parser.add_argument_group("Diff Specification Options")
+    o.add_argument("--dossier",
+                   help     = ("Json file containing change information"),
                    action   = "store",
                    default  = None,
-                   required = True,
-                   dest     = "arg_modi")
+                   required = False,
+                   dest     = "arg_dossier")
 
     o = parser.add_argument_group("Note Taking Options")
     o.add_argument("--note-file",
@@ -67,14 +101,6 @@ Return Code:
                    default  = None,
                    required = False,
                    dest     = "arg_note")
-
-    o = parser.add_argument_group("Change Description Options")
-    o.add_argument("--description",
-                   help     = ("Path of file containing commit message."),
-                   action   = "store",
-                   default  = None,
-                   required = False,
-                   dest     = "arg_description")
 
     o = parser.add_argument_group("Output Options")
     o.add_argument("--verbose",
@@ -95,11 +121,15 @@ def process_command_line():
     parser  = configure_parser()
     options = parser.parse_args()
 
-    if options.arg_base is None:
-        fatal("Base file must be specified.")
-
-    if options.arg_modi is None:
-        fatal("Modified file must be specified.")
+    if options.arg_dossier is None:
+        options.arg_dossier = os.path.join(default_review_dir,
+                                           default_review_name,
+                                           "dossier.json")
+    if os.path.exists(options.arg_dossier):
+        with open(options.arg_dossier, "r") as fp:
+            options.dossier_ = json.load(fp)
+    else:
+        fatal("dossier '%s' does not exist." % (options.arg_dossier))
 
     return options
 
@@ -117,35 +147,29 @@ def add_diff_to_viewer(desc, viewer):
 
 
 def make_viewer(options, base, modi, note, commit_msg):
-    viewer      = diff_viewer.DiffViewer(base, modi, note, commit_msg)
+    viewer = diff_viewer.DiffViewer(base, modi, note, commit_msg)
 
     desc = diffmgr.create_diff_descriptor(options.arg_verbose,
-                                          options.arg_base,
-                                          options.arg_modi)
+                                          base, modi)
     add_diff_to_viewer(desc, viewer)
 
     return viewer
 
-def generate(options, base, modi, note, commit_msg):
+def generate(options, note):
     application = PyQt6.QtWidgets.QApplication(sys.argv)
+    tab_widget  = tab_manager_module.DiffViewerTabWidget()
 
-    tab_widget = tab_manager_module.DiffViewerTabWidget()
-    
-    viewer  = make_viewer(options, base, modi, note, commit_msg)
-    viewer2 = make_viewer(options, base, modi, note, commit_msg)
-    viewer3 = make_viewer(options, base, modi, note, commit_msg)
-    print("viewer: ", viewer)
-    print("widget: ", tab_widget)
-    tab_widget.add_viewer(viewer, "View 1")
-    tab_widget.add_viewer(viewer2, "View 2")
-    tab_widget.add_viewer(viewer3, "View 2")
-
-    print("----- done")
+    for f in options.dossier_['files']:
+        file_inst = FileButton(options,
+                               f["action"],
+                               options.dossier_["root"],
+                               f["base_rel_path"],
+                               f["modi_rel_path"])
+        
+        tab_widget.add_file(file_inst)
 
     tab_widget.run()
 
-#    viewer.show()
-#    return application.exec()
     return 0
 
 
@@ -153,8 +177,7 @@ def main():
     try:
         options = process_command_line()
 
-        return generate(options, options.arg_base, options.arg_modi,
-                        options.arg_note, options.arg_description)
+        return generate(options, options.arg_note)
 
     except KeyboardInterrupt:
         return 0

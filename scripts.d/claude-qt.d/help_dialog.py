@@ -58,7 +58,7 @@ class HelpDialog(QDialog):
         
         <h3>Search Functionality</h3>
         <ul>
-            <li><b>Ctrl+S:</b> Open search dialog to search across base, modified, and description files</li>
+            <li><b>Ctrl+S:</b> Open search dialog to search across base, modified, and commit message files</li>
             <li><b>Right-click → Search:</b> Search for currently selected text</li>
             <li>Use checkboxes in search dialog to choose which sources to search (Base/Modi/Desc)</li>
             <li>Toggle case sensitivity in search dialog</li>
@@ -69,7 +69,7 @@ class HelpDialog(QDialog):
         <ul>
             <li><b>Double-click:</b> Quick note - adds the clicked line to your notes file</li>
             <li><b>Right-click → Take Note:</b> Add selected text to notes file</li>
-            <li><b>Ctrl+N:</b> Take note of selected text (works in description view too)</li>
+            <li><b>Ctrl+N:</b> Take note of selected text (works in commit message view too)</li>
             <li>Notes are marked with a blue dot in the line number area</li>
             <li>All notes are appended to the notes file specified at startup</li>
         </ul>
@@ -96,14 +96,14 @@ class HelpDialog(QDialog):
         <h3>Status Bar</h3>
         <ul>
             <li><b>Region:</b> Shows current change region number and total regions</li>
-            <li><b>Description:</b> Button to view commit description (if available)</li>
+            <li><b>Commit Message:</b> Button to view commit message (if available)</li>
             <li><b>Notes:</b> Count of notes taken during this session</li>
         </ul>
         
-        <h3>Description View</h3>
+        <h3>Commit Message View</h3>
         <ul>
-            <li>Click "Description" button to view commit message/description</li>
-            <li>Search and note-taking work the same way in description view</li>
-            <li>Ctrl+S and Ctrl+N shortcuts work in description window</li>
+            <li>Click "Commit Message" button to view commit message</li>
+            <li>Search and note-taking work the same way in commit message view</li>
+            <li>Ctrl+S and Ctrl+N shortcuts work in commit message window</li>
         </ul>
         """

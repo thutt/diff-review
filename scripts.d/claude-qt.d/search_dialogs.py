@@ -3,7 +3,7 @@
 Search dialog classes for diff_review
 
 This module contains the search input dialog and search results dialog
-with unified search across base, modified, and description files.
+with unified search across base, modified, and commit message files.
 """
 from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, 
                               QPlainTextEdit, QCheckBox, QPushButton, 
@@ -14,14 +14,14 @@ from PyQt6.QtCore import Qt
 class SearchDialog(QDialog):
     """Dialog to input search text"""
     
-    def __init__(self, parent=None, has_description=False):
+    def __init__(self, parent=None, has_commit_msg=False):
         super().__init__(parent)
         self.search_text = None
         self.case_sensitive = False
         self.search_base = True
         self.search_modi = True
         self.search_desc = True
-        self.has_description = has_description
+        self.has_commit_msg = has_commit_msg
         
         self.setWindowTitle("Search")
         self.setMinimumWidth(400)
@@ -57,8 +57,8 @@ class SearchDialog(QDialog):
         self.modi_checkbox.setChecked(True)
         checkbox_layout.addWidget(self.modi_checkbox)
         
-        # Description checkbox (only if description file exists)
-        if has_description:
+        # Commit message checkbox (only if commit message file exists)
+        if has_commit_msg:
             self.desc_checkbox = QCheckBox("Desc")
             self.desc_checkbox.setChecked(True)
             checkbox_layout.addWidget(self.desc_checkbox)
@@ -92,7 +92,7 @@ class SearchDialog(QDialog):
             self.case_sensitive = self.case_checkbox.isChecked()
             self.search_base = self.base_checkbox.isChecked()
             self.search_modi = self.modi_checkbox.isChecked()
-            if self.has_description:
+            if self.has_commit_msg:
                 self.search_desc = self.desc_checkbox.isChecked()
             self.accept()
 
@@ -139,8 +139,8 @@ class SearchResultDialog(QDialog):
         self.modi_checkbox.stateChanged.connect(self.on_checkbox_changed)
         checkbox_layout.addWidget(self.modi_checkbox)
         
-        # Description checkbox (only if description file exists)
-        if parent and parent.description_file:
+        # Commit message checkbox (only if commit message file exists)
+        if parent and parent.commit_msg_file:
             self.desc_checkbox = QCheckBox("Desc")
             self.desc_checkbox.setChecked(search_desc)
             self.desc_checkbox.stateChanged.connect(self.on_checkbox_changed)
@@ -184,7 +184,7 @@ class SearchResultDialog(QDialog):
         self.case_sensitive = self.case_checkbox.isChecked()
         self.search_base = self.base_checkbox.isChecked()
         self.search_modi = self.modi_checkbox.isChecked()
-        if self.parent_viewer and self.parent_viewer.description_file:
+        if self.parent_viewer and self.parent_viewer.commit_msg_file:
             self.search_desc = self.desc_checkbox.isChecked()
         self.perform_search()
     
@@ -221,19 +221,19 @@ class SearchResultDialog(QDialog):
                 if line_num is not None and matches(line_text):
                     results.append(('modified', line_num, i, line_text))
         
-        # Search in description (only if checkbox is selected and description exists)
-        if self.search_desc and self.parent_viewer.description_file:
-            desc_lines = self.parent_viewer.get_description_lines()
+        # Search in commit message  (only if checkbox is selected and commit message exists)
+        if self.search_desc and self.parent_viewer.commit_msg_file:
+            desc_lines = self.parent_viewer.get_commit_msg_lines()
             for line_num, line_text in enumerate(desc_lines):
                 if matches(line_text):
-                    results.append(('description', line_num + 1, line_num, line_text))
+                    results.append(('commit_msg', line_num + 1, line_num, line_text))
         
         # Update info label
         self.info_label.setText(f"Found {len(results)} matches:")
         
         # Populate results list
         for side, line_num, line_idx, line_text in results:
-            if side == 'description':
+            if side == 'commit_msg':
                 display_text = f"[DESC] Line {line_num}: {line_text}"
             else:
                 display_text = f"[{side.upper()}] Line {line_num}: {line_text}"
@@ -254,9 +254,9 @@ class SearchResultDialog(QDialog):
             # Parent will handle navigation
             if self.parent_viewer:
                 side, line_num, line_idx = self.selected_result
-                if side == 'description':
-                    # Navigate to description
-                    self.parent_viewer.select_description_result(line_idx)
+                if side == 'commit_msg':
+                    # Navigate to commit message.
+                    self.parent_viewer.select_commit_msg_result(line_idx)
                 else:
                     # Navigate to source file
                     self.parent_viewer.select_search_result(side, line_idx)

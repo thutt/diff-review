@@ -24,10 +24,10 @@ except ImportError:
 
 import traceback
 
-class DescriptionDialog(QDialog):
+class CommitMsgDialog(QDialog):
     def __init__(self, items, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Change Description")
+        self.setWindowTitle("Commit Messageg")
         self.resize(600, 300)
 
         # Layout
@@ -170,7 +170,7 @@ class QtInterface(QMainWindow):
         if self.vim_ is None:
             vim = "%s %s" % (vim, na)
 
-        viewers = [ "Claude-QT", "Claude-tabs", emacs, tkdiff, meld, vim ]
+        viewers = [ "Claude-QT", emacs, tkdiff, meld, vim ]
 
         for viewer in viewers:
             action = QAction(viewer, self)
@@ -247,23 +247,6 @@ class QtInterface(QMainWindow):
             if term is not None:
                 vimdiff = [ term, "-e" ] + vimdiff
             cmd = vimdiff + [ base, modi ]
-        elif viewer == "Claude-tabs":
-            path   = os.path.split(sys.argv[0])
-            claude = os.path.abspath(os.path.join(path[0], "..",
-                                                  "claude-tabs.d", "claude.py"))
-            search_path = os.path.abspath(os.path.join(path[0], "..",
-                                                       "claude-qt.d"))
-            os.environ["PYTHONPATH"] = search_path
-            notes  = [ ]
-            if self.options_.arg_claude_note_file is not None:
-                notes = [ "--note", self.options_.arg_claude_note_file ]
-
-            commit_msg = [ ]
-            if self.commit_msg_ is not None:
-                commit_msg = [ "--description", self.commit_msg_ ]
-            cmd = [ "python3", "-B", claude,
-                    "--base", base,
-                    "--modi", modi ] + notes + commit_msg
         elif viewer == "Claude-QT":
             path   = os.path.split(sys.argv[0])
             claude = os.path.abspath(os.path.join(path[0], "..",
@@ -274,7 +257,7 @@ class QtInterface(QMainWindow):
 
             commit_msg = [ ]
             if self.commit_msg_ is not None:
-                commit_msg = [ "--description", self.commit_msg_ ]
+                commit_msg = [ "--commit-msg", self.commit_msg_ ]
             cmd = [ "python3", "-B", claude,
                     "--base", base,
                     "--modi", modi ] + notes + commit_msg
@@ -333,13 +316,13 @@ class QtInterface(QMainWindow):
 
         self.content_layout.addWidget(quit_button, row, 1)
 
-    def description_dialog(self, description):
-        self.description_dialog_ = DescriptionDialog(description)
-        self.description_dialog_.show()
+    def commit_msg_dialog(self, commit_msg):
+        self.commit_msg_dialog_ = CommitMsgDialog(commit_msg)
+        self.commit_msg_dialog_.show()
 
-    def add_description(self, row, description):
-        quit_button = QPushButton("Description")
-        quit_button.clicked.connect(lambda: self.description_dialog(description))
+    def add_commit_msg(self, row, commit_msg):
+        quit_button = QPushButton("Commit Message")
+        quit_button.clicked.connect(lambda: self.commit_msg_dialog(commit_msg))
 
         # Set red background
         palette = quit_button.palette()
@@ -476,7 +459,6 @@ Return Code:
                    required = False,
                    dest     = "arg_claude_note_file")
 
-
     parser.add_argument("tail",
                         help  = "Command line tail",
                         nargs = "*")
@@ -501,7 +483,7 @@ def generate(options, review_name, dossier, commit_msg):
     col         = 0                # Maximum pathname length, in chars
     base_dir    = dossier["base"]
     modi_dir    = dossier["modi"]
-    description = dossier["description"]
+    commit_msg  = dossier["commit_msg"]
 
     for f in sorted(dossier['files'],
                     key=lambda item: item["modi_rel_path"]):
@@ -517,8 +499,8 @@ def generate(options, review_name, dossier, commit_msg):
         qt_intf.add_button(row, action, base, modi, rel_modi)
         row = row + 1
 
-    if description is not None:
-        qt_intf.add_description(row, description)
+    if commit_msg is not None:
+        qt_intf.add_commit_msg(row, commit_msg)
     qt_intf.add_quit(row)
     qt_intf.size_window(row + 1, # Number of rows, including 'quit'.
                         col)
@@ -541,30 +523,17 @@ def restore_terminal():
             subprocess.Popen([ stty_path, "sane" ])
 
 
-def write_description_file(options, dossier):
-    description = dossier["description"]
-    commit_msg = None
-    if description is not None:
-        commit_msg = os.path.join(options.arg_review_dir,
-                                  options.arg_review_name,
-                                  "commit_message.text")
-        with open(commit_msg, "w") as fp:
-            for l in description:
-                fp.write("%s\n" % (l))
-    return commit_msg           # Return pathname or None.
-
 def main():
     try:
         options = process_command_line()
 
-        pathname = os.path.join(options.arg_review_dir,
-                                options.arg_review_name, "diff.json")
-        with open(pathname, "r") as fp:
+        options.json_ = os.path.join(options.arg_review_dir,
+                                     options.arg_review_name, "dossier.json")
+        with open(options.json_, "r") as fp:
             dossier = json.load(fp)
 
-        commit_msg = write_description_file(options, dossier)
-
-        return generate(options, options.arg_review_name, dossier, commit_msg)
+        return generate(options, options.arg_review_name, dossier,
+                        dossier["commit_msg"])
 
     except KeyboardInterrupt:
         return 0

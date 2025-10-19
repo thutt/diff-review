@@ -18,12 +18,12 @@ from utils import extract_display_path
 from search_dialogs import SearchDialog, SearchResultDialog
 from ui_components import LineNumberArea, DiffMapWidget, SyncedPlainTextEdit
 from help_dialog import HelpDialog
-from description_dialog import DescriptionDialog
+from commit_msg_dialog import CommitMsgDialog
 
 
 class DiffViewer(QMainWindow):
     def __init__(self, base_file: str, modified_file: str, note_file: Optional[str] = None, 
-                 description_file: Optional[str] = None):
+                 commit_msg_file: Optional[str] = None):
         if QApplication.instance() is None:
             self._app = QApplication(sys.argv)
         else:
@@ -34,7 +34,7 @@ class DiffViewer(QMainWindow):
         self.base_file = base_file
         self.modified_file = modified_file
         self.note_file = note_file
-        self.description_file = description_file
+        self.commit_msg_file = commit_msg_file
         self.note_count = 0
         
         self.base_noted_lines = set()
@@ -144,14 +144,14 @@ class DiffViewer(QMainWindow):
         self.region_label = QLabel("Region: 0 of 0")
         self.notes_label = QLabel("Notes: 0")
         
-        self.description_button = QPushButton("Description")
-        self.description_button.clicked.connect(self.show_description)
-        if not self.description_file:
-            self.description_button.setEnabled(False)
+        self.commit_msg_button = QPushButton("Commit Message")
+        self.commit_msg_button.clicked.connect(self.show_commit_msg)
+        if not self.commit_msg_file:
+            self.commit_msg_button.setEnabled(False)
         
         status_layout.addWidget(self.region_label)
         status_layout.addStretch()
-        status_layout.addWidget(self.description_button)
+        status_layout.addWidget(self.commit_msg_button)
         status_layout.addWidget(self.notes_label)
         status_frame = QFrame()
         status_frame.setFrameStyle(QFrame.Shape.Panel | QFrame.Shadow.Sunken)
@@ -448,38 +448,38 @@ class DiffViewer(QMainWindow):
         self.note_count += 1
         self.update_status()
     
-    def get_description_lines(self):
-        if not self.description_file:
+    def get_commit_msg_lines(self):
+        if not self.commit_msg_file:
             return []
         
         try:
-            with open(self.description_file, 'r') as f:
+            with open(self.commit_msg_file, 'r') as f:
                 return f.read().split('\n')
         except Exception:
             return []
     
-    def select_description_result(self, line_idx):
-        if not hasattr(self, 'description_dialog') or not self.description_dialog.isVisible():
-            self.show_description()
+    def select_commit_msg_result(self, line_idx):
+        if not hasattr(self, 'commit_msg_dialog') or not self.commit_msg_dialog.isVisible():
+            self.show_commit_msg()
         
-        if hasattr(self, 'description_dialog'):
-            self.description_dialog.select_line(line_idx)
+        if hasattr(self, 'commit_msg_dialog'):
+            self.commit_msg_dialog.select_line(line_idx)
     
     def show_help(self):
         help_dialog = HelpDialog(self)
         help_dialog.exec()
     
-    def show_description(self):
-        if not self.description_file:
+    def show_commit_msg(self):
+        if not self.commit_msg_file:
             return
         
-        if hasattr(self, 'description_dialog') and self.description_dialog.isVisible():
-            self.description_dialog.raise_()
-            self.description_dialog.activateWindow()
+        if hasattr(self, 'commit_msg_dialog') and self.commit_msg_dialog.isVisible():
+            self.commit_msg_dialog.raise_()
+            self.commit_msg_dialog.activateWindow()
             return
         
-        self.description_dialog = DescriptionDialog(self.description_file, self, self)
-        self.description_dialog.show()
+        self.commit_msg_dialog = CommitMsgDialog(self.commit_msg_file, self, self)
+        self.commit_msg_dialog.show()
     
     def show_context_menu(self, pos, side):
         menu = QMenu(self)
@@ -507,7 +507,7 @@ class DiffViewer(QMainWindow):
         menu.exec(text_widget.mapToGlobal(pos))
     
     def show_search_dialog(self):
-        dialog = SearchDialog(self, has_description=(self.description_file is not None))
+        dialog = SearchDialog(self, has_commit_msg=(self.commit_msg_file is not None))
         if dialog.exec() == QDialog.DialogCode.Accepted and dialog.search_text:
             results_dialog = SearchResultDialog(dialog.search_text, self, 
                                                dialog.case_sensitive,
