@@ -7,11 +7,13 @@ with a sidebar for file selection.
 """
 import sys
 from PyQt6.QtWidgets import (QApplication, QTabWidget, QMainWindow, QHBoxLayout, 
-                              QVBoxLayout, QWidget, QPushButton, QScrollArea, QSplitter)
+                              QVBoxLayout, QWidget, QPushButton, QScrollArea, QSplitter,
+                              QPlainTextEdit, QMenu, QMessageBox)
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QAction
+from PyQt6.QtGui import QAction, QFont
 
 from help_dialog import HelpDialog
+from search_dialogs import SearchDialog, SearchResultDialog
 
 
 class FileButton(QPushButton):
@@ -79,6 +81,8 @@ class DiffViewerTabWidget(QMainWindow):
         self.file_to_tab_index = {}  # Maps file_class to tab index
         self.current_file_class = None  # Track which file is being added
         self.sidebar_visible = True
+        self.commit_msg_file = None  # Track commit message file
+        self.commit_msg_button = None  # Track commit message button
         
         # Create main layout
         central = QWidget()
@@ -184,6 +188,169 @@ class DiffViewerTabWidget(QMainWindow):
         
         self.resize(total_width, 900)
     
+    def add_commit_msg(self, commit_msg_file):
+        """
+        Add commit message to the sidebar as the first item.
+        
+        Args:
+            commit_msg_file: Path to the commit message file
+        """
+        # Check if file exists
+        try:
+            with open(commit_msg_file, 'r') as f:
+                f.read()
+        except Exception:
+            return  # File doesn't exist or can't be read, don't add
+        
+        self.commit_msg_file = commit_msg_file
+        
+        # Create a special button for commit message
+        self.commit_msg_button = QPushButton("Commit Message")
+        self.commit_msg_button.clicked.connect(self.on_commit_msg_clicked)
+        self.commit_msg_button.setStyleSheet("""
+            QPushButton {
+                text-align: left;
+                padding: 8px 8px 8px 20px;
+                border: none;
+                background-color: white;
+                border-left: 4px solid transparent;
+            }
+            QPushButton:hover {
+                background-color: #f0f0f0;
+            }
+        """)
+        
+        # Insert after "Open All" button (position 1)
+        self.button_layout.insertWidget(1, self.commit_msg_button)
+    
+    def on_commit_msg_clicked(self):
+        """Handle commit message button click"""
+        # Check if tab already exists
+        if 'commit_msg' in self.file_to_tab_index:
+            tab_index = self.file_to_tab_index['commit_msg']
+            if 0 <= tab_index < self.tab_widget.count():
+                self.tab_widget.setCurrentIndex(tab_index)
+                return
+            # Tab was closed, remove from mapping
+            del self.file_to_tab_index['commit_msg']
+        
+        # Create new commit message tab
+        self.create_commit_msg_tab()
+    
+    def create_commit_msg_tab(self):
+        """Create a tab displaying the commit message"""
+        try:
+            with open(self.commit_msg_file, 'r') as f:
+                commit_msg_text = f.read()
+        except Exception as e:
+            QMessageBox.warning(self, 'Error Reading Commit Message',
+                              f'Could not read commit message file:\n{e}')
+            return
+        
+        # Create text widget
+        text_widget = QPlainTextEdit()
+        text_widget.setReadOnly(True)
+        text_widget.setPlainText(commit_msg_text)
+        text_widget.setFont(QFont("Courier", 12, QFont.Weight.Bold))
+        
+        # Set up context menu
+        text_widget.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        text_widget.customContextMenuRequested.connect(
+            lambda pos: self.show_commit_msg_context_menu(pos, text_widget))
+        
+        # Install event filter for keyboard shortcuts
+        text_widget.installEventFilter(self)
+        
+        # Store reference to tab widget for later use
+        text_widget.is_commit_msg = True
+        
+        # Add to tabs
+        index = self.tab_widget.addTab(text_widget, "Commit Message")
+        self.file_to_tab_index['commit_msg'] = index
+        self.tab_widget.setCurrentIndex(index)
+        
+        # Update button state
+        self.update_button_states()
+    
+    def show_commit_msg_context_menu(self, pos, text_widget):
+        """Show context menu for commit message"""
+        menu = QMenu(self)
+        cursor = text_widget.textCursor()
+        has_selection = cursor.hasSelection()
+        
+        search_action = QAction("Search", self)
+        search_action.setEnabled(has_selection)
+        if has_selection:
+            search_action.triggered.connect(
+                lambda: self.search_commit_msg_selected_text(text_widget))
+        menu.addAction(search_action)
+        
+        menu.addSeparator()
+        
+        # Note taking - need to check if any viewer has a note file
+        note_file = self.get_note_file()
+        if has_selection and note_file:
+            note_action = QAction("Take Note", self)
+            note_action.triggered.connect(
+                lambda: self.take_commit_msg_note(text_widget, note_file))
+            menu.addAction(note_action)
+        else:
+            note_action = QAction("Take Note (no selection)" if note_file else 
+                               "Take Note (no file supplied)", self)
+            note_action.setEnabled(False)
+            menu.addAction(note_action)
+        
+        menu.exec(text_widget.mapToGlobal(pos))
+    
+    def search_commit_msg_selected_text(self, text_widget):
+        """Search for selected text in commit message"""
+        cursor = text_widget.textCursor()
+        if not cursor.hasSelection():
+            return
+        
+        search_text = cursor.selectedText()
+        
+        # Get current viewer if any (for search compatibility)
+        viewer = self.get_current_viewer()
+        if viewer:
+            dialog = SearchResultDialog(search_text, viewer, case_sensitive=False,
+                                       search_base=True, search_modi=True, 
+                                       search_commit_msg=True)
+            dialog.exec()
+    
+    def take_commit_msg_note(self, text_widget, note_file):
+        """Take note from commit message"""
+        cursor = text_widget.textCursor()
+        if not cursor.hasSelection():
+            return
+        
+        selected_text = cursor.selectedText()
+        selected_text = selected_text.replace('\u2029', '\n')
+        
+        try:
+            with open(note_file, 'a') as f:
+                f.write("(commit_msg): Commit Message\n")
+                for line in selected_text.split('\n'):
+                    f.write(f"  {line}\n")
+                f.write('\n')
+            
+            # Update note count in current viewer if it exists
+            viewer = self.get_current_viewer()
+            if viewer:
+                viewer.note_count += 1
+                viewer.update_status()
+        except Exception as e:
+            QMessageBox.warning(self, 'Error Taking Note',
+                              f'Could not write to note file:\n{e}')
+    
+    def get_note_file(self):
+        """Get note file from any viewer"""
+        viewers = self.get_all_viewers()
+        for viewer in viewers:
+            if viewer.note_file:
+                return viewer.note_file
+        return None
+    
     def add_file(self, file_class):
         """
         Add a file to the sidebar.
@@ -197,8 +364,12 @@ class DiffViewerTabWidget(QMainWindow):
         button = FileButton(file_class, self)
         button.clicked.connect(lambda: self.on_file_clicked(file_class))
         
-        # Insert before the stretch (after "Open All" button and existing file buttons)
-        insert_position = len(self.file_buttons) + 1  # +1 for "Open All" button
+        # Calculate insert position: after "Open All" and commit message (if present)
+        insert_position = 1  # After "Open All"
+        if self.commit_msg_button:
+            insert_position = 2  # After "Open All" and "Commit Message"
+        insert_position += len(self.file_buttons)  # After existing file buttons
+        
         self.button_layout.insertWidget(insert_position, button)
         self.file_buttons.append(button)
     
@@ -287,17 +458,50 @@ class DiffViewerTabWidget(QMainWindow):
     
     def update_button_states(self):
         """Update all button states based on open tabs"""
-        # Update all buttons based on whether their file has an open tab
+        # Update file buttons
         for button in self.file_buttons:
             file_class = button.file_class
-            # Check if this file has an open tab
             has_open_tab = file_class in self.file_to_tab_index
             if has_open_tab:
-                # Verify the tab still exists
                 tab_index = self.file_to_tab_index[file_class]
                 if not (0 <= tab_index < self.tab_widget.count()):
                     has_open_tab = False
             button.set_active(has_open_tab)
+        
+        # Update commit message button
+        if self.commit_msg_button:
+            has_commit_msg_tab = 'commit_msg' in self.file_to_tab_index
+            if has_commit_msg_tab:
+                tab_index = self.file_to_tab_index['commit_msg']
+                if not (0 <= tab_index < self.tab_widget.count()):
+                    has_commit_msg_tab = False
+            
+            if has_commit_msg_tab:
+                self.commit_msg_button.setStyleSheet("""
+                    QPushButton {
+                        text-align: left;
+                        padding: 8px 8px 8px 20px;
+                        border: none;
+                        background-color: #f0f0f0;
+                        border-left: 4px solid #0066cc;
+                    }
+                    QPushButton:hover {
+                        background-color: #e0e0e0;
+                    }
+                """)
+            else:
+                self.commit_msg_button.setStyleSheet("""
+                    QPushButton {
+                        text-align: left;
+                        padding: 8px 8px 8px 20px;
+                        border: none;
+                        background-color: white;
+                        border-left: 4px solid transparent;
+                    }
+                    QPushButton:hover {
+                        background-color: #f0f0f0;
+                    }
+                """)
     
     def get_all_viewers(self):
         """
@@ -346,16 +550,20 @@ class DiffViewerTabWidget(QMainWindow):
         if index >= 0 and index < self.tab_widget.count():
             widget = self.tab_widget.widget(index)
             
-            # Remove from file_to_tab_index mapping
-            if hasattr(widget, 'file_class'):
+            # Check if this is the commit message tab
+            if hasattr(widget, 'is_commit_msg') and widget.is_commit_msg:
+                if 'commit_msg' in self.file_to_tab_index:
+                    del self.file_to_tab_index['commit_msg']
+            # Regular file tab
+            elif hasattr(widget, 'file_class'):
                 file_class = widget.file_class
                 if file_class in self.file_to_tab_index:
                     del self.file_to_tab_index[file_class]
             
             # Update indices in mapping for tabs after this one
-            for file_class, tab_idx in list(self.file_to_tab_index.items()):
+            for key, tab_idx in list(self.file_to_tab_index.items()):
                 if tab_idx > index:
-                    self.file_to_tab_index[file_class] = tab_idx - 1
+                    self.file_to_tab_index[key] = tab_idx - 1
             
             self.tab_widget.removeTab(index)
             
@@ -468,23 +676,43 @@ class DiffViewerTabWidget(QMainWindow):
         """Filter events from text widgets to handle Tab key and Ctrl+N"""
         if event.type() == event.Type.KeyPress:
             viewer = self.get_current_viewer()
-            if not viewer:
-                return False
-            
             key = event.key()
             modifiers = event.modifiers()
             
-            # Ctrl+N - Take note
-            if key == Qt.Key.Key_N and modifiers & Qt.KeyboardModifier.ControlModifier:
-                if obj == viewer.base_text:
-                    viewer.take_note_from_widget('base')
-                    return True
-                elif obj == viewer.modified_text:
-                    viewer.take_note_from_widget('modified')
+            # Check if this is the commit message widget
+            is_commit_msg = hasattr(obj, 'is_commit_msg') and obj.is_commit_msg
+            
+            # Ctrl+S - Search (works for both commit message and diff viewers)
+            if key == Qt.Key.Key_S and modifiers & Qt.KeyboardModifier.ControlModifier:
+                if is_commit_msg:
+                    dialog = SearchDialog(self, has_commit_msg=True)
+                    if dialog.exec() == dialog.DialogCode.Accepted and dialog.search_text:
+                        if viewer:
+                            results = SearchResultDialog(dialog.search_text, viewer,
+                                                        dialog.case_sensitive,
+                                                        dialog.search_base,
+                                                        dialog.search_modi,
+                                                        dialog.search_commit_msg)
+                            results.exec()
                     return True
             
-            # Tab - Switch focus between base and modified, keeping same line
-            if key == Qt.Key.Key_Tab and not modifiers:
+            # Ctrl+N - Take note (works for both)
+            if key == Qt.Key.Key_N and modifiers & Qt.KeyboardModifier.ControlModifier:
+                if is_commit_msg:
+                    note_file = self.get_note_file()
+                    if note_file:
+                        self.take_commit_msg_note(obj, note_file)
+                    return True
+                elif viewer:
+                    if obj == viewer.base_text:
+                        viewer.take_note_from_widget('base')
+                        return True
+                    elif obj == viewer.modified_text:
+                        viewer.take_note_from_widget('modified')
+                        return True
+            
+            # Tab - Switch focus between base and modified (only for diff viewers)
+            if not is_commit_msg and viewer and key == Qt.Key.Key_Tab and not modifiers:
                 if obj == viewer.base_text:
                     # Get current line in base
                     cursor = viewer.base_text.textCursor()

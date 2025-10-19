@@ -159,6 +159,9 @@ def generate(options, note):
     application = PyQt6.QtWidgets.QApplication(sys.argv)
     tab_widget  = tab_manager_module.DiffViewerTabWidget()
 
+    if options.dossier_['commit_msg'] is not None:
+        tab_widget.add_commit_msg(options.dossier_['commit_msg'])
+
     for f in options.dossier_['files']:
         file_inst = FileButton(options,
                                f["action"],
