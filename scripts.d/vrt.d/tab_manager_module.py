@@ -296,7 +296,8 @@ class DiffViewerTabWidget(QMainWindow):
                 search_base=dialog.search_base,
                 search_modi=dialog.search_modi,
                 search_commit_msg=dialog.search_commit_msg,
-                search_all_tabs=dialog.search_all_tabs
+                search_all_tabs=dialog.search_all_tabs,
+                use_regex=dialog.use_regex
             )
             results_dialog.exec()
     

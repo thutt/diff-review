@@ -5,9 +5,10 @@ Search dialog classes for diff_review
 This module contains the search input dialog and search results dialog
 with unified search across base, modified, and commit message files.
 """
+import re
 from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, 
                               QPlainTextEdit, QCheckBox, QPushButton, 
-                              QListWidget, QListWidgetItem)
+                              QListWidget, QListWidgetItem, QMessageBox)
 from PyQt6.QtCore import Qt
 
 
@@ -22,6 +23,7 @@ class SearchDialog(QDialog):
         self.search_modi = True
         self.search_commit_msg = True
         self.search_all_tabs = True
+        self.use_regex = False
         self.has_commit_msg = has_commit_msg
         
         # Check if parent is tab widget with multiple tabs
@@ -43,22 +45,31 @@ class SearchDialog(QDialog):
         input_layout.addWidget(self.search_input)
         layout.addLayout(input_layout)
         
-        # Checkboxes row
-        checkbox_layout = QHBoxLayout()
+        # Checkboxes row 1
+        checkbox_layout1 = QHBoxLayout()
         
         # Case sensitivity checkbox
         self.case_checkbox = QCheckBox("Case sensitive")
         self.case_checkbox.setChecked(False)
-        checkbox_layout.addWidget(self.case_checkbox)
+        checkbox_layout1.addWidget(self.case_checkbox)
         
-        # Search all tabs checkbox (only if multiple tabs)
+        # Regex checkbox
+        self.regex_checkbox = QCheckBox("Regular expression")
+        self.regex_checkbox.setChecked(False)
+        checkbox_layout1.addWidget(self.regex_checkbox)
+        
+        checkbox_layout1.addStretch()
+        
+        layout.addLayout(checkbox_layout1)
+        
+        # Checkboxes row 2 (only if multiple tabs)
         if self.has_multiple_tabs:
-            checkbox_layout.addStretch()
+            checkbox_layout2 = QHBoxLayout()
             self.all_tabs_checkbox = QCheckBox("Search all tabs")
             self.all_tabs_checkbox.setChecked(True)
-            checkbox_layout.addWidget(self.all_tabs_checkbox)
-        
-        layout.addLayout(checkbox_layout)
+            checkbox_layout2.addWidget(self.all_tabs_checkbox)
+            checkbox_layout2.addStretch()
+            layout.addLayout(checkbox_layout2)
         
         # Buttons
         button_layout = QHBoxLayout()
@@ -85,6 +96,18 @@ class SearchDialog(QDialog):
         if text:
             self.search_text = text
             self.case_sensitive = self.case_checkbox.isChecked()
+            self.use_regex = self.regex_checkbox.isChecked()
+            
+            # Validate regex if enabled
+            if self.use_regex:
+                try:
+                    flags = 0 if self.case_sensitive else re.IGNORECASE
+                    re.compile(text, flags)
+                except re.error as e:
+                    QMessageBox.warning(self, "Invalid Regular Expression", 
+                                      f"The regular expression is invalid:\n{e}")
+                    return
+            
             # Always search all sources
             self.search_base = True
             self.search_modi = True
@@ -100,7 +123,7 @@ class SearchResultDialog(QDialog):
     
     def __init__(self, search_text, parent, case_sensitive=False, 
                  search_base=True, search_modi=True, search_commit_msg=True,
-                 search_all_tabs=False):
+                 search_all_tabs=False, use_regex=False):
         super().__init__(parent)
         self.search_text = search_text
         self.selected_result = None
@@ -109,6 +132,7 @@ class SearchResultDialog(QDialog):
         self.search_modi = search_modi
         self.search_commit_msg = search_commit_msg
         self.search_all_tabs = search_all_tabs
+        self.use_regex = use_regex
         self.parent_tab_widget = parent
  
         # Check if we have multiple tabs
@@ -121,24 +145,34 @@ class SearchResultDialog(QDialog):
         
         layout = QVBoxLayout(self)
         
-        # Checkboxes row
-        checkbox_layout = QHBoxLayout()
+        # Checkboxes row 1
+        checkbox_layout1 = QHBoxLayout()
         
         # Case sensitivity checkbox
         self.case_checkbox = QCheckBox("Case sensitive")
         self.case_checkbox.setChecked(case_sensitive)
         self.case_checkbox.stateChanged.connect(self.on_case_changed)
-        checkbox_layout.addWidget(self.case_checkbox)
+        checkbox_layout1.addWidget(self.case_checkbox)
         
-        # Search all tabs checkbox (only show if multiple tabs)
+        # Regex checkbox
+        self.regex_checkbox = QCheckBox("Regular expression")
+        self.regex_checkbox.setChecked(use_regex)
+        self.regex_checkbox.stateChanged.connect(self.on_regex_changed)
+        checkbox_layout1.addWidget(self.regex_checkbox)
+        
+        checkbox_layout1.addStretch()
+        
+        layout.addLayout(checkbox_layout1)
+        
+        # Checkboxes row 2 (only show if multiple tabs)
         if self.has_multiple_tabs:
-            checkbox_layout.addStretch()
+            checkbox_layout2 = QHBoxLayout()
             self.all_tabs_checkbox = QCheckBox("Search all tabs")
-            self.all_tabs_checkbox.setChecked(self.search_all_tabs)  # Use self.search_all_tabs
+            self.all_tabs_checkbox.setChecked(self.search_all_tabs)
             self.all_tabs_checkbox.stateChanged.connect(self.on_all_tabs_changed)
-            checkbox_layout.addWidget(self.all_tabs_checkbox)
-        
-        layout.addLayout(checkbox_layout)
+            checkbox_layout2.addWidget(self.all_tabs_checkbox)
+            checkbox_layout2.addStretch()
+            layout.addLayout(checkbox_layout2)
         
         # Info label
         self.info_label = QLabel()
@@ -176,6 +210,11 @@ class SearchResultDialog(QDialog):
         self.case_sensitive = self.case_checkbox.isChecked()
         self.perform_search()
     
+    def on_regex_changed(self, state):
+        """Handle 'regular expression' checkbox change"""
+        self.use_regex = self.regex_checkbox.isChecked()
+        self.perform_search()
+    
     def on_all_tabs_changed(self, state):
         """Handle 'search all tabs' checkbox change"""
         self.search_all_tabs = self.all_tabs_checkbox.isChecked()
@@ -186,12 +225,21 @@ class SearchResultDialog(QDialog):
         self.result_list.clear()
         results = []
         
-        # Determine comparison function based on case sensitivity
-        if self.case_sensitive:
-            matches = lambda line: self.search_text in line
+        # Determine comparison function based on case sensitivity and regex
+        if self.use_regex:
+            try:
+                flags = 0 if self.case_sensitive else re.IGNORECASE
+                pattern = re.compile(self.search_text, flags)
+                matches = lambda line: pattern.search(line) is not None
+            except re.error as e:
+                self.info_label.setText(f"Invalid regular expression: {e}")
+                return
         else:
-            search_lower = self.search_text.lower()
-            matches = lambda line: search_lower in line.lower()
+            if self.case_sensitive:
+                matches = lambda line: self.search_text in line
+            else:
+                search_lower = self.search_text.lower()
+                matches = lambda line: search_lower in line.lower()
         
         if self.search_all_tabs:
             # Search all tabs
@@ -270,7 +318,8 @@ class SearchResultDialog(QDialog):
         
         # Update info label
         tab_info = " across all tabs" if self.search_all_tabs else " in current tab"
-        self.info_label.setText(f"Found {len(results)} matches{tab_info}:")
+        regex_info = " (regex)" if self.use_regex else ""
+        self.info_label.setText(f"Found {len(results)} matches{tab_info}{regex_info}:")
         
         # Populate results list
         for tab_index, tab_title, source_type, line_num, line_idx, line_text in results:
