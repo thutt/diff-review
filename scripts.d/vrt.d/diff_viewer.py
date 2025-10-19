@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# Copyright (c) 2025  Logic Magicians Software (Taylor Hutt).
+# All Rights Reserved.
+# Licensed under Gnu GPL V3.
+#
 """
 DiffViewer main class for diff_review
 

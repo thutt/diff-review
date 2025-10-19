@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# Copyright (c) 2025  Logic Magicians Software (Taylor Hutt).
+# All Rights Reserved.
+# Licensed under Gnu GPL V3.
+#
 """
 Commit Message dialog for diff_review
 
