@@ -461,63 +461,6 @@ class DiffViewer(QMainWindow):
         self.commit_msg_dialog = CommitMsgDialog(self.commit_msg_file, self, self)
         self.commit_msg_dialog.show()
     
-    def show_context_menu(self, pos, side):
-        menu = QMenu(self)
-        text_widget = self.base_text if side == 'base' else self.modified_text
-        
-        has_selection = text_widget.textCursor().hasSelection()
-        
-        search_action = QAction("Search", self)
-        search_action.setEnabled(has_selection)
-        search_action.triggered.connect(lambda: self.search_selected_text(side))
-        menu.addAction(search_action)
-        
-        menu.addSeparator()
-        
-        if has_selection and self.note_file:
-            note_action = QAction("Take Note", self)
-            note_action.triggered.connect(lambda: self.take_note(side))
-            menu.addAction(note_action)
-        else:
-            note_action = QAction("Take Note (no selection)" if self.note_file else 
-                           "Take Note (no file supplied)", self)
-            note_action.setEnabled(False)
-            menu.addAction(note_action)
-        
-        menu.exec(text_widget.mapToGlobal(pos))
-    
-    def show_search_dialog(self):
-        dialog = SearchDialog(self, has_commit_msg=(self.commit_msg_file is not None))
-        if dialog.exec() == QDialog.DialogCode.Accepted and dialog.search_text:
-            results_dialog = SearchResultDialog(dialog.search_text, self, 
-                                               dialog.case_sensitive,
-                                               dialog.search_base,
-                                               dialog.search_modi,
-                                               dialog.search_commit_msg)
-            results_dialog.exec()
-    
-    def search_selected_text(self, side):
-        text_widget = self.base_text if side == 'base' else self.modified_text
-        cursor = text_widget.textCursor()
-        
-        if not cursor.hasSelection():
-            return
-        
-        search_text = cursor.selectedText()
-        
-        dialog = SearchResultDialog(search_text, self, case_sensitive=False, 
-                                   search_base=True, search_modi=True, 
-                                   search_commit_msg=True)
-        dialog.exec()
-    
-    def select_search_result(self, side, line_idx):
-        self.center_on_line(line_idx)
-        
-        if side == 'base':
-            self.base_text.setFocus()
-        else:
-            self.modified_text.setFocus()
-    
     def take_note(self, side):
         if not self.note_file:
             QMessageBox.information(self, 'Note Taking Disabled',

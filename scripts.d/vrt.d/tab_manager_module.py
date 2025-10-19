@@ -14,6 +14,7 @@ from PyQt6.QtGui import QAction, QFont
 
 from help_dialog import HelpDialog
 from search_dialogs import SearchDialog, SearchResultDialog
+from commit_msg_dialog import CommitMsgDialog
 
 
 class FileButton(QPushButton):
@@ -81,8 +82,9 @@ class DiffViewerTabWidget(QMainWindow):
         self.file_to_tab_index = {}  # Maps file_class to tab index
         self.current_file_class = None  # Track which file is being added
         self.sidebar_visible = True
-        self.commit_msg_file = None  # Track commit message file
+        self._commit_msg_file = None  # Track commit message file (internal)
         self.commit_msg_button = None  # Track commit message button
+        self.commit_msg_dialog = None  # Track commit message dialog
         
         # Create main layout
         central = QWidget()
@@ -202,7 +204,7 @@ class DiffViewerTabWidget(QMainWindow):
         except Exception:
             return  # File doesn't exist or can't be read, don't add
         
-        self.commit_msg_file = commit_msg_file
+        self._commit_msg_file = commit_msg_file
         
         # Create a special button for commit message
         self.commit_msg_button = QPushButton("Commit Message")
@@ -240,7 +242,7 @@ class DiffViewerTabWidget(QMainWindow):
     def create_commit_msg_tab(self):
         """Create a tab displaying the commit message"""
         try:
-            with open(self.commit_msg_file, 'r') as f:
+            with open(self._commit_msg_file, 'r') as f:
                 commit_msg_text = f.read()
         except Exception as e:
             QMessageBox.warning(self, 'Error Reading Commit Message',
@@ -287,7 +289,8 @@ class DiffViewerTabWidget(QMainWindow):
         dialog = SearchDialog(self, has_commit_msg=has_commit_msg)
         if dialog.exec() == dialog.DialogCode.Accepted and dialog.search_text:
             if viewer:
-                results_dialog = SearchResultDialog(dialog.search_text, viewer,
+                # Pass self (tab widget) as parent so search results can navigate properly
+                results_dialog = SearchResultDialog(dialog.search_text, self,
                                                    dialog.case_sensitive,
                                                    dialog.search_base,
                                                    dialog.search_modi,
@@ -301,13 +304,12 @@ class DiffViewerTabWidget(QMainWindow):
             return
         
         search_text = cursor.selectedText()
-        viewer = self.get_current_viewer()
         
-        if viewer:
-            dialog = SearchResultDialog(search_text, viewer, case_sensitive=False,
-                                       search_base=True, search_modi=True,
-                                       search_commit_msg=True)
-            dialog.exec()
+        # Pass self (tab widget) as parent
+        dialog = SearchResultDialog(search_text, self, case_sensitive=False,
+                                   search_base=True, search_modi=True,
+                                   search_commit_msg=True)
+        dialog.exec()
     
     def show_commit_msg_context_menu(self, pos, text_widget):
         """Show context menu for commit message"""
@@ -511,6 +513,65 @@ class DiffViewerTabWidget(QMainWindow):
                 viewer.base_text.setFocus()
             else:
                 viewer.modified_text.setFocus()
+    
+    def select_commit_msg_result(self, line_idx):
+        """Navigate to a line in the commit message dialog"""
+        # Check if viewer has commit message, show it
+        viewer = self.get_current_viewer()
+        if viewer and viewer.commit_msg_file:
+            self.show_commit_msg_dialog(viewer.commit_msg_file, viewer)
+        
+        # Navigate to the line
+        if self.commit_msg_dialog and self.commit_msg_dialog.isVisible():
+            self.commit_msg_dialog.select_line(line_idx)
+    
+    def show_commit_msg_dialog(self, commit_msg_file, viewer):
+        """Show the commit message dialog for a viewer"""
+        # Check if dialog already exists and is visible
+        if self.commit_msg_dialog and self.commit_msg_dialog.isVisible():
+            self.commit_msg_dialog.raise_()
+            self.commit_msg_dialog.activateWindow()
+            return
+        
+        # Create new dialog
+        self.commit_msg_dialog = CommitMsgDialog(commit_msg_file, viewer, self)
+        self.commit_msg_dialog.show()
+    
+    # Methods to support SearchResultDialog (which expects a viewer-like interface)
+    @property
+    def base_display(self):
+        """Get base_display from current viewer"""
+        viewer = self.get_current_viewer()
+        return viewer.base_display if viewer else []
+    
+    @property
+    def modified_display(self):
+        """Get modified_display from current viewer"""
+        viewer = self.get_current_viewer()
+        return viewer.modified_display if viewer else []
+    
+    @property
+    def base_line_nums(self):
+        """Get base_line_nums from current viewer"""
+        viewer = self.get_current_viewer()
+        return viewer.base_line_nums if viewer else []
+    
+    @property
+    def modified_line_nums(self):
+        """Get modified_line_nums from current viewer"""
+        viewer = self.get_current_viewer()
+        return viewer.modified_line_nums if viewer else []
+    
+    @property
+    def commit_msg_file(self):
+        """Get commit_msg_file from current viewer"""
+        viewer = self.get_current_viewer()
+        return viewer.commit_msg_file if viewer else None
+    
+    def get_commit_msg_lines(self):
+        """Get commit message lines from current viewer"""
+        viewer = self.get_current_viewer()
+        return viewer.get_commit_msg_lines() if viewer else []
     
     def on_tab_changed(self, index):
         """Handle tab change to update sidebar button states"""
