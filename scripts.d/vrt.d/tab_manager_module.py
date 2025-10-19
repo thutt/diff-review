@@ -305,10 +305,13 @@ class DiffViewerTabWidget(QMainWindow):
         
         search_text = cursor.selectedText()
         
-        # Pass self (tab widget) as parent
+        # Default to searching all tabs if multiple tabs are open
+        search_all_tabs = self.tab_widget.count() > 1
+        
         dialog = SearchResultDialog(search_text, self, case_sensitive=False,
                                    search_base=True, search_modi=True,
-                                   search_commit_msg=True)
+                                   search_commit_msg=True,
+                                   search_all_tabs=search_all_tabs)
         dialog.exec()
     
     def show_commit_msg_context_menu(self, pos, text_widget):

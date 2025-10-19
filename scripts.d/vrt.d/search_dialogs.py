@@ -43,45 +43,22 @@ class SearchDialog(QDialog):
         input_layout.addWidget(self.search_input)
         layout.addLayout(input_layout)
         
-        # Checkboxes row 1
-        checkbox_layout1 = QHBoxLayout()
+        # Checkboxes row
+        checkbox_layout = QHBoxLayout()
         
         # Case sensitivity checkbox
         self.case_checkbox = QCheckBox("Case sensitive")
         self.case_checkbox.setChecked(False)
-        checkbox_layout1.addWidget(self.case_checkbox)
-        
-        checkbox_layout1.addStretch()
+        checkbox_layout.addWidget(self.case_checkbox)
         
         # Search all tabs checkbox (only if multiple tabs)
         if self.has_multiple_tabs:
+            checkbox_layout.addStretch()
             self.all_tabs_checkbox = QCheckBox("Search all tabs")
             self.all_tabs_checkbox.setChecked(True)
-            checkbox_layout1.addWidget(self.all_tabs_checkbox)
+            checkbox_layout.addWidget(self.all_tabs_checkbox)
         
-        layout.addLayout(checkbox_layout1)
-        
-        # Checkboxes row 2
-        checkbox_layout2 = QHBoxLayout()
-        checkbox_layout2.addStretch()
-        
-        # Base file checkbox
-        self.base_checkbox = QCheckBox("Base")
-        self.base_checkbox.setChecked(True)
-        checkbox_layout2.addWidget(self.base_checkbox)
-        
-        # Modified file checkbox
-        self.modi_checkbox = QCheckBox("Modi")
-        self.modi_checkbox.setChecked(True)
-        checkbox_layout2.addWidget(self.modi_checkbox)
-        
-        # Commit message checkbox (only if commit message exists)
-        if has_commit_msg:
-            self.commit_msg_checkbox = QCheckBox("Commit Msg")
-            self.commit_msg_checkbox.setChecked(True)
-            checkbox_layout2.addWidget(self.commit_msg_checkbox)
-        
-        layout.addLayout(checkbox_layout2)
+        layout.addLayout(checkbox_layout)
         
         # Buttons
         button_layout = QHBoxLayout()
@@ -108,10 +85,10 @@ class SearchDialog(QDialog):
         if text:
             self.search_text = text
             self.case_sensitive = self.case_checkbox.isChecked()
-            self.search_base = self.base_checkbox.isChecked()
-            self.search_modi = self.modi_checkbox.isChecked()
-            if self.has_commit_msg:
-                self.search_commit_msg = self.commit_msg_checkbox.isChecked()
+            # Always search all sources
+            self.search_base = True
+            self.search_modi = True
+            self.search_commit_msg = True
             if self.has_multiple_tabs:
                 self.search_all_tabs = self.all_tabs_checkbox.isChecked()
             self.accept()
@@ -133,10 +110,34 @@ class SearchResultDialog(QDialog):
         self.search_all_tabs = search_all_tabs
         self.parent_tab_widget = parent
         
+        # Check if we have multiple tabs
+        self.has_multiple_tabs = False
+        if hasattr(parent, 'tab_widget'):
+            self.has_multiple_tabs = parent.tab_widget.count() > 1
+        
         self.setWindowTitle(f"Search Results for: {search_text}")
         self.setMinimumSize(700, 400)
         
         layout = QVBoxLayout(self)
+        
+        # Checkboxes row
+        checkbox_layout = QHBoxLayout()
+        
+        # Case sensitivity checkbox
+        self.case_checkbox = QCheckBox("Case sensitive")
+        self.case_checkbox.setChecked(case_sensitive)
+        self.case_checkbox.stateChanged.connect(self.on_case_changed)
+        checkbox_layout.addWidget(self.case_checkbox)
+        
+        # Search all tabs checkbox (only show if multiple tabs)
+        if self.has_multiple_tabs:
+            checkbox_layout.addStretch()
+            self.all_tabs_checkbox = QCheckBox("Search all tabs")
+            self.all_tabs_checkbox.setChecked(search_all_tabs)
+            self.all_tabs_checkbox.stateChanged.connect(self.on_all_tabs_changed)
+            checkbox_layout.addWidget(self.all_tabs_checkbox)
+        
+        layout.addLayout(checkbox_layout)
         
         # Info label
         self.info_label = QLabel()
@@ -167,6 +168,16 @@ class SearchResultDialog(QDialog):
         self.result_list.itemSelectionChanged.connect(self.on_selection_changed)
         
         # Initial search
+        self.perform_search()
+    
+    def on_case_changed(self, state):
+        """Handle 'case sensitive' checkbox change"""
+        self.case_sensitive = self.case_checkbox.isChecked()
+        self.perform_search()
+    
+    def on_all_tabs_changed(self, state):
+        """Handle 'search all tabs' checkbox change"""
+        self.search_all_tabs = self.all_tabs_checkbox.isChecked()
         self.perform_search()
     
     def perform_search(self):
@@ -231,6 +242,7 @@ class SearchResultDialog(QDialog):
             
             # Check if it's a commit message tab
             if hasattr(current_widget, 'is_commit_msg') and current_widget.is_commit_msg:
+                # Only search commit message if this IS the commit message tab
                 if self.search_commit_msg:
                     text = current_widget.toPlainText()
                     lines = text.split('\n')
@@ -258,13 +270,7 @@ class SearchResultDialog(QDialog):
                             results.append((tab_index, tab_title, 'modified', 
                                           line_num, i, line_text))
                 
-                # Search in commit message
-                if self.search_commit_msg and viewer.commit_msg_file:
-                    commit_msg_lines = viewer.get_commit_msg_lines()
-                    for line_num, line_text in enumerate(commit_msg_lines):
-                        if matches(line_text):
-                            results.append((tab_index, tab_title, 'commit_msg', 
-                                          line_num + 1, line_num, line_text))
+                # Don't search commit message when searching current tab only
         
         # Update info label
         tab_info = " across all tabs" if self.search_all_tabs else " in current tab"
@@ -308,4 +314,4 @@ class SearchResultDialog(QDialog):
             else:
                 self.parent_tab_widget.select_search_result(source_type, line_idx)
             
-            self.accept()
+            # Don't close the dialog - let user select more results or manually close
