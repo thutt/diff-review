@@ -22,6 +22,33 @@ On Ubuntu, this can be satisfied with:
  - MacOS (basic functionality)
  - Windows (proof-of-concept functionality)
 
+# Viewer Managers
+
+There are two managers that allow viewing of diffs in this package:
+
+1. `view-review-tabs` (`vrt`)
+
+This tool shows a single window, with the list of files contained in
+the change -- including the commit message, if one is present -- in
+the sidebar.  Clicking on an element in the sidebar loads it into a
+tab in the view area.
+
+This tool only provides viewing diffs with the built-in diff engine.
+This engine is sufficient, but will be undergoing improvements.
+
+The diff navigation within the tab is identical to `view-review`'s
+`Claude-QT` viewer.
+
+2. `view-review` (`vr`)
+
+This tool shows a menu of all the files in the change.  Clicking on an
+element in the list will open the base and modified files in a
+separate window using the selected diff viewer.
+
+Ultimately, the `Claude-QT` engine will be removed from this diff
+manager, as all of its functionality is now subsumed by
+`view-review-tabs`.
+
 # Supported Viewers
 
 This system currently supports the following side-by-side diff viewers,
@@ -88,7 +115,7 @@ changes</em>, and <em>committed changes</em>.
 
   For purposes of generating viewable diffs, there is no difference
   between `unstaged` and `staged`; the tool uses the current, on-disk,
-  uncommited content.
+  uncommitted content.
 
 - **Committed Changes**
 
@@ -98,7 +125,7 @@ changes</em>, and <em>committed changes</em>.
 # Usage
 
 1. Clone this repository to any location on the computer.  For
-purposes of this text, we shall assume it has been placed at `~/diff-review`.
+   purposes of this text, we shall assume it has been placed at `~/diff-review`.
 
 
 2. Load the `aliases` file.
@@ -109,10 +136,10 @@ purposes of this text, we shall assume it has been placed at `~/diff-review`.
 
    `source ~/diff-review/scripts.d/aliases`
 
-   This will provide two aliases in your current shell environment:
-   `dr` and `vr`.  These directly reference the `diff-review` and
-   `view-review` programs respectively, bypassing the need to update
-   `${PATH}`.
+   This will provide three aliases in your current shell environment:
+   `dr`, `vr` and `vrt`.  These directly reference the `diff-review`,
+   `view-review`, and `view-review-tabs` programs respectively,
+   bypassing the need to update `${PATH}`.
 
    The examples below will use these aliases.
 
@@ -154,19 +181,19 @@ diff-review:  /home/thutt/review/default
   modify   src/gmalloc.c
 
 Changes:  committed [2 files, 249 lines]
-Viewer :  view-review -R /home/thutt/review -r default
-Elapsed:  0:00:00.111161
+Viewer :  vrt -R /home/thutt/review -r default
+Viewer :  vr -R /home/thutt/review -r default
+Elapsed:  0:00:00.106696
 ```
 
-The line beginning with `view-review` is a command that can be
-executed to view the diffs (or, the alias `vr` can also be used).
+The lines beginning with `Viewer` are commands that can be executed
+to view the diffs.
 
 ```
 vr
 ```
 
-When the program showing the menu of files that can be reviewed is
-focused, pressing `Esc` will quit.
+Pressing `Esc` from both `vrt` and `vr` will  quit.
 
 
 ## Combine and view multiple changes
@@ -178,11 +205,8 @@ focused, pressing `Esc` will quit.
 dr -c 4418a37c5df^..cb17a8bbf39
 ```
 
-It will produce the following console output:
-
-
 That command will produce the following output on the console, which
-can be viewed by executing `vr`:
+can be directly viewed by executing `vrt` or  `vr`:
 
 ```
 diff-review:  /home/thutt/review/default
@@ -219,9 +243,9 @@ diff-review:  /home/thutt/review/default
   modify   test/lisp/textmodes/ispell-tests/ispell-tests.el
 
 Changes:  committed [30 files, 378 lines]
-Viewer :  view-review -R /home/thutt/review -r default
-Elapsed:  0:00:00.594228
-
+Viewer :  vrt -R /home/thutt/review -r default
+Viewer :  vr -R /home/thutt/review -r default
+Elapsed:  0:00:00.987920
 ```
 
 ## View uncommitted changes
@@ -232,10 +256,10 @@ processed.
 Execute the following:
 
 ```
-touch untracked
-cat README README >readme
-mv readme README
-git rm config.bat
+touch untracked;
+cat README README >readme;
+mv readme README;
+git rm config.bat;
 ```
 
 Now, run `dr`, which will produce the console output:
@@ -248,11 +272,12 @@ diff-review:  /home/thutt/review/default
   untracked   untracked
 
 Changes:  unstaged [1 files, 130 lines]  staged [1 files  384 lines]
-Viewer :  view-review -R /home/thutt/review -r default
-Elapsed:  0:00:00.116628
+Viewer :  vrt -R /home/thutt/review -r default
+Viewer :  vr -R /home/thutt/review -r default
+Elapsed:  0:00:00.114457
 ```
 
-As ever, `vr` can be used to view the changes.
+As ever, both `vrt` and `vr` can be used to view the changes.
 
 Next, stage the `README` file and re-generate the diffs with `dr`.
 
@@ -271,9 +296,9 @@ diff-review:  /home/thutt/review/default
   untracked   untracked
 
 Changes:  unstaged [0 files, 0 lines]  staged [2 files  514 lines]
-Viewer :  view-review -R /home/thutt/review -r default
-Elapsed:  0:00:00.115293
-
+Viewer :  vrt -R /home/thutt/review -r default
+Viewer :  vr -R /home/thutt/review -r default
+Elapsed:  0:00:00.114509
 ```
 
 Finally, make another modification to `README` to show how its state
@@ -293,8 +318,9 @@ diff-review:  /home/thutt/review/default
   untracked   untracked
 
 Changes:  unstaged [1 files, 274 lines]  staged [2 files  514 lines]
-Viewer :  view-review -R /home/thutt/review -r default
-Elapsed:  0:00:00.114766
+Viewer :  vrt -R /home/thutt/review -r default
+Viewer :  vr -R /home/thutt/review -r default
+Elapsed:  0:00:00.113634
 ```
 
 ## Clean up repository
