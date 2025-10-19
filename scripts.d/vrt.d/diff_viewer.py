@@ -17,7 +17,6 @@ from PyQt6.QtGui import (QColor, QFont, QTextCursor, QAction, QFontMetrics,
 from utils import extract_display_path
 from search_dialogs import SearchDialog, SearchResultDialog
 from ui_components import LineNumberArea, DiffMapWidget, SyncedPlainTextEdit
-from help_dialog import HelpDialog
 from commit_msg_dialog import CommitMsgDialog
 
 
@@ -56,12 +55,6 @@ class DiffViewer(QMainWindow):
     
     def setup_gui(self):
         self.setWindowTitle(f"Diff Viewer: {self.base_file} vs {self.modified_file}")
-        
-        menubar = self.menuBar()
-        help_menu = menubar.addMenu("Help")
-        help_action = QAction("How to Use", self)
-        help_action.triggered.connect(self.show_help)
-        help_menu.addAction(help_action)
         
         central = QWidget()
         self.setCentralWidget(central)
@@ -144,14 +137,8 @@ class DiffViewer(QMainWindow):
         self.region_label = QLabel("Region: 0 of 0")
         self.notes_label = QLabel("Notes: 0")
         
-        self.commit_msg_button = QPushButton("Commit Message")
-        self.commit_msg_button.clicked.connect(self.show_commit_msg)
-        if not self.commit_msg_file:
-            self.commit_msg_button.setEnabled(False)
-        
         status_layout.addWidget(self.region_label)
         status_layout.addStretch()
-        status_layout.addWidget(self.commit_msg_button)
         status_layout.addWidget(self.notes_label)
         status_frame = QFrame()
         status_frame.setFrameStyle(QFrame.Shape.Panel | QFrame.Shadow.Sunken)
@@ -465,10 +452,6 @@ class DiffViewer(QMainWindow):
         if hasattr(self, 'commit_msg_dialog'):
             self.commit_msg_dialog.select_line(line_idx)
     
-    def show_help(self):
-        help_dialog = HelpDialog(self)
-        help_dialog.exec()
-    
     def show_commit_msg(self):
         if not self.commit_msg_file:
             return
@@ -513,7 +496,7 @@ class DiffViewer(QMainWindow):
                                                dialog.case_sensitive,
                                                dialog.search_base,
                                                dialog.search_modi,
-                                               dialog.search_desc)
+                                               dialog.search_commit_msg)
             results_dialog.exec()
     
     def search_selected_text(self, side):
@@ -527,7 +510,7 @@ class DiffViewer(QMainWindow):
         
         dialog = SearchResultDialog(search_text, self, case_sensitive=False, 
                                    search_base=True, search_modi=True, 
-                                   search_desc=True)
+                                   search_commit_msg=True)
         dialog.exec()
     
     def select_search_result(self, side, line_idx):

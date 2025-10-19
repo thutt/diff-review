@@ -34,18 +34,35 @@ class HelpDialog(QDialog):
         <h2>Diff Viewer - User Guide</h2>
         
         <h3>Overview</h3>
-        <p>This diff viewer displays side-by-side comparison of two files with synchronized scrolling and highlighting of changes.</p>
+        <p>This diff viewer displays side-by-side comparison of files with synchronized scrolling and highlighting of changes. Multiple diffs can be opened in tabs with a sidebar for file navigation.</p>
+        
+        <h3>Sidebar</h3>
+        <ul>
+            <li><b>File List:</b> Click any file to open it in a new tab (or switch to existing tab)</li>
+            <li><b>Open All Files:</b> Button at top opens all files at once</li>
+            <li><b>Blue Mark:</b> Indicates which files have open tabs</li>
+            <li><b>Ctrl+B:</b> Toggle sidebar visibility</li>
+            <li><b>Resizable:</b> Drag the divider to resize the sidebar</li>
+        </ul>
+        
+        <h3>Tab Management</h3>
+        <ul>
+            <li><b>Ctrl+W:</b> Close current tab</li>
+            <li><b>Ctrl+Q:</b> Quit application</li>
+            <li><b>X button:</b> Close individual tabs</li>
+            <li>Clicking a file in the sidebar switches to its tab if already open</li>
+        </ul>
         
         <h3>Navigation</h3>
         <ul>
             <li><b>Arrow Keys:</b> Navigate up/down/left/right</li>
-            <li><b>Tab:</b> Switch focus between base and modified panes</li>
+            <li><b>Tab:</b> Switch focus between base and modified panes (stays on same line)</li>
             <li><b>N:</b> Jump to next change region</li>
             <li><b>P:</b> Jump to previous change region</li>
             <li><b>C:</b> Center on the currently selected region</li>
             <li><b>T:</b> Jump to top of file</li>
             <li><b>B:</b> Jump to bottom of file</li>
-            <li><b>Escape:</b> Close the viewer</li>
+            <li><b>Escape:</b> Close the application</li>
         </ul>
         
         <h3>Color Coding</h3>
@@ -102,7 +119,7 @@ class HelpDialog(QDialog):
         
         <h3>Commit Message View</h3>
         <ul>
-            <li>Click "Commit Message" button to view commit message</li>
+            <li>Click "Commit Message" button to view commit message/description</li>
             <li>Search and note-taking work the same way in commit message view</li>
             <li>Ctrl+S and Ctrl+N shortcuts work in commit message window</li>
         </ul>

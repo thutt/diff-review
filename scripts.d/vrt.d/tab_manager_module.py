@@ -11,6 +11,8 @@ from PyQt6.QtWidgets import (QApplication, QTabWidget, QMainWindow, QHBoxLayout,
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QAction
 
+from help_dialog import HelpDialog
+
 
 class FileButton(QPushButton):
     """Custom button for file selection in sidebar"""
@@ -258,6 +260,10 @@ class DiffViewerTabWidget(QMainWindow):
         viewer_widget.diff_viewer = diff_viewer
         viewer_widget.file_class = file_class
         
+        # Install event filter on text widgets to handle Tab key
+        diff_viewer.base_text.installEventFilter(self)
+        diff_viewer.modified_text.installEventFilter(self)
+        
         # Track file to tab mapping
         if file_class:
             self.file_to_tab_index[file_class] = index
@@ -378,18 +384,141 @@ class DiffViewerTabWidget(QMainWindow):
             current_viewer.init_scrollbars()
     
     def show_help(self):
-        """Show help for the currently active viewer"""
-        viewer = self.get_current_viewer()
-        if viewer:
-            viewer.show_help()
+        """Show help dialog"""
+        help_dialog = HelpDialog(self)
+        help_dialog.exec()
     
     def keyPressEvent(self, event):
         """Handle key press events"""
+        key = event.key()
+        modifiers = event.modifiers()
+        
+        # Get current viewer for most commands
+        viewer = self.get_current_viewer()
+        
         # Escape closes the entire application
-        if event.key() == Qt.Key.Key_Escape:
+        if key == Qt.Key.Key_Escape:
             self.close()
-        else:
+            return
+        
+        # All other shortcuts require an active viewer
+        if not viewer:
             super().keyPressEvent(event)
+            return
+        
+        # Alt+H - Toggle diff map
+        if key == Qt.Key.Key_H and modifiers & Qt.KeyboardModifier.AltModifier:
+            viewer.toggle_diff_map()
+            return
+        
+        # Alt+L - Toggle line numbers
+        if key == Qt.Key.Key_L and modifiers & Qt.KeyboardModifier.AltModifier:
+            viewer.toggle_line_numbers()
+            return
+        
+        # Ctrl+S - Search
+        if key == Qt.Key.Key_S and modifiers & Qt.KeyboardModifier.ControlModifier:
+            viewer.show_search_dialog()
+            return
+        
+        # Ctrl+N - Take note
+        if key == Qt.Key.Key_N and modifiers & Qt.KeyboardModifier.ControlModifier:
+            # Determine which side has focus
+            if viewer.base_text.hasFocus():
+                viewer.take_note_from_widget('base')
+            elif viewer.modified_text.hasFocus():
+                viewer.take_note_from_widget('modified')
+            return
+        
+        # N - Next change
+        if key == Qt.Key.Key_N:
+            viewer.next_change()
+            return
+        
+        # P - Previous change
+        if key == Qt.Key.Key_P:
+            viewer.prev_change()
+            return
+        
+        # C - Center on current region
+        if key == Qt.Key.Key_C:
+            viewer.center_current_region()
+            return
+        
+        # T - Top of file
+        if key == Qt.Key.Key_T:
+            viewer.current_region = 0
+            if viewer.change_regions:
+                viewer.center_on_line(0)
+            viewer.update_status()
+            return
+        
+        # B - Bottom of file
+        if key == Qt.Key.Key_B:
+            if viewer.change_regions:
+                viewer.current_region = len(viewer.change_regions) - 1
+                viewer.center_on_line(len(viewer.base_display) - 1)
+            viewer.update_status()
+            return
+        
+        # Pass other events to parent
+        super().keyPressEvent(event)
+    
+    def eventFilter(self, obj, event):
+        """Filter events from text widgets to handle Tab key and Ctrl+N"""
+        if event.type() == event.Type.KeyPress:
+            viewer = self.get_current_viewer()
+            if not viewer:
+                return False
+            
+            key = event.key()
+            modifiers = event.modifiers()
+            
+            # Ctrl+N - Take note
+            if key == Qt.Key.Key_N and modifiers & Qt.KeyboardModifier.ControlModifier:
+                if obj == viewer.base_text:
+                    viewer.take_note_from_widget('base')
+                    return True
+                elif obj == viewer.modified_text:
+                    viewer.take_note_from_widget('modified')
+                    return True
+            
+            # Tab - Switch focus between base and modified, keeping same line
+            if key == Qt.Key.Key_Tab and not modifiers:
+                if obj == viewer.base_text:
+                    # Get current line in base
+                    cursor = viewer.base_text.textCursor()
+                    current_line = cursor.blockNumber()
+                    
+                    # Move cursor in modified BEFORE switching focus
+                    new_cursor = viewer.modified_text.textCursor()
+                    new_cursor.movePosition(new_cursor.MoveOperation.Start)
+                    for _ in range(current_line):
+                        new_cursor.movePosition(new_cursor.MoveOperation.Down)
+                    viewer.modified_text.setTextCursor(new_cursor)
+                    
+                    # Now switch focus
+                    viewer.modified_text.setFocus()
+                    viewer.modified_text.ensureCursorVisible()
+                    return True
+                    
+                elif obj == viewer.modified_text:
+                    # Get current line in modified
+                    cursor = viewer.modified_text.textCursor()
+                    current_line = cursor.blockNumber()
+                    
+                    # Move cursor in base BEFORE switching focus
+                    new_cursor = viewer.base_text.textCursor()
+                    new_cursor.movePosition(new_cursor.MoveOperation.Start)
+                    for _ in range(current_line):
+                        new_cursor.movePosition(new_cursor.MoveOperation.Down)
+                    viewer.base_text.setTextCursor(new_cursor)
+                    
+                    # Now switch focus
+                    viewer.base_text.setFocus()
+                    viewer.base_text.ensureCursorVisible()
+                    return True
+        return False
     
     def run(self):
         """Show the window and start the application event loop"""

@@ -20,7 +20,7 @@ class SearchDialog(QDialog):
         self.case_sensitive = False
         self.search_base = True
         self.search_modi = True
-        self.search_desc = True
+        self.search_commit_msg = True
         self.has_commit_msg = has_commit_msg
         
         self.setWindowTitle("Search")
@@ -93,7 +93,7 @@ class SearchDialog(QDialog):
             self.search_base = self.base_checkbox.isChecked()
             self.search_modi = self.modi_checkbox.isChecked()
             if self.has_commit_msg:
-                self.search_desc = self.desc_checkbox.isChecked()
+                self.search_commit_msg = self.desc_checkbox.isChecked()
             self.accept()
 
 
@@ -101,14 +101,14 @@ class SearchResultDialog(QDialog):
     """Dialog to show search results and allow selection"""
     
     def __init__(self, search_text, parent=None, case_sensitive=False, 
-                 search_base=True, search_modi=True, search_desc=True):
+                 search_base=True, search_modi=True, search_commit_msg=True):
         super().__init__(parent)
         self.search_text = search_text
         self.selected_result = None
         self.case_sensitive = case_sensitive
         self.search_base = search_base
         self.search_modi = search_modi
-        self.search_desc = search_desc
+        self.search_commit_msg = search_commit_msg
         self.parent_viewer = parent
         
         self.setWindowTitle(f"Search Results for: {search_text}")
@@ -142,7 +142,7 @@ class SearchResultDialog(QDialog):
         # Commit message checkbox (only if commit message file exists)
         if parent and parent.commit_msg_file:
             self.desc_checkbox = QCheckBox("Desc")
-            self.desc_checkbox.setChecked(search_desc)
+            self.desc_checkbox.setChecked(search_commit_msg)
             self.desc_checkbox.stateChanged.connect(self.on_checkbox_changed)
             checkbox_layout.addWidget(self.desc_checkbox)
         
@@ -185,7 +185,7 @@ class SearchResultDialog(QDialog):
         self.search_base = self.base_checkbox.isChecked()
         self.search_modi = self.modi_checkbox.isChecked()
         if self.parent_viewer and self.parent_viewer.commit_msg_file:
-            self.search_desc = self.desc_checkbox.isChecked()
+            self.search_commit_msg = self.desc_checkbox.isChecked()
         self.perform_search()
     
     def perform_search(self):
@@ -222,7 +222,7 @@ class SearchResultDialog(QDialog):
                     results.append(('modified', line_num, i, line_text))
         
         # Search in commit message  (only if checkbox is selected and commit message exists)
-        if self.search_desc and self.parent_viewer.commit_msg_file:
+        if self.search_commit_msg and self.parent_viewer.commit_msg_file:
             desc_lines = self.parent_viewer.get_commit_msg_lines()
             for line_num, line_text in enumerate(desc_lines):
                 if matches(line_text):
