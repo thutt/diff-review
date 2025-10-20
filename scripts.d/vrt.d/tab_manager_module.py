@@ -486,6 +486,13 @@ class DiffViewerTabWidget(QMainWindow):
         diff_viewer.base_text.installEventFilter(self)
         diff_viewer.modified_text.installEventFilter(self)
         
+        # Force proper repaints on horizontal scroll to avoid visual artifacts
+        # Use repaint() instead of update() to force immediate redraw
+        diff_viewer.base_text.horizontalScrollBar().valueChanged.connect(
+            lambda: diff_viewer.base_text.viewport().repaint())
+        diff_viewer.modified_text.horizontalScrollBar().valueChanged.connect(
+            lambda: diff_viewer.modified_text.viewport().repaint())
+        
         # Set up context menus for text widgets
         diff_viewer.base_text.customContextMenuRequested.connect(
             lambda pos: self.show_diff_context_menu(pos, diff_viewer.base_text, 'base'))
