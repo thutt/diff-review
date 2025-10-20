@@ -184,6 +184,21 @@ class SearchResultDialog(QDialog):
         
         layout = QVBoxLayout(self)
         
+        # Search text input (editable)
+        search_input_layout = QHBoxLayout()
+        search_input_layout.addWidget(QLabel("Search:"))
+        self.search_input = QPlainTextEdit()
+        self.search_input.setPlainText(search_text)
+        self.search_input.setMaximumHeight(60)
+        search_input_layout.addWidget(self.search_input)
+        
+        # Re-search button
+        self.research_button = QPushButton("Search")
+        self.research_button.clicked.connect(self.on_research)
+        search_input_layout.addWidget(self.research_button)
+        
+        layout.addLayout(search_input_layout)
+        
         # Checkboxes row 1
         checkbox_layout1 = QHBoxLayout()
         
@@ -259,6 +274,26 @@ class SearchResultDialog(QDialog):
     def on_all_tabs_changed(self, state):
         """Handle 'search all tabs' checkbox change"""
         self.search_all_tabs = self.all_tabs_checkbox.isChecked()
+        self.perform_search()
+    
+    def on_research(self):
+        """Handle re-search button click with new search text"""
+        new_search_text = self.search_input.toPlainText().strip()
+        if not new_search_text:
+            return
+        
+        # Validate regex if enabled
+        if self.use_regex:
+            try:
+                flags = 0 if self.case_sensitive else re.IGNORECASE
+                re.compile(new_search_text, flags)
+            except re.error as e:
+                QMessageBox.warning(self, "Invalid Regular Expression", 
+                                  f"The regular expression is invalid:\n{e}")
+                return
+        
+        self.search_text = new_search_text
+        self.setWindowTitle(f"Search Results for: {self.search_text}")
         self.perform_search()
     
     def perform_search(self):
