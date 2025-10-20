@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# Copyright (c) 2025  Logic Magicians Software (Taylor Hutt).
+# All Rights Reserved.
+# Licensed under Gnu GPL V3.
+#
 """
 Tab manager for diff_review
 
@@ -85,6 +89,7 @@ class DiffViewerTabWidget(QMainWindow):
         self._commit_msg_file = None  # Track commit message file (internal)
         self.commit_msg_button = None  # Track commit message button
         self.commit_msg_dialog = None  # Track commit message dialog
+        self.search_result_dialogs = []  # Track search result dialogs
         
         # Create main layout
         central = QWidget()
@@ -301,7 +306,12 @@ class DiffViewerTabWidget(QMainWindow):
                 search_all_tabs=dialog.search_all_tabs,
                 use_regex=dialog.use_regex
             )
-            results_dialog.exec()
+            # Store reference to prevent garbage collection
+            self.search_result_dialogs.append(results_dialog)
+            # Connect destroyed signal to clean up reference
+            results_dialog.destroyed.connect(lambda: self.search_result_dialogs.remove(results_dialog) 
+                                            if results_dialog in self.search_result_dialogs else None)
+            results_dialog.show()  # Show as modeless, not modal
     
     def search_selected_text(self, text_widget):
         """Search for selected text from any text widget"""
@@ -318,7 +328,12 @@ class DiffViewerTabWidget(QMainWindow):
                                    search_base=True, search_modi=True,
                                    search_commit_msg=True,
                                    search_all_tabs=search_all_tabs)
-        dialog.exec()
+        # Store reference to prevent garbage collection
+        self.search_result_dialogs.append(dialog)
+        # Connect destroyed signal to clean up reference
+        dialog.destroyed.connect(lambda: self.search_result_dialogs.remove(dialog) 
+                                if dialog in self.search_result_dialogs else None)
+        dialog.show()  # Show as modeless, not modal
     
     def show_commit_msg_context_menu(self, pos, text_widget):
         """Show context menu for commit message"""
