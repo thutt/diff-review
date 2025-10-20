@@ -12,8 +12,43 @@ with unified search across base, modified, and commit message files.
 import re
 from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, 
                               QPlainTextEdit, QCheckBox, QPushButton, 
-                              QListWidget, QListWidgetItem, QMessageBox)
-from PyQt6.QtCore import Qt
+                              QListWidget, QListWidgetItem, QMessageBox, QStyledItemDelegate, QStyle)
+from PyQt6.QtCore import Qt, QRectF
+from PyQt6.QtGui import QColor, QTextDocument, QPalette
+
+
+class HTMLDelegate(QStyledItemDelegate):
+    """Delegate to render HTML in QListWidget items"""
+    
+    def paint(self, painter, option, index):
+        options = option
+        self.initStyleOption(options, index)
+        
+        painter.save()
+        
+        doc = QTextDocument()
+        doc.setHtml(options.text)
+        doc.setTextWidth(options.rect.width())
+        
+        # Handle selection highlighting
+        if options.state & QStyle.StateFlag.State_Selected:
+            painter.fillRect(options.rect, options.palette.highlight())
+        
+        painter.translate(options.rect.left(), options.rect.top())
+        clip = QRectF(0, 0, options.rect.width(), options.rect.height())
+        doc.drawContents(painter, clip)
+        
+        painter.restore()
+    
+    def sizeHint(self, option, index):
+        options = option
+        self.initStyleOption(options, index)
+        
+        doc = QTextDocument()
+        doc.setHtml(options.text)
+        doc.setTextWidth(options.rect.width())
+        
+        return doc.size().toSize()
 
 
 class SearchDialog(QDialog):
@@ -184,6 +219,8 @@ class SearchResultDialog(QDialog):
         
         # Results list
         self.result_list = QListWidget()
+        self.result_list.setTextElideMode(Qt.TextElideMode.ElideNone)  # Don't truncate text
+        self.result_list.setItemDelegate(HTMLDelegate())  # Enable HTML rendering
         self.result_list.itemDoubleClicked.connect(self.on_select)
         layout.addWidget(self.result_list)
         
@@ -339,6 +376,65 @@ class SearchResultDialog(QDialog):
                     display_text = f"[{source_type.upper()}] Line {line_num}: {line_text}"
             
             item = QListWidgetItem(display_text)
+            
+            # Highlight matched text with yellow background
+            # Find the position of the actual line content after the prefix
+            prefix_end = display_text.rfind(': ') + 2
+            line_content = display_text[prefix_end:]
+            
+            # Find match positions in the line content
+            highlighted = False
+            if self.use_regex:
+                try:
+                    flags = 0 if self.case_sensitive else re.IGNORECASE
+                    pattern = re.compile(self.search_text, flags)
+                    match = pattern.search(line_content)
+                    if match:
+                        # Create HTML with highlighted match
+                        prefix = display_text[:prefix_end]
+                        before_match = line_content[:match.start()]
+                        matched = line_content[match.start():match.end()]
+                        after_match = line_content[match.end():]
+                        
+                        # Escape HTML special characters
+                        prefix = prefix.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                        before_match = before_match.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                        matched = matched.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                        after_match = after_match.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                        
+                        html_text = f'{prefix}{before_match}<span style="background-color: #ffff00; color: #000000; font-weight: bold;">{matched}</span>{after_match}'
+                        item.setData(Qt.ItemDataRole.DisplayRole, html_text)
+                        highlighted = True
+                except:
+                    pass  # If highlighting fails, just show plain text
+            
+            if not highlighted and not self.use_regex:
+                # Simple string search
+                if self.case_sensitive:
+                    search_for = self.search_text
+                    pos = line_content.find(search_for)
+                else:
+                    search_for = self.search_text.lower()
+                    pos = line_content.lower().find(search_for)
+                
+                if pos >= 0:
+                    # Create HTML with highlighted match
+                    prefix = display_text[:prefix_end]
+                    before_match = line_content[:pos]
+                    matched = line_content[pos:pos + len(self.search_text)]
+                    after_match = line_content[pos + len(self.search_text):]
+                    
+                    # Escape HTML special characters
+                    prefix = prefix.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                    before_match = before_match.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                    matched = matched.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                    after_match = after_match.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                    
+                    html_text = f'{prefix}{before_match}<span style="background-color: #ffff00; color: #000000; font-weight: bold;">{matched}</span>{after_match}'
+                    item.setData(Qt.ItemDataRole.DisplayRole, html_text)
+                    highlighted = True
+            
+            # Store the metadata for navigation
             item.setData(Qt.ItemDataRole.UserRole, 
                         (tab_index, source_type, line_num, line_idx))
             self.result_list.addItem(item)
