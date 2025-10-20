@@ -381,56 +381,88 @@ class SearchResultDialog(QDialog):
             # Find the position of the actual line content after the prefix
             prefix_end = display_text.rfind(': ') + 2
             line_content = display_text[prefix_end:]
+            prefix = display_text[:prefix_end]
             
-            # Find match positions in the line content
+            # Escape prefix HTML
+            prefix_escaped = prefix.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            
+            # Find and highlight all matches in the line content
             highlighted = False
             if self.use_regex:
                 try:
                     flags = 0 if self.case_sensitive else re.IGNORECASE
                     pattern = re.compile(self.search_text, flags)
-                    match = pattern.search(line_content)
-                    if match:
-                        # Create HTML with highlighted match
-                        prefix = display_text[:prefix_end]
-                        before_match = line_content[:match.start()]
+                    
+                    # Find all matches
+                    html_parts = []
+                    last_end = 0
+                    for match in pattern.finditer(line_content):
+                        # Add text before match
+                        before = line_content[last_end:match.start()]
+                        before_escaped = before.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                        html_parts.append(before_escaped)
+                        
+                        # Add highlighted match
                         matched = line_content[match.start():match.end()]
-                        after_match = line_content[match.end():]
+                        matched_escaped = matched.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                        html_parts.append(f'<span style="background-color: #ffff00; color: #000000; font-weight: bold;">{matched_escaped}</span>')
                         
-                        # Escape HTML special characters
-                        prefix = prefix.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
-                        before_match = before_match.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
-                        matched = matched.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
-                        after_match = after_match.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
-                        
-                        html_text = f'{prefix}{before_match}<span style="background-color: #ffff00; color: #000000; font-weight: bold;">{matched}</span>{after_match}'
+                        last_end = match.end()
+                    
+                    # Add remaining text after last match
+                    if last_end < len(line_content):
+                        after = line_content[last_end:]
+                        after_escaped = after.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                        html_parts.append(after_escaped)
+                    
+                    if html_parts:
+                        html_text = prefix_escaped + ''.join(html_parts)
                         item.setData(Qt.ItemDataRole.DisplayRole, html_text)
                         highlighted = True
                 except:
                     pass  # If highlighting fails, just show plain text
             
             if not highlighted and not self.use_regex:
-                # Simple string search
+                # Simple string search - find all occurrences
                 if self.case_sensitive:
                     search_for = self.search_text
-                    pos = line_content.find(search_for)
                 else:
                     search_for = self.search_text.lower()
-                    pos = line_content.lower().find(search_for)
+                    line_content_lower = line_content.lower()
                 
-                if pos >= 0:
-                    # Create HTML with highlighted match
-                    prefix = display_text[:prefix_end]
-                    before_match = line_content[:pos]
+                html_parts = []
+                last_end = 0
+                pos = 0
+                
+                while True:
+                    if self.case_sensitive:
+                        pos = line_content.find(search_for, last_end)
+                    else:
+                        pos = line_content_lower.find(search_for, last_end)
+                    
+                    if pos < 0:
+                        break
+                    
+                    # Add text before match
+                    before = line_content[last_end:pos]
+                    before_escaped = before.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                    html_parts.append(before_escaped)
+                    
+                    # Add highlighted match
                     matched = line_content[pos:pos + len(self.search_text)]
-                    after_match = line_content[pos + len(self.search_text):]
+                    matched_escaped = matched.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                    html_parts.append(f'<span style="background-color: #ffff00; color: #000000; font-weight: bold;">{matched_escaped}</span>')
                     
-                    # Escape HTML special characters
-                    prefix = prefix.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
-                    before_match = before_match.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
-                    matched = matched.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
-                    after_match = after_match.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
-                    
-                    html_text = f'{prefix}{before_match}<span style="background-color: #ffff00; color: #000000; font-weight: bold;">{matched}</span>{after_match}'
+                    last_end = pos + len(self.search_text)
+                
+                # Add remaining text after last match
+                if last_end < len(line_content):
+                    after = line_content[last_end:]
+                    after_escaped = after.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                    html_parts.append(after_escaped)
+                
+                if html_parts:
+                    html_text = prefix_escaped + ''.join(html_parts)
                     item.setData(Qt.ItemDataRole.DisplayRole, html_text)
                     highlighted = True
             
