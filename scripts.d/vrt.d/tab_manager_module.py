@@ -1,8 +1,4 @@
 #!/usr/bin/env python3
-# Copyright (c) 2025  Logic Magicians Software (Taylor Hutt).
-# All Rights Reserved.
-# Licensed under Gnu GPL V3.
-#
 """
 Tab manager for diff_review
 
@@ -14,7 +10,7 @@ from PyQt6.QtWidgets import (QApplication, QTabWidget, QMainWindow, QHBoxLayout,
                               QVBoxLayout, QWidget, QPushButton, QScrollArea, QSplitter,
                               QPlainTextEdit, QMenu, QMessageBox, QProgressDialog)
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QAction, QFont
+from PyQt6.QtGui import QAction, QFont, QKeySequence
 
 from help_dialog import HelpDialog
 from search_dialogs import SearchDialog, SearchResultDialog
@@ -176,7 +172,7 @@ class DiffViewerTabWidget(QMainWindow):
         view_menu = menubar.addMenu("View")
         
         toggle_sidebar_action = QAction("Toggle Sidebar", self)
-        toggle_sidebar_action.setShortcut("Ctrl+B")
+        toggle_sidebar_action.setShortcuts([QKeySequence("Ctrl+B"), QKeySequence("Meta+B")])
         toggle_sidebar_action.triggered.connect(self.toggle_sidebar)
         view_menu.addAction(toggle_sidebar_action)
         
@@ -781,13 +777,15 @@ class DiffViewerTabWidget(QMainWindow):
             super().keyPressEvent(event)
             return
         
-        # Alt+H - Toggle diff map
-        if key == Qt.Key.Key_H and modifiers & Qt.KeyboardModifier.AltModifier:
+        # Alt+H - Toggle diff map (Alt on Win/Linux, Cmd on Mac for VNC compatibility)
+        if key == Qt.Key.Key_H and (modifiers & Qt.KeyboardModifier.AltModifier or
+                                      modifiers & Qt.KeyboardModifier.MetaModifier):
             viewer.toggle_diff_map()
             return
         
-        # Alt+L - Toggle line numbers
-        if key == Qt.Key.Key_L and modifiers & Qt.KeyboardModifier.AltModifier:
+        # Alt+L - Toggle line numbers (Alt on Win/Linux, Cmd on Mac for VNC compatibility)
+        if key == Qt.Key.Key_L and (modifiers & Qt.KeyboardModifier.AltModifier or
+                                      modifiers & Qt.KeyboardModifier.MetaModifier):
             viewer.toggle_line_numbers()
             return
         
@@ -796,8 +794,9 @@ class DiffViewerTabWidget(QMainWindow):
             self.show_search_dialog()
             return
         
-        # Ctrl+N - Take note
-        if key == Qt.Key.Key_N and modifiers & Qt.KeyboardModifier.ControlModifier:
+        # Ctrl+N - Take note (Ctrl on Win/Linux, Cmd on Mac)
+        if key == Qt.Key.Key_N and (modifiers & Qt.KeyboardModifier.ControlModifier or 
+                                      modifiers & Qt.KeyboardModifier.MetaModifier):
             # Determine which side has focus
             if viewer.base_text.hasFocus():
                 viewer.take_note_from_widget('base')
@@ -850,12 +849,14 @@ class DiffViewerTabWidget(QMainWindow):
             is_commit_msg = hasattr(obj, 'is_commit_msg') and obj.is_commit_msg
             
             # Ctrl+S - Search (works for both commit message and diff viewers)
-            if key == Qt.Key.Key_S and modifiers & Qt.KeyboardModifier.ControlModifier:
+            if key == Qt.Key.Key_S and (modifiers & Qt.KeyboardModifier.ControlModifier or
+                                          modifiers & Qt.KeyboardModifier.MetaModifier):
                 self.show_search_dialog()
                 return True
             
             # Ctrl+N - Take note (works for both)
-            if key == Qt.Key.Key_N and modifiers & Qt.KeyboardModifier.ControlModifier:
+            if key == Qt.Key.Key_N and (modifiers & Qt.KeyboardModifier.ControlModifier or
+                                          modifiers & Qt.KeyboardModifier.MetaModifier):
                 if is_commit_msg:
                     note_file = self.get_note_file()
                     if note_file:
