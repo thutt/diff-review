@@ -45,8 +45,6 @@ function fatal ()
 
 function main()
 {
-    readlinkf ${SCRIPT_DIR}/scripts.d/claude-qt.d
-
     local python=$(which python3);
     local options="-b -B";
     local claudeqt="$(readlinkf ${SCRIPT_DIR}/scripts.d/claude-qt.d)";
