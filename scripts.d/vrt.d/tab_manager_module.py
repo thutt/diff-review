@@ -91,6 +91,10 @@ class DiffViewerTabWidget(QMainWindow):
         self.commit_msg_dialog = None  # Track commit message dialog
         self.search_result_dialogs = []  # Track search result dialogs
         
+        # Global view state for all tabs
+        self.diff_map_visible = True  # Default state for diff map
+        self.line_numbers_visible = True  # Default state for line numbers
+        
         # Create main layout
         central = QWidget()
         main_layout = QHBoxLayout(central)
@@ -180,6 +184,18 @@ class DiffViewerTabWidget(QMainWindow):
         toggle_sidebar_action.setShortcuts([QKeySequence("Ctrl+B"), QKeySequence("Meta+B")])
         toggle_sidebar_action.triggered.connect(self.toggle_sidebar)
         view_menu.addAction(toggle_sidebar_action)
+        
+        view_menu.addSeparator()
+        
+        toggle_diff_map_action = QAction("Toggle Diff Map", self)
+        toggle_diff_map_action.setShortcuts([QKeySequence("Alt+H"), QKeySequence("Meta+H")])
+        toggle_diff_map_action.triggered.connect(self.toggle_diff_map)
+        view_menu.addAction(toggle_diff_map_action)
+        
+        toggle_line_numbers_action = QAction("Toggle Line Numbers", self)
+        toggle_line_numbers_action.setShortcuts([QKeySequence("Alt+L"), QKeySequence("Meta+L")])
+        toggle_line_numbers_action.triggered.connect(self.toggle_line_numbers)
+        view_menu.addAction(toggle_line_numbers_action)
         
         # Help menu
         help_menu = menubar.addMenu("Help")
@@ -521,6 +537,12 @@ class DiffViewerTabWidget(QMainWindow):
         # Switch to new tab
         self.tab_widget.setCurrentIndex(index)
         
+        # Apply global view state to new viewer
+        if self.diff_map_visible != diff_viewer.diff_map_visible:
+            diff_viewer.toggle_diff_map()
+        if self.line_numbers_visible != diff_viewer.line_numbers_visible:
+            diff_viewer.toggle_line_numbers()
+        
         # Update button states immediately
         self.update_button_states()
         
@@ -776,6 +798,22 @@ class DiffViewerTabWidget(QMainWindow):
             # Trigger scrollbar recalculation
             current_viewer.init_scrollbars()
     
+    def toggle_diff_map(self):
+        """Toggle diff map in all viewers"""
+        self.diff_map_visible = not self.diff_map_visible
+        viewers = self.get_all_viewers()
+        for viewer in viewers:
+            if viewer.diff_map_visible != self.diff_map_visible:
+                viewer.toggle_diff_map()
+    
+    def toggle_line_numbers(self):
+        """Toggle line numbers in all viewers"""
+        self.line_numbers_visible = not self.line_numbers_visible
+        viewers = self.get_all_viewers()
+        for viewer in viewers:
+            if viewer.line_numbers_visible != self.line_numbers_visible:
+                viewer.toggle_line_numbers()
+    
     def show_help(self):
         """Show help dialog"""
         help_dialog = HelpDialog(self)
@@ -802,13 +840,13 @@ class DiffViewerTabWidget(QMainWindow):
         # Alt+H - Toggle diff map (Alt on Win/Linux, Cmd on Mac for VNC compatibility)
         if key == Qt.Key.Key_H and (modifiers & Qt.KeyboardModifier.AltModifier or
                                       modifiers & Qt.KeyboardModifier.MetaModifier):
-            viewer.toggle_diff_map()
+            self.toggle_diff_map()
             return
         
         # Alt+L - Toggle line numbers (Alt on Win/Linux, Cmd on Mac for VNC compatibility)
         if key == Qt.Key.Key_L and (modifiers & Qt.KeyboardModifier.AltModifier or
                                       modifiers & Qt.KeyboardModifier.MetaModifier):
-            viewer.toggle_line_numbers()
+            self.toggle_line_numbers()
             return
         
         # Ctrl+S - Search
