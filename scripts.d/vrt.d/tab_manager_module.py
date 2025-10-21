@@ -393,6 +393,10 @@ class DiffViewerTabWidget(QMainWindow):
         if not cursor.hasSelection():
             return
         
+        # Save selection range before doing anything
+        selection_start = cursor.selectionStart()
+        selection_end = cursor.selectionEnd()
+        
         selected_text = cursor.selectedText()
         selected_text = selected_text.replace('\u2029', '\n')
         
@@ -402,6 +406,21 @@ class DiffViewerTabWidget(QMainWindow):
                 for line in selected_text.split('\n'):
                     f.write(f"  {line}\n")
                 f.write('\n')
+            
+            # Apply permanent yellow background to noted text
+            from PyQt6.QtGui import QTextCharFormat, QColor
+            
+            # Create new cursor with saved selection
+            highlight_cursor = text_widget.textCursor()
+            highlight_cursor.setPosition(selection_start)
+            highlight_cursor.setPosition(selection_end, highlight_cursor.MoveMode.KeepAnchor)
+            
+            # Create yellow highlight format (match DiffViewer color)
+            highlight_format = QTextCharFormat()
+            highlight_format.setBackground(QColor(255, 255, 200))  # Light yellow like DiffViewer
+            
+            # Apply permanent yellow highlight
+            highlight_cursor.mergeCharFormat(highlight_format)
             
             # Update note count in current viewer if it exists
             viewer = self.get_current_viewer()
