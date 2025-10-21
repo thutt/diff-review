@@ -12,7 +12,7 @@ with a sidebar for file selection.
 import sys
 from PyQt6.QtWidgets import (QApplication, QTabWidget, QMainWindow, QHBoxLayout, 
                               QVBoxLayout, QWidget, QPushButton, QScrollArea, QSplitter,
-                              QPlainTextEdit, QMenu, QMessageBox, QProgressDialog)
+                              QPlainTextEdit, QMenu, QMessageBox, QProgressDialog, QFileDialog)
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QAction, QFont, QKeySequence
 
@@ -94,6 +94,7 @@ class DiffViewerTabWidget(QMainWindow):
         # Global view state for all tabs
         self.diff_map_visible = True  # Default state for diff map
         self.line_numbers_visible = True  # Default state for line numbers
+        self.global_note_file = None  # Global note file for all viewers
         
         # Create main layout
         central = QWidget()
@@ -166,6 +167,12 @@ class DiffViewerTabWidget(QMainWindow):
         
         # File menu
         file_menu = menubar.addMenu("File")
+        
+        open_note_action = QAction("Open Note...", self)
+        open_note_action.triggered.connect(self.open_note_file)
+        file_menu.addAction(open_note_action)
+        
+        file_menu.addSeparator()
         
         close_tab_action = QAction("Close Tab", self)
         close_tab_action.setShortcut("Ctrl+W")
@@ -406,12 +413,40 @@ class DiffViewerTabWidget(QMainWindow):
                               f'Could not write to note file:\n{e}')
     
     def get_note_file(self):
-        """Get note file from any viewer"""
+        """Get note file - prefer global, fallback to any viewer"""
+        if self.global_note_file:
+            return self.global_note_file
+        
         viewers = self.get_all_viewers()
         for viewer in viewers:
             if viewer.note_file:
                 return viewer.note_file
         return None
+    
+    def open_note_file(self):
+        """Open a note file using file picker dialog"""
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Select Note File",
+            "",
+            "Text Files (*.txt);;All Files (*)"
+        )
+        
+        if file_path:
+            # Set global note file
+            self.global_note_file = file_path
+            
+            # Set the note file for all existing viewers
+            viewers = self.get_all_viewers()
+            for viewer in viewers:
+                viewer.note_file = file_path
+            
+            # Show confirmation
+            QMessageBox.information(
+                self,
+                "Note File Set",
+                f"Note file set to:\n{file_path}\n\nAll viewers will now use this file for notes."
+            )
     
     def add_file(self, file_class):
         """
@@ -542,6 +577,10 @@ class DiffViewerTabWidget(QMainWindow):
             diff_viewer.toggle_diff_map()
         if self.line_numbers_visible != diff_viewer.line_numbers_visible:
             diff_viewer.toggle_line_numbers()
+        
+        # Apply global note file if set
+        if self.global_note_file:
+            diff_viewer.note_file = self.global_note_file
         
         # Update button states immediately
         self.update_button_states()
