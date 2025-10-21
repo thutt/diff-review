@@ -131,8 +131,8 @@ class SearchDialog(QDialog):
     
     def on_search(self):
         """Handle search button click"""
-        text = self.search_input.toPlainText().strip()
-        if text:
+        text = self.search_input.toPlainText()
+        if text:  # Allow whitespace-only searches
             self.search_text = text
             self.case_sensitive = self.case_checkbox.isChecked()
             self.use_regex = self.regex_checkbox.isChecked()
@@ -278,7 +278,7 @@ class SearchResultDialog(QDialog):
     
     def on_research(self):
         """Handle re-search button click with new search text"""
-        new_search_text = self.search_input.toPlainText().strip()
+        new_search_text = self.search_input.toPlainText()
         if not new_search_text:
             return
         
@@ -419,7 +419,7 @@ class SearchResultDialog(QDialog):
             prefix = display_text[:prefix_end]
             
             # Escape prefix HTML
-            prefix_escaped = prefix.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            prefix_escaped = prefix.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;').replace(' ', '&nbsp;')
             
             # Find and highlight all matches in the line content
             highlighted = False
@@ -434,12 +434,12 @@ class SearchResultDialog(QDialog):
                     for match in pattern.finditer(line_content):
                         # Add text before match
                         before = line_content[last_end:match.start()]
-                        before_escaped = before.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                        before_escaped = before.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;').replace(' ', '&nbsp;')
                         html_parts.append(before_escaped)
                         
                         # Add highlighted match
                         matched = line_content[match.start():match.end()]
-                        matched_escaped = matched.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                        matched_escaped = matched.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;').replace(' ', '&nbsp;')
                         html_parts.append(f'<span style="background-color: #ffff00; color: #000000; font-weight: bold;">{matched_escaped}</span>')
                         
                         last_end = match.end()
@@ -447,7 +447,7 @@ class SearchResultDialog(QDialog):
                     # Add remaining text after last match
                     if last_end < len(line_content):
                         after = line_content[last_end:]
-                        after_escaped = after.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                        after_escaped = after.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;').replace(' ', '&nbsp;')
                         html_parts.append(after_escaped)
                     
                     if html_parts:
@@ -480,12 +480,12 @@ class SearchResultDialog(QDialog):
                     
                     # Add text before match
                     before = line_content[last_end:pos]
-                    before_escaped = before.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                    before_escaped = before.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;').replace(' ', '&nbsp;')
                     html_parts.append(before_escaped)
                     
                     # Add highlighted match
                     matched = line_content[pos:pos + len(self.search_text)]
-                    matched_escaped = matched.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                    matched_escaped = matched.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;').replace(' ', '&nbsp;')
                     html_parts.append(f'<span style="background-color: #ffff00; color: #000000; font-weight: bold;">{matched_escaped}</span>')
                     
                     last_end = pos + len(self.search_text)
@@ -493,7 +493,7 @@ class SearchResultDialog(QDialog):
                 # Add remaining text after last match
                 if last_end < len(line_content):
                     after = line_content[last_end:]
-                    after_escaped = after.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                    after_escaped = after.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;').replace(' ', '&nbsp;')
                     html_parts.append(after_escaped)
                 
                 if html_parts:
