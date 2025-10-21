@@ -399,27 +399,28 @@ class SearchResultDialog(QDialog):
         
         # Populate results list
         for tab_index, tab_title, source_type, line_num, line_idx, line_text in results:
-            if source_type == 'commit_msg':
-                if self.search_all_tabs:
-                    display_text = f"[{tab_title}] [COMMIT MSG] Line {line_num}: {line_text}"
-                else:
-                    display_text = f"[COMMIT MSG] Line {line_num}: {line_text}"
+            # Determine color based on source type - using darker colors for better contrast
+            if source_type == 'base':
+                color = '#2a70c9'  # Darker blue - better contrast
+            elif source_type == 'modified':
+                color = '#4e9a06'  # Darker green - better contrast
+            else:  # commit_msg
+                color = '#8b4513'  # Saddle brown - better contrast
+            
+            # Format: [tab_title:line_num] or just [tab_title:line_num] without source type labels
+            if self.search_all_tabs:
+                location_prefix = f'<span style="color: {color};">[{tab_title}:{line_num}]</span>'
             else:
-                if self.search_all_tabs:
-                    display_text = f"[{tab_title}] [{source_type.upper()}] Line {line_num}: {line_text}"
-                else:
-                    display_text = f"[{source_type.upper()}] Line {line_num}: {line_text}"
+                location_prefix = f'<span style="color: {color};">[{tab_title}:{line_num}]</span>'
             
-            item = QListWidgetItem(display_text)
+            item = QListWidgetItem()
             
-            # Highlight matched text with yellow background
-            # Find the position of the actual line content after the prefix
-            prefix_end = display_text.rfind(': ') + 2
-            line_content = display_text[prefix_end:]
-            prefix = display_text[:prefix_end]
+            # Build the display with colored location prefix
+            # The line content will have highlighting applied separately
+            prefix = f'{location_prefix}: '
+            line_content = line_text
             
-            # Escape prefix HTML
-            prefix_escaped = prefix.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;').replace(' ', '&nbsp;')
+            # Escape prefix HTML is already done above
             
             # Find and highlight all matches in the line content
             highlighted = False
@@ -451,7 +452,7 @@ class SearchResultDialog(QDialog):
                         html_parts.append(after_escaped)
                     
                     if html_parts:
-                        html_text = prefix_escaped + ''.join(html_parts)
+                        html_text = prefix + ''.join(html_parts)
                         item.setData(Qt.ItemDataRole.DisplayRole, html_text)
                         highlighted = True
                 except:
@@ -497,9 +498,18 @@ class SearchResultDialog(QDialog):
                     html_parts.append(after_escaped)
                 
                 if html_parts:
-                    html_text = prefix_escaped + ''.join(html_parts)
+                    html_text = prefix + ''.join(html_parts)
                     item.setData(Qt.ItemDataRole.DisplayRole, html_text)
                     highlighted = True
+            
+            # If no highlighting was applied, set plain text as fallback
+            if not highlighted:
+                # Build plain text version
+                if self.search_all_tabs:
+                    plain_text = f"[{tab_title}:{line_num}]: {line_text}"
+                else:
+                    plain_text = f"[{tab_title}:{line_num}]: {line_text}"
+                item.setText(plain_text)
             
             # Store the metadata for navigation
             item.setData(Qt.ItemDataRole.UserRole, 
