@@ -58,23 +58,17 @@ if [[ "${sourced}" = "1" ]]; then
 
     cat <<EOF
 
-The following alias, providing direct access to 'diff-review', is now
-present in the shell.
+Provide direct access to 'diff-review':
 
   $(alias dr)
 
 
-This alias, also present in the shell, provides access to
-'view-review'
+Provide direct access to 'view-review':
 
   $(alias vr)
 
 
-  $(alias dr)
-
-
-This alias, also present in the shell, provides access to
-'view-review-tabs'
+Provide direct access to 'view-review-tabs':
 
   $(alias vrt)
 
