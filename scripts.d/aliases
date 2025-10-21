@@ -9,42 +9,52 @@
 #
 function readlinkf ()
 {
-    local pn="${1}";
-    local sourced="0";          # False
-
-    if [[ "${pn}" != /* ]]; then
-        ${pn}="$(pwd)/${pn}";
-    fi
-
-    while [ -L "${pn}" ]; do
-        ${pn}=$(ls -l "${pn}" | sed 's/.*-> //');
-
-        if [[ "${pn}" != /* ]]; then
-            ${pn}="$(dirname "$1")/${pn}";
+    local target="$1";
+    
+    # Handle empty input
+    if [ -z "$target" ]; then
+        return 1;
+    fi;
+    
+    # Use a subshell to avoid affecting current directory
+    (
+        if [ -d "$target" ]; then
+            # Target is a directory - cd to it directly
+            cd -P -- "$target" 2>/dev/null || exit 1;
+            pwd -P;
+        else
+            # Target is a file - cd to its directory
+            cd -P -- "$(dirname -- "$target")" 2>/dev/null || exit 1;
+            printf '%s/%s\n' "$(pwd -P)" "$(basename -- "$target")";
         fi;
-    done;
-
-    echo "$(cd "$(dirname "${pn}")" && pwd)/$(basename "${pn}")";
+    ) || return 1;
 }
 
+
+
+sourced="0";          # False
 BASH_MAJOR_VERSION=$(bash --version|head -n 1|awk '{print $4}'|cut -d '.' -f1);
 if [[ ${BASH_MAJOR_VERSION} -lt 4 ]] ; then
     # Bash on MacOS is less than version 4.  Arrays are not supported.
     if [[ "${BASH_SOURCE}" != "${0}" ]]; then
         sourced="1";            # True
+        filename="${0}";
     fi;
 else
     if [[ "${BASH_SOURCE[0]}" != "${0}" ]]; then
         sourced="1";            # True
+        filename="${BASH_SOURCE[0]}";
     fi;
 fi;
 
 if [[ "${sourced}" = "1" ]]; then
-    script="$(readlinkf ${BASH_SOURCE[0]})";
+    script="$(readlinkf ${filename})";
     dir="$(readlinkf $(dirname "${script}")/..)";
     eval alias dr='${dir}/diff-review'
     eval alias vr='${dir}/view-review'
     eval alias vrt='${dir}/view-review-tabs'
+
+    readlinkf "$(dirname ${script})/.."
 
     cat <<EOF
 
