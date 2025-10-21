@@ -444,14 +444,21 @@ class DiffViewerTabWidget(QMainWindow):
     
     def open_note_file(self):
         """Open a note file using file picker dialog"""
-        file_path, _ = QFileDialog.getSaveFileName(
-            self,
-            "Select Note File",
-            "",
-            "Text Files (*.txt);;All Files (*)"
-        )
+        # Use getOpenFileName but with DontConfirmOverwrite since we're not overwriting
+        file_dialog = QFileDialog(self)
+        file_dialog.setWindowTitle("Select Note File")
+        file_dialog.setNameFilter("Text Files (*.txt);;All Files (*)")
+        file_dialog.setFileMode(QFileDialog.FileMode.AnyFile)  # Allow typing non-existent files
+        file_dialog.setAcceptMode(QFileDialog.AcceptMode.AcceptOpen)
+        file_dialog.setOption(QFileDialog.Option.DontConfirmOverwrite, True)  # Don't warn about overwrite
         
-        if file_path:
+        if file_dialog.exec() == QFileDialog.DialogCode.Accepted:
+            files = file_dialog.selectedFiles()
+            if not files:
+                return
+            
+            file_path = files[0]
+            
             # Set global note file
             self.global_note_file = file_path
             
@@ -460,11 +467,18 @@ class DiffViewerTabWidget(QMainWindow):
             for viewer in viewers:
                 viewer.note_file = file_path
             
+            # Check if file exists to customize message
+            import os
+            if os.path.exists(file_path):
+                msg = f"Note file set to:\n{file_path}\n\nAll viewers will now append notes to this existing file."
+            else:
+                msg = f"Note file set to:\n{file_path}\n\nThis file will be created when the first note is taken."
+            
             # Show confirmation
             QMessageBox.information(
                 self,
                 "Note File Set",
-                f"Note file set to:\n{file_path}\n\nAll viewers will now use this file for notes."
+                msg
             )
     
     def add_file(self, file_class):
