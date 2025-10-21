@@ -285,6 +285,14 @@ class DiffViewerTabWidget(QMainWindow):
         text_widget.setPlainText(commit_msg_text)
         text_widget.setFont(QFont("Courier", 12, QFont.Weight.Bold))
         
+        # Style commit message with subtle sepia tone
+        text_widget.setStyleSheet("""
+            QPlainTextEdit {
+                background-color: #fdf6e3;
+                color: #5c4a3a;
+            }
+        """)
+        
         # Set up context menu
         text_widget.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         text_widget.customContextMenuRequested.connect(
