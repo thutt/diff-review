@@ -459,6 +459,7 @@ class DiffViewerTabWidget(QMainWindow):
         file_dialog.setFileMode(QFileDialog.FileMode.AnyFile)  # Allow typing non-existent files
         file_dialog.setAcceptMode(QFileDialog.AcceptMode.AcceptOpen)
         file_dialog.setOption(QFileDialog.Option.DontConfirmOverwrite, True)  # Don't warn about overwrite
+        file_dialog.setOption(QFileDialog.Option.DontUseNativeDialog, True)  # Use Qt dialog on macOS to allow typing
         
         if file_dialog.exec() == QFileDialog.DialogCode.Accepted:
             files = file_dialog.selectedFiles()
