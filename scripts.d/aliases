@@ -50,11 +50,12 @@ fi;
 if [[ "${sourced}" = "1" ]]; then
     script="$(readlinkf ${filename})";
     dir="$(readlinkf $(dirname "${script}")/..)";
-    eval alias dr='${dir}/diff-review'
-    eval alias vr='${dir}/view-review'
-    eval alias vrt='${dir}/view-review-tabs'
 
-    readlinkf "$(dirname ${script})/.."
+    alias dr='${dir}/diff-review $(resp=~/.dr.resp; [ -r ${resp} ] && echo "@${resp}")'
+
+    alias vr='${dir}/view-review'
+
+    alias vrt='${dir}/view-review-tabs $(resp=~/.vrt.resp; [ -r ${resp} ] && echo "@${resp}")'
 
     cat <<EOF
 
