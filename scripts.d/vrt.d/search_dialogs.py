@@ -242,6 +242,14 @@ class SearchResultDialog(QDialog):
         # Buttons
         button_layout = QHBoxLayout()
         
+        self.prev_button = QPushButton("Previous")
+        self.prev_button.clicked.connect(self.on_previous)
+        self.prev_button.setEnabled(False)
+        
+        self.next_button = QPushButton("Next")
+        self.next_button.clicked.connect(self.on_next)
+        self.next_button.setEnabled(False)
+        
         self.select_button = QPushButton("Select")
         self.select_button.clicked.connect(self.on_select)
         self.select_button.setEnabled(False)
@@ -249,6 +257,8 @@ class SearchResultDialog(QDialog):
         self.cancel_button = QPushButton("Cancel")
         self.cancel_button.clicked.connect(self.reject)
         
+        button_layout.addWidget(self.prev_button)
+        button_layout.addWidget(self.next_button)
         button_layout.addStretch()
         button_layout.addWidget(self.select_button)
         button_layout.addWidget(self.cancel_button)
@@ -260,6 +270,10 @@ class SearchResultDialog(QDialog):
         
         # Initial search
         self.perform_search()
+        
+        # If there are results, select the first one
+        if self.result_list.count() > 0:
+            self.result_list.setCurrentRow(0)
     
     def on_case_changed(self, state):
         """Handle 'case sensitive' checkbox change"""
@@ -515,10 +529,42 @@ class SearchResultDialog(QDialog):
             item.setData(Qt.ItemDataRole.UserRole, 
                         (tab_index, source_type, line_num, line_idx))
             self.result_list.addItem(item)
+        
+        # Update button states after populating results
+        if self.result_list.count() == 0:
+            self.prev_button.setEnabled(False)
+            self.next_button.setEnabled(False)
+        else:
+            # Will be updated by on_selection_changed when first item is selected
+            pass
     
     def on_selection_changed(self):
         """Enable select button when an item is selected"""
-        self.select_button.setEnabled(len(self.result_list.selectedItems()) > 0)
+        has_selection = len(self.result_list.selectedItems()) > 0
+        self.select_button.setEnabled(has_selection)
+        
+        # Update Next/Prev button states
+        if self.result_list.count() == 0:
+            self.prev_button.setEnabled(False)
+            self.next_button.setEnabled(False)
+        else:
+            current_row = self.result_list.currentRow()
+            self.prev_button.setEnabled(current_row > 0)
+            self.next_button.setEnabled(current_row < self.result_list.count() - 1)
+    
+    def on_previous(self):
+        """Navigate to previous result"""
+        current_row = self.result_list.currentRow()
+        if current_row > 0:
+            self.result_list.setCurrentRow(current_row - 1)
+            self.on_select()  # Navigate to the result
+    
+    def on_next(self):
+        """Navigate to next result"""
+        current_row = self.result_list.currentRow()
+        if current_row < self.result_list.count() - 1:
+            self.result_list.setCurrentRow(current_row + 1)
+            self.on_select()  # Navigate to the result
     
     def on_select(self):
         """Handle selection"""
