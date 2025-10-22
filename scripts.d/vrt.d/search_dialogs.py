@@ -26,12 +26,25 @@ class HTMLDelegate(QStyledItemDelegate):
         
         painter.save()
         
+        # Check if item is selected
+        is_selected = options.state & QStyle.StateFlag.State_Selected
+        
+        # Get the HTML text
+        html_text = options.text
+        
+        # If selected, replace the colored filename portion with white text
+        if is_selected and '<span style="color:' in html_text:
+            # Replace the color in the span with white
+            import re
+            html_text = re.sub(r'<span style="color: #[0-9a-fA-F]{6};">', 
+                             '<span style="color: #ffffff;">', html_text)
+        
         doc = QTextDocument()
-        doc.setHtml(options.text)
+        doc.setHtml(html_text)
         doc.setTextWidth(options.rect.width())
         
         # Handle selection highlighting
-        if options.state & QStyle.StateFlag.State_Selected:
+        if is_selected:
             painter.fillRect(options.rect, options.palette.highlight())
         
         painter.translate(options.rect.left(), options.rect.top())
