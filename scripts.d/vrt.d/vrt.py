@@ -61,11 +61,12 @@ Return Code:
   non-zero: failure
 """)
     formatter = argparse. RawTextHelpFormatter
-    parser    = argparse.ArgumentParser(usage           = None,
-                                        formatter_class = formatter,
-                                        description     = description,
-                                        epilog          = help_epilog,
-                                        prog            = "diff-review")
+    parser    = argparse.ArgumentParser(usage                 = None,
+                                        formatter_class       = formatter,
+                                        description           = description,
+                                        epilog                = help_epilog,
+                                        prog                  = "view-review-tabs",
+                                        fromfile_prefix_chars = '@')
 
     o = parser.add_argument_group("Diff Specification Options")
     o.add_argument("-R", "--review-directory",

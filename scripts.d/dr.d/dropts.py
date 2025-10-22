@@ -62,11 +62,12 @@ Return Code:
     review_dir = os.path.join(home, "review")
 
     formatter = argparse. RawDescriptionHelpFormatter
-    parser    = argparse.ArgumentParser(usage           = None,
-                                        formatter_class = formatter,
-                                        description     = description,
-                                        epilog          = help_epilog,
-                                        prog            = "diff-review")
+    parser    = argparse.ArgumentParser(usage                 = None,
+                                        formatter_class       = formatter,
+                                        description           = description,
+                                        epilog                = help_epilog,
+                                        prog                  = "diff-review",
+                                        fromfile_prefix_chars = '@')
 
     o = parser.add_argument_group("SCM Control")
     o.add_argument("-c",
