@@ -70,7 +70,7 @@ class QtInterface(QMainWindow):
         self.subp_ = []
         self.notes_ = None
         self.commit_msg_ = commit_msg
-        self.viewer_name_ = "Claude-QT"  # Default viewer
+        self.viewer_name_ = "TkDiff"  # Default viewer
 
         self.emacs_ = find_executable([
             "/usr/bin/emacs",
@@ -170,7 +170,7 @@ class QtInterface(QMainWindow):
         if self.vim_ is None:
             vim = "%s %s" % (vim, na)
 
-        viewers = [ "Claude-QT", emacs, tkdiff, meld, vim ]
+        viewers = [ emacs, tkdiff, meld, vim ]
 
         for viewer in viewers:
             action = QAction(viewer, self)
@@ -247,20 +247,6 @@ class QtInterface(QMainWindow):
             if term is not None:
                 vimdiff = [ term, "-e" ] + vimdiff
             cmd = vimdiff + [ base, modi ]
-        elif viewer == "Claude-QT":
-            path   = os.path.split(sys.argv[0])
-            claude = os.path.abspath(os.path.join(path[0], "..",
-                                                  "claude-qt.d", "claude.py"))
-            notes  = [ ]
-            if self.options_.arg_claude_note_file is not None:
-                notes = [ "--note", self.options_.arg_claude_note_file ]
-
-            commit_msg = [ ]
-            if self.commit_msg_ is not None:
-                commit_msg = [ "--commit-msg", self.commit_msg_ ]
-            cmd = [ "python3", "-B", claude,
-                    "--base", base,
-                    "--modi", modi ] + notes + commit_msg
         else:
             raise NotImplementedError("Unsupported viewer: '%s'" %
                                       (viewer))
@@ -316,13 +302,17 @@ class QtInterface(QMainWindow):
 
         self.content_layout.addWidget(quit_button, row, 1)
 
-    def commit_msg_dialog(self, commit_msg):
+    def commit_msg_dialog(self, commit_path):
+        commit_msg = [ ]
+        with open(commit_path, "r") as fp:
+            commit_msg.append(fp.read())
+
         self.commit_msg_dialog_ = CommitMsgDialog(commit_msg)
         self.commit_msg_dialog_.show()
 
-    def add_commit_msg(self, row, commit_msg):
+    def add_commit_msg(self, row, commit_path):
         quit_button = QPushButton("Commit Message")
-        quit_button.clicked.connect(lambda: self.commit_msg_dialog(commit_msg))
+        quit_button.clicked.connect(lambda: self.commit_msg_dialog(commit_path))
 
         # Set red background
         palette = quit_button.palette()
@@ -437,28 +427,6 @@ Return Code:
                    required = False,
                    dest     = "arg_verbose")
 
-
-    o = parser.add_argument_group("Claude Viewer Options")
-    o.add_argument("--claude-note-file",
-                   help     = ("Sets pathname to which Claude UI will write "
-                               "notes.\n\n"
-                               "Notes can be created by double-clicking a "
-                               "single line of code,\n"
-                               "or by highlighting a range of lines and using "
-                               "the right-click\n"
-                               "context menu, 'Add Note'.\n\n"
-                               "The software will write the filename and line "
-                               "contents to the\n"
-                               "note file, allowing a reviewer to write review "
-                               "comments using\n"
-                               "the editor that makes them most productive, "
-                               "concurrent with\n"
-                               "diff viewing."),
-                   action   = "store",
-                   default  = None,
-                   required = False,
-                   dest     = "arg_claude_note_file")
-
     parser.add_argument("tail",
                         help  = "Command line tail",
                         nargs = "*")
@@ -477,13 +445,14 @@ def process_command_line():
     return options
 
 
-def generate(options, review_name, dossier, commit_msg):
-    qt_intf     = QtInterface(options, review_name, dossier, commit_msg)
+def generate(options, review_name, dossier):
+    qt_intf     = QtInterface(options, review_name, dossier,
+                              dossier['commit_msg'])
     row         = 0                # Number of files.
     col         = 0                # Maximum pathname length, in chars
     base_dir    = dossier["base"]
     modi_dir    = dossier["modi"]
-    commit_msg  = dossier["commit_msg"]
+    commit_path = dossier["commit_msg"] # Path of commit message.
 
     for f in sorted(dossier['files'],
                     key=lambda item: item["modi_rel_path"]):
@@ -499,8 +468,8 @@ def generate(options, review_name, dossier, commit_msg):
         qt_intf.add_button(row, action, base, modi, rel_modi)
         row = row + 1
 
-    if commit_msg is not None:
-        qt_intf.add_commit_msg(row, commit_msg)
+    if commit_path is not None:
+        qt_intf.add_commit_msg(row, commit_path)
     qt_intf.add_quit(row)
     qt_intf.size_window(row + 1, # Number of rows, including 'quit'.
                         col)
@@ -532,8 +501,7 @@ def main():
         with open(options.json_, "r") as fp:
             dossier = json.load(fp)
 
-        return generate(options, options.arg_review_name, dossier,
-                        dossier["commit_msg"])
+        return generate(options, options.arg_review_name, dossier)
 
     except KeyboardInterrupt:
         return 0
