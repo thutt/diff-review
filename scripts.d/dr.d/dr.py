@@ -48,11 +48,13 @@ def report(options, changed_info, elapsed_time):
             print("  %*s   %s" % (action_width, f.action(),
                                   f.modi_file_info_.rel_path_))
 
+        dossier = os.path.join(options.arg_review_dir,
+                               options.arg_review_name,
+                               "dossier.json")
         print("\n"
               "Changes:  %s" % (changed_info))
-        print("Viewer :  vrt -R %s -r %s" %
-              (options.arg_review_dir, options.arg_review_name))
-        print("Viewer :  vr -R %s -r %s" %
+        print("Viewer :  vrt --dossier '%s'" % (dossier))
+        print("Viewer :  vr -R '%s' -r '%s'" %
               (options.arg_review_dir, options.arg_review_name))
         print("Elapsed:  %s" % (elapsed_time))
     else:
