@@ -101,6 +101,23 @@ Return Code:
                    required = False,
                    dest     = "arg_git_path")
 
+    o = parser.add_argument_group("Remote Host Specification Options")
+    o.add_argument("--fqdn",
+                   help     = ("Fully qualified domain name of the host "
+                               "where the diffs are being created. "
+                               "If the diffs will be viewed from another "
+                               "machine that does not have direct access to "
+                               "this machine, specify this option.  It will "
+                               "be added to the 'vrt' command line, where it "
+                               "will be used to gain access to the remote "
+                               "files. See --help of 'vrt'.  "
+                               "[default: %(default)s]"),
+                   action   = "store",
+                   default  = None,
+                   metavar  = "<FQDN of host>",
+                   required = False,
+                   dest     = "arg_fqdn")
+
     o = parser.add_argument_group("Miscellaneous Options")
     o.add_argument("--threads",
                    help     = ("Overrides the default number of"

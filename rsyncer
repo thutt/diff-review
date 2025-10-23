@@ -1,0 +1,73 @@
+#!/bin/bash
+# Copyright (c) 2025  Logic Magicians Software.
+# All Rights Reserved.
+# Licensed under Gnu GPL V3.
+#
+# This wrapper script facilitates invoking the self-review Python
+# script.
+#
+set -o errexit;
+set -o nounset;
+set -o pipefail;
+
+SCRIPT="${BASH_SOURCE[0]}"
+SCRIPT_DIR=$(dirname "${SCRIPT}");
+
+
+function readlinkf ()
+{
+    local pn="${1}";
+    local sourced="0";          # False
+
+    if [[ "${pn}" != /* ]]; then
+        ${pn}="$(pwd)/${pn}";
+    fi
+
+    while [ -L "${pn}" ]; do
+        ${pn}=$(ls -l "${pn}" | sed 's/.*-> //');
+
+        if [[ "${pn}" != /* ]]; then
+            ${pn}="$(dirname "$1")/${pn}";
+        fi;
+    done;
+
+    echo "$(cd "$(dirname "${pn}")" && pwd)/$(basename "${pn}")";
+}
+
+
+function fatal ()
+{
+    local msg="${1}";
+    
+    echo "fatal: ${msg}";
+    exit 10;
+}
+
+
+function main()
+{
+    local python=$(which python3);
+    local options="-b -B -E";
+    local rsyncer="$(readlinkf ${SCRIPT_DIR}/scripts.d/rsyncer.d/rsyncer.py)";
+    local vrt="$(readlinkf ${SCRIPT_DIR}/scripts.d/vrt.d/vrt.py)";
+
+    if [ -z "${python}" ] ; then
+        cat <<EOF
+
+No Python 3 interpreter was found on the path.
+Put a Python 3 interpreter on the path to execute this tool.
+
+EOF
+        fatal "No Python 3 interpreter on \${PATH}.";
+    fi;
+
+
+    if [ -r "${rsyncer}" ] ; then
+        export QT_LOGGING_RULES="qt.xkb.compose=false";
+        exec ${python} ${options} "${rsyncer}" "$@";
+    else
+        fatal "Unable to read '${rsyncer}'";
+    fi;
+}
+
+main $@;

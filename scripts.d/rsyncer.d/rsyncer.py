@@ -5,15 +5,9 @@
 import argparse
 import json
 import os
-import PyQt6
 import subprocess
-import signal
 import sys
 import traceback
-
-import diffmgr
-import diff_viewer
-import tab_manager_module
 
 home                = os.getenv("HOME", os.path.expanduser("~"))
 default_review_dir  = os.path.join(home, "review")
@@ -140,81 +134,105 @@ Return Code:
 def process_command_line():
     parser  = configure_parser()
     options = parser.parse_args()
-
-    if options.arg_dossier is None:
-        options.arg_dossier = os.path.join(default_review_dir,
-                                           default_review_name,
-                                           "dossier.json")
-    if os.path.exists(options.arg_dossier):
-        with open(options.arg_dossier, "r") as fp:
-            options.dossier_ = json.load(fp)
-    else:
-        fatal("dossier '%s' does not exist." % (options.arg_dossier))
-
     return options
 
 
-def add_diff_to_viewer(desc, viewer):
-    assert(len(desc.base_) == len(desc.modi_))
+def execute(verbose, cmd):
+    assert(isinstance(cmd, list))
+    #    XXX find rsync in known locations: assert(os.path.exists(cmd[0]))
 
-    for idx in range(0, len(desc.base_)):
-        base = desc.base_[idx]
-        modi = desc.modi_[idx]
-        viewer.add_line(base, modi)  # Repeat for each line pair
+    if verbose:
+        print("EXEC: '%s'" % (' '.join(cmd)))
 
-    viewer.finalize() 
-    viewer.apply_highlighting()
+    p = subprocess.Popen(cmd,
+                         shell    = False,
+                         errors   = "replace",
+                         stdin    = subprocess.PIPE,
+                         stdout   = subprocess.PIPE,
+                         stderr   = subprocess.PIPE)
+    (stdout, stderr) = p.communicate(None)
 
+    # None is returned when no pipe is attached to stdout/stderr.
+    if stdout is None:
+        stdout = ''
+    if stderr is None:
+        stderr = ''
+    rc = p.returncode
 
-def make_viewer(options, base, modi, note, commit_msg):
-    viewer = diff_viewer.DiffViewer(base, modi, note, commit_msg)
-
-    desc = diffmgr.create_diff_descriptor(options.arg_verbose,
-                                          base, modi)
-    add_diff_to_viewer(desc, viewer)
-
-    return viewer
-
-def generate(options, note):
-    application = PyQt6.QtWidgets.QApplication(sys.argv)
-    tab_widget  = tab_manager_module.DiffViewerTabWidget()
-
-    if options.dossier_['commit_msg'] is not None:
-        tab_widget.add_commit_msg(options.dossier_['commit_msg'])
-
-    for f in options.dossier_['files']:
-        file_inst = FileButton(options,
-                               f["action"],
-                               options.dossier_["root"],
-                               f["base_rel_path"],
-                               f["modi_rel_path"])
-        
-        tab_widget.add_file(file_inst)
-
-    tab_widget.run()
-
-    return 0
+    if len(stdout) > 0:
+        stdout = stdout[:-1].replace("\r", "").split("\n")
+    else:
+        stdout = [ ]
+    if len(stderr) > 0:
+        stderr = stderr[:-1].replace("\r", "").split("\n"),
+    else:
+        stderr = [ ]
 
 
-def rsync_and_rerun(options):
+    # stdout block becomes a list of lines.  For Windows, delete
+    # carriage-return so that regexes will match '$' correctly.
+    #
+    return (stdout, stderr, rc)
+
+
+def make_dest_directory(dirname):
+    os.makedirs(dirname, exist_ok = True)
+
+
+def rsync(options):
+    home       = os.getenv("HOME", os.path.expanduser("~"))
+    user       = os.getenv("USER", None)
+    review_dir = os.path.join(home, "review")
+
+    if user is None:
+        fatal("Unable to get value of ${USER} from environment.")
+
+    assert(options.arg_dossier[0] == '/') # Absolute path
+    src_dir     = os.path.dirname(options.arg_dossier)
+    review_name = os.path.basename(os.path.dirname(options.arg_dossier))
+    review_dir  = os.path.dirname(src_dir)
+    rel_dest    = os.path.dirname(src_dir)[1:]
+    src         = "%s@%s:%s" % (user, options.arg_fqdn, src_dir)
+    dst         = os.path.join(review_dir, options.arg_fqdn, rel_dest)
+    cmd         = [ "rsync", "-avz", src, dst ]
+
+    print("Notice:\n"
+          "  The following command:\n"
+          "\n"
+          "     %s\n"
+          "\n"
+          "  is being executed.  It may ask for your password.\n"
+          "\n" %
+          (' '.join(cmd)))
+
+    make_dest_directory(dst)
+    (stdout, stderr, rc) = execute(options.arg_verbose, cmd)
+    if rc == 0:
+        for l in stdout:
+            print(l)
+    else:
+        fatal("%s failed." % (' '.join(cmd)))
+
+    options.new_dossier = os.path.join(dst, review_dir,
+                                       review_name, "dossier.json")
+
+
+def execute_vrt(options):
     parent_dir = os.path.abspath(os.path.join(os.path.dirname(sys.argv[0]),
                                               "..", ".."))
-
-    rsyncer = os.path.join(parent_dir, "rsyncer")
-    cmd     = [ rsyncer,
-                "--fqdn", options.arg_fqdn,
-                "--dossier", options.arg_dossier ]
-    os.execv(rsyncer, cmd)
+    vrt = os.path.join(parent_dir, "view-review-tabs")
+    cmd = [ vrt,
+            "--dossier", options.new_dossier ]
+    os.execv(vrt, cmd)
 
 
 def main():
     try:
         options = process_command_line()
 
-        if options.arg_fqdn is not None:
-            rsync_and_rerun(options)
-
-        return generate(options, options.arg_note)
+        rsync(options)
+        execute_vrt(options)
+        return 0
 
     except KeyboardInterrupt:
         return 0

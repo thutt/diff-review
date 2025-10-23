@@ -51,9 +51,13 @@ def report(options, changed_info, elapsed_time):
         dossier = os.path.join(options.arg_review_dir,
                                options.arg_review_name,
                                "dossier.json")
+        fqdn = " "              # Space required.
+        if options.arg_fqdn is not None:
+            fqdn = "--fqdn '%s' " % (options.arg_fqdn)
+
         print("\n"
               "Changes:  %s" % (changed_info))
-        print("Viewer :  vrt --dossier '%s'" % (dossier))
+        print("Viewer :  vrt %s--dossier '%s'" % (fqdn, dossier))
         print("Viewer :  vr -R '%s' -r '%s'" %
               (options.arg_review_dir, options.arg_review_name))
         print("Elapsed:  %s" % (elapsed_time))
