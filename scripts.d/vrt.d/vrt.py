@@ -137,6 +137,17 @@ Return Code:
     return parser
 
 
+def rsync_and_rerun(options):
+    parent_dir = os.path.abspath(os.path.join(os.path.dirname(sys.argv[0]),
+                                              "..", ".."))
+
+    rsyncer = os.path.join(parent_dir, "rsyncer")
+    cmd     = [ rsyncer,
+                "--fqdn", options.arg_fqdn,
+                "--dossier", options.arg_dossier ]
+    os.execv(rsyncer, cmd)
+
+
 def process_command_line():
     parser  = configure_parser()
     options = parser.parse_args()
@@ -145,7 +156,10 @@ def process_command_line():
         options.arg_dossier = os.path.join(default_review_dir,
                                            default_review_name,
                                            "dossier.json")
-    if os.path.exists(options.arg_dossier):
+
+    if options.arg_fqdn is not None:
+        rsync_and_rerun(options)
+    elif os.path.exists(options.arg_dossier):
         with open(options.arg_dossier, "r") as fp:
             options.dossier_ = json.load(fp)
     else:
@@ -196,24 +210,9 @@ def generate(options, note):
     return 0
 
 
-def rsync_and_rerun(options):
-    parent_dir = os.path.abspath(os.path.join(os.path.dirname(sys.argv[0]),
-                                              "..", ".."))
-
-    rsyncer = os.path.join(parent_dir, "rsyncer")
-    cmd     = [ rsyncer,
-                "--fqdn", options.arg_fqdn,
-                "--dossier", options.arg_dossier ]
-    os.execv(rsyncer, cmd)
-
-
 def main():
     try:
         options = process_command_line()
-
-        if options.arg_fqdn is not None:
-            rsync_and_rerun(options)
-
         return generate(options, options.arg_note)
 
     except KeyboardInterrupt:

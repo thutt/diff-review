@@ -139,8 +139,6 @@ def process_command_line():
 
 def execute(verbose, cmd):
     assert(isinstance(cmd, list))
-    #    XXX find rsync in known locations: assert(os.path.exists(cmd[0]))
-
     if verbose:
         print("EXEC: '%s'" % (' '.join(cmd)))
 
@@ -179,10 +177,35 @@ def make_dest_directory(dirname):
     os.makedirs(dirname, exist_ok = True)
 
 
+def find_executable(search_paths):
+    for pn in search_paths:
+        if os.access(pn, os.X_OK):
+            return pn
+    return None
+
+
+
+def find_rsync():
+    # Find an rsync in known locations, or fail.
+    locations = [
+        "/opt/homebrew/bin/rsync", # Searched first;  avoid old Apple.
+        "/opt/local/bin/rsync",
+        "/usr/bin/rsync",
+        "/usr/local/bin/rsync",
+	"/usr/pkg/bin/rsync"
+    ]
+
+    rsync = find_executable(locations)
+    if rsync is None:
+        fatal("Unable to find rsync on this system.")
+    return rsync
+        
+
 def rsync(options):
     home       = os.getenv("HOME", os.path.expanduser("~"))
     user       = os.getenv("USER", None)
     review_dir = os.path.join(home, "review")
+    rsync      = find_rsync()
 
     if user is None:
         fatal("Unable to get value of ${USER} from environment.")
@@ -194,7 +217,7 @@ def rsync(options):
     rel_dest    = os.path.dirname(src_dir)[1:]
     src         = "%s@%s:%s" % (user, options.arg_fqdn, src_dir)
     dst         = os.path.join(review_dir, options.arg_fqdn, rel_dest)
-    cmd         = [ "rsync", "-avz", src, dst ]
+    cmd         = [ rsync, "-avz", src, dst ]
 
     print("Notice:\n"
           "  The following command:\n"
