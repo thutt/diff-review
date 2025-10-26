@@ -353,7 +353,8 @@ def create_diff_descriptor(verbose, base, modi):
 
                 if nxt_cmd == "? ":
                     # This line describes the different runs of text
-                    # its previous line..  It is is filled with characters from:
+                    # from the previous line.  It is is filled with
+                    # characters from:
                     #
                     #    { ' ', '-', '+', '^' }
                     #
