@@ -74,14 +74,33 @@ class HelpDialog(QDialog):
             <li><b>Blue Border:</b> Thin blue box around current line in the focused pane</li>
             <li><b>Gray Border:</b> Thin gray box around current line in the non-focused pane</li>
             <li><b>Yellow Background:</b> Lines where notes have been taken</li>
+            <li><b>Magenta Vertical Line:</b> Indicates the maximum allowed line length; content beyond this line exceeds the character limit</li>
         </ul>
         
         <h3>Color Coding</h3>
+        <p>The diff viewer uses a colorblind-friendly palette by default (blue/orange). You can switch to the traditional red/green palette via the Palette menu.</p>
         <ul>
-            <li><b>Light Green:</b> Added lines or content</li>
-            <li><b>Light Red/Pink:</b> Deleted lines or content</li>
-            <li><b>Yellow:</b> Modified content within a line (intraline changes)</li>
-            <li><b>Dark Gray:</b> Lines that don't exist in one version (placeholder lines)</li>
+            <li><b>Colorblind Friendly (Default):</b>
+                <ul>
+                    <li>Added lines/content: Sky blue</li>
+                    <li>Deleted lines/content: Dark orange</li>
+                    <li>Modified content: Bright yellow</li>
+                </ul>
+            </li>
+            <li><b>Standard:</b>
+                <ul>
+                    <li>Added lines/content: Light green</li>
+                    <li>Deleted lines/content: Light red/pink</li>
+                    <li>Modified content: Yellow</li>
+                </ul>
+            </li>
+            <li><b>Both palettes:</b>
+                <ul>
+                    <li>Dark gray: Lines that don't exist in one version (placeholder lines)</li>
+                    <li>Magenta: Maximum line length indicator (vertical line)</li>
+                    <li>Orange: Unknown markers</li>
+                </ul>
+            </li>
         </ul>
         
         <h3>Search Functionality</h3>
@@ -118,6 +137,23 @@ class HelpDialog(QDialog):
             <li>Shows original line numbers from each file</li>
             <li>Background colors indicate changed lines (pink for base, light green for modified)</li>
             <li><b>Alt+L:</b> Toggle line number visibility</li>
+        </ul>
+        
+        <h3>Line Length Indicator</h3>
+        <ul>
+            <li>A vivid magenta vertical line marks the maximum allowed line length</li>
+            <li>The line scrolls horizontally with the text content</li>
+            <li>Any text to the right of this line exceeds the configured character limit</li>
+            <li>The position is set via the max_line_length parameter when creating the viewer</li>
+        </ul>
+        
+        <h3>Color Palette</h3>
+        <ul>
+            <li><b>Access:</b> Use the Palette menu to switch between color schemes</li>
+            <li><b>Colorblind Friendly (Default):</b> Uses blue/orange color scheme that is distinguishable for most types of colorblindness</li>
+            <li><b>Standard:</b> Uses traditional red/green color scheme</li>
+            <li><b>Instant Update:</b> All open tabs update immediately when palette is changed</li>
+            <li><b>Persistent:</b> Selected palette applies to all subsequently opened files</li>
         </ul>
         
         <h3>Status Bar</h3>

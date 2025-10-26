@@ -14,6 +14,7 @@ This module contains the custom Qt widgets used in the diff viewer:
 from PyQt6.QtWidgets import QWidget, QPlainTextEdit
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QColor, QPainter, QFont, QTextCursor, QFontMetrics, QPen
+from color_palettes import get_current_palette
 
 
 class LineNumberArea(QWidget):
@@ -116,6 +117,7 @@ class DiffMapWidget(QWidget):
         if self.total_lines == 0:
             return
         
+        palette = get_current_palette()
         painter = QPainter(self)
         height = self.height()
         width = self.width()
@@ -127,11 +129,11 @@ class DiffMapWidget(QWidget):
             y2 = int((end / self.total_lines) * height)
             
             if tag == 'insert':
-                color = QColor("green")
+                color = palette.get_color('diffmap_insert')
             elif tag == 'delete':
-                color = QColor("red")
+                color = palette.get_color('diffmap_delete')
             else:
-                color = QColor("salmon")
+                color = palette.get_color('diffmap_replace')
             
             painter.fillRect(0, y1, width, max(y2 - y1, 2), color)
         
@@ -139,7 +141,7 @@ class DiffMapWidget(QWidget):
             vy1 = int((self.viewport_start / self.total_lines) * height)
             vy2 = int((self.viewport_end / self.total_lines) * height)
             painter.fillRect(0, vy1, width, max(vy2 - vy1, 2), 
-                           QColor(128, 128, 128, 100))
+                           palette.get_color('diffmap_viewport'))
     
     def mousePressEvent(self, event):
         if self.total_lines > 0:
@@ -163,6 +165,7 @@ class SyncedPlainTextEdit(QPlainTextEdit):
         self.region_highlight_end = -1
         self.focused_line = -1
         self.noted_lines = set()  # Track which lines have notes
+        self.max_line_length = None  # Maximum line length indicator
         
         self.setReadOnly(True)
         self.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
@@ -218,6 +221,11 @@ class SyncedPlainTextEdit(QPlainTextEdit):
     def clear_region_highlight(self):
         self.region_highlight_start = -1
         self.region_highlight_end = -1
+        self.viewport().update()
+    
+    def set_max_line_length(self, length):
+        """Set the maximum line length for the vertical indicator line"""
+        self.max_line_length = length
         self.viewport().update()
     
     def keyPressEvent(self, event):
@@ -342,6 +350,7 @@ class SyncedPlainTextEdit(QPlainTextEdit):
     def paintEvent(self, event):
         super().paintEvent(event)
         
+        palette = get_current_palette()
         painter = QPainter(self.viewport())
         font_metrics = self.fontMetrics()
         line_height = font_metrics.height()
@@ -364,7 +373,7 @@ class SyncedPlainTextEdit(QPlainTextEdit):
                         
                         # Light yellow/cream background for noted lines
                         painter.fillRect(0, y_pos, self.viewport().width(), 
-                                       block_height, QColor(255, 255, 200, 100))
+                                       block_height, palette.get_color('noted_line_bg'))
         
         # Draw current line indicator - blue if focused, gray if not
         if self.focused_line >= 0:
@@ -380,9 +389,9 @@ class SyncedPlainTextEdit(QPlainTextEdit):
                     
                     # Use blue if this widget has focus, gray otherwise
                     if self.hasFocus():
-                        pen = QPen(QColor(0, 100, 255))  # Blue
+                        pen = QPen(palette.get_color('focused_border_active'))
                     else:
-                        pen = QPen(QColor(80, 80, 80))  # Gray
+                        pen = QPen(palette.get_color('focused_border_inactive'))
                     
                     pen.setWidth(3)
                     painter.setPen(pen)
@@ -391,7 +400,7 @@ class SyncedPlainTextEdit(QPlainTextEdit):
         
         # Draw region highlight
         if self.region_highlight_start >= 0 and self.region_highlight_end > self.region_highlight_start:
-            painter.setPen(QColor(0, 0, 255, 128))
+            painter.setPen(palette.get_color('region_highlight'))
             
             start_block = self.document().findBlockByNumber(self.region_highlight_start)
             end_block = self.document().findBlockByNumber(self.region_highlight_end - 1)
@@ -405,6 +414,21 @@ class SyncedPlainTextEdit(QPlainTextEdit):
                 
                 if y_end > 0 and y_start < self.viewport().height():
                     painter.drawRect(0, y_start, self.viewport().width() - 1, y_end - y_start - 1)
+        
+        # Draw max line length indicator
+        if self.max_line_length is not None:
+            pen = QPen(palette.get_color('max_line_length'))
+            pen.setWidth(2)
+            painter.setPen(pen)
+            
+            char_width = font_metrics.horizontalAdvance('0')
+            # Calculate x position relative to content, accounting for horizontal scroll
+            content_x_pos = self.max_line_length * char_width
+            x_pos = int(content_x_pos + self.contentOffset().x())
+            
+            # Only draw if the line is visible in the viewport
+            if 0 <= x_pos <= self.viewport().width():
+                painter.drawLine(x_pos, 0, x_pos, self.viewport().height())
     
     def wheelEvent(self, event):
         if not self._in_wheel_event:

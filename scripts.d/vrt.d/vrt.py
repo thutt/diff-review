@@ -106,7 +106,14 @@ Return Code:
                    required = False,
                    dest     = "arg_review_name")
 
-    o = parser.add_argument_group("Diff Specification Options")
+    o.add_argument("--max-line-length",
+                   help     = ("Set maximum line length of source code."),
+                   action   = "store",
+                   type     = int,
+                   default  = 80,
+                   required = False,
+                   dest     = "arg_max_line_length")
+
     o.add_argument("--dossier",
                    help     = ("Json file containing change information"),
                    action   = "store",
@@ -129,7 +136,6 @@ Return Code:
                    default  = False,
                    required = False,
                    dest     = "arg_verbose")
-
 
     parser.add_argument("tail",
                         help  = "Command line tail",
@@ -181,7 +187,8 @@ def add_diff_to_viewer(desc, viewer):
 
 
 def make_viewer(options, base, modi, note, commit_msg):
-    viewer = diff_viewer.DiffViewer(base, modi, note, commit_msg)
+    viewer = diff_viewer.DiffViewer(base, modi, note, commit_msg,
+                                    options.arg_max_line_length)
 
     desc = diffmgr.create_diff_descriptor(options.arg_verbose,
                                           base, modi)

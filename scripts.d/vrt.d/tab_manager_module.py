@@ -14,11 +14,12 @@ from PyQt6.QtWidgets import (QApplication, QTabWidget, QMainWindow, QHBoxLayout,
                               QVBoxLayout, QWidget, QPushButton, QScrollArea, QSplitter,
                               QPlainTextEdit, QMenu, QMessageBox, QProgressDialog, QFileDialog)
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QAction, QFont, QKeySequence
+from PyQt6.QtGui import QAction, QFont, QKeySequence, QActionGroup
 
 from help_dialog import HelpDialog
 from search_dialogs import SearchDialog, SearchResultDialog
 from commit_msg_dialog import CommitMsgDialog
+import color_palettes
 
 
 class FileButton(QPushButton):
@@ -203,6 +204,25 @@ class DiffViewerTabWidget(QMainWindow):
         toggle_line_numbers_action.setShortcuts([QKeySequence("Alt+L"), QKeySequence("Meta+L")])
         toggle_line_numbers_action.triggered.connect(self.toggle_line_numbers)
         view_menu.addAction(toggle_line_numbers_action)
+        
+        # Palette menu
+        palette_menu = menubar.addMenu("Palette")
+        
+        # Create action group for exclusive palette selection
+        self.palette_action_group = QActionGroup(self)
+        self.palette_action_group.setExclusive(True)
+        
+        # Get current palette name
+        current_palette = color_palettes.get_current_palette().name
+        
+        # Add action for each palette
+        for palette_name in color_palettes.get_palette_names():
+            action = QAction(palette_name, self)
+            action.setCheckable(True)
+            action.setChecked(palette_name == current_palette)
+            action.triggered.connect(lambda checked, name=palette_name: self.switch_palette(name))
+            self.palette_action_group.addAction(action)
+            palette_menu.addAction(action)
         
         # Help menu
         help_menu = menubar.addMenu("Help")
@@ -899,6 +919,14 @@ class DiffViewerTabWidget(QMainWindow):
         """Show help dialog"""
         help_dialog = HelpDialog(self)
         help_dialog.exec()
+    
+    def switch_palette(self, palette_name):
+        """Switch to a different color palette and refresh all viewers"""
+        if color_palettes.set_current_palette(palette_name):
+            # Refresh all open diff viewers
+            viewers = self.get_all_viewers()
+            for viewer in viewers:
+                viewer.refresh_colors()
     
     def keyPressEvent(self, event):
         """Handle key press events"""

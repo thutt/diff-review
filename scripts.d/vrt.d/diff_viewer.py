@@ -16,17 +16,18 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                               QMessageBox, QDialog, QPushButton)
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import (QColor, QFont, QTextCursor, QAction, QFontMetrics,
-                         QTextCharFormat, QTextBlockFormat)
+                         QTextCharFormat, QTextBlockFormat, QPainter, QPen)
 
 from utils import extract_display_path
 from search_dialogs import SearchDialog, SearchResultDialog
 from ui_components import LineNumberArea, DiffMapWidget, SyncedPlainTextEdit
 from commit_msg_dialog import CommitMsgDialog
+from color_palettes import get_current_palette
 
 
 class DiffViewer(QMainWindow):
-    def __init__(self, base_file: str, modified_file: str, note_file: Optional[str] = None, 
-                 commit_msg_file: Optional[str] = None):
+    def __init__(self, base_file: str, modified_file: str, note_file: str, 
+                 commit_msg_file: str, max_line_length: int):
         if QApplication.instance() is None:
             self._app = QApplication(sys.argv)
         else:
@@ -38,6 +39,7 @@ class DiffViewer(QMainWindow):
         self.modified_file = modified_file
         self.note_file = note_file
         self.commit_msg_file = commit_msg_file
+        self.max_line_length = max_line_length
         self.note_count = 0
         
         self.base_noted_lines = set()
@@ -101,6 +103,7 @@ class DiffViewer(QMainWindow):
         self.base_text = SyncedPlainTextEdit()
         self.base_line_area.set_text_widget(self.base_text)
         self.base_text.set_line_number_area(self.base_line_area)
+        self.base_text.set_max_line_length(self.max_line_length)
         base_layout.addWidget(self.base_line_area)
         base_layout.addWidget(self.base_text)
         base_container = QWidget()
@@ -119,6 +122,7 @@ class DiffViewer(QMainWindow):
         self.modified_text = SyncedPlainTextEdit()
         self.modified_line_area.set_text_widget(self.modified_text)
         self.modified_text.set_line_number_area(self.modified_line_area)
+        self.modified_text.set_max_line_length(self.max_line_length)
         modified_layout.addWidget(self.modified_line_area)
         modified_layout.addWidget(self.modified_text)
         modified_container = QWidget()
@@ -265,21 +269,23 @@ class DiffViewer(QMainWindow):
         self.diff_map.set_change_regions(self.change_regions, len(self.base_display))
     
     def apply_highlighting(self):
+        palette = get_current_palette()
+        
         for i, (base_line, modi_line) in enumerate(zip(self.base_line_objects,
                                                         self.modified_line_objects)):
             if not base_line.show_line_number():
-                self.highlight_line(self.base_text, i, QColor("darkgray"))
+                self.highlight_line(self.base_text, i, palette.get_color('placeholder'))
             else:
                 self.apply_runs(self.base_text, i, base_line)
                 if self.line_has_changes(base_line):
-                    self.base_line_area.set_line_background(i, QColor(255, 238, 238))
+                    self.base_line_area.set_line_background(i, palette.get_color('base_changed_bg'))
             
             if not modi_line.show_line_number():
-                self.highlight_line(self.modified_text, i, QColor("darkgray"))
+                self.highlight_line(self.modified_text, i, palette.get_color('placeholder'))
             else:
                 self.apply_runs(self.modified_text, i, modi_line)
                 if self.line_has_changes(modi_line):
-                    self.modified_line_area.set_line_background(i, QColor(238, 255, 238))
+                    self.modified_line_area.set_line_background(i, palette.get_color('modi_changed_bg'))
     
     def highlight_line(self, text_widget, line_num, color):
         block = text_widget.document().findBlockByNumber(line_num)
@@ -297,6 +303,8 @@ class DiffViewer(QMainWindow):
         if not hasattr(line_obj, 'runs_'):
             return
         
+        palette = get_current_palette()
+        
         block = text_widget.document().findBlockByNumber(line_idx)
         if not block.isValid():
             return
@@ -312,11 +320,17 @@ class DiffViewer(QMainWindow):
             color = None
             
             if color_name == 'ADD':
-                color = QColor("lightgreen")
+                color = palette.get_color('add_run')
             elif color_name == 'DELETE':
-                color = QColor("red")
+                color = palette.get_color('delete_run')
             elif color_name == 'INTRALINE':
-                color = QColor("yellow")
+                color = palette.get_color('intraline_run')
+            elif color_name == 'NORMAL':
+                color = palette.get_color('normal_run')
+            elif color_name == 'UNKNOWN':
+                color = palette.get_color('unknown_run')
+            elif color_name == 'NOTPRESENT':
+                color = palette.get_color('notpresent_run')
             
             if color:
                 line_text = block.text()
@@ -713,6 +727,15 @@ class DiffViewer(QMainWindow):
     def resizeEvent(self, event):
         super().resizeEvent(event)
         self.update_diff_map_viewport()
+    
+    def refresh_colors(self):
+        """Refresh all colors based on the current palette"""
+        self.apply_highlighting()
+        self.diff_map.update()
+        self.base_text.viewport().update()
+        self.modified_text.viewport().update()
+        self.base_line_area.update()
+        self.modified_line_area.update()
     
     def run(self):
         self.show()
