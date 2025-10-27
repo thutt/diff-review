@@ -155,6 +155,7 @@ class DiffViewerTabWidget(QMainWindow):
         # Create tab widget
         self.tab_widget = QTabWidget()
         self.tab_widget.setTabsClosable(True)
+        self.tab_widget.setMovable(True)  # Allow tabs to be reordered by dragging
         self.tab_widget.tabCloseRequested.connect(self.close_tab)
         self.tab_widget.currentChanged.connect(self.on_tab_changed)
         
