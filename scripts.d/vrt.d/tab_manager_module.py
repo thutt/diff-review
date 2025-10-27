@@ -585,6 +585,10 @@ class DiffViewerTabWidget(QMainWindow):
         
         progress.setValue(total_items)
         progress.close()
+        
+        # Focus the first tab (commit message if present, otherwise first file)
+        if self.tab_widget.count() > 0:
+            self.tab_widget.setCurrentIndex(0)
     
     def on_file_clicked(self, file_class):
         """Handle file button click"""
