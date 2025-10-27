@@ -243,9 +243,17 @@ def rsync(options):
 def execute_vrt(options):
     parent_dir = os.path.abspath(os.path.join(os.path.dirname(sys.argv[0]),
                                               "..", ".."))
-    vrt = os.path.join(parent_dir, "view-review-tabs")
-    cmd = [ vrt,
-            "--dossier", options.new_dossier ]
+    vrt  = os.path.join(parent_dir, "view-review-tabs")
+    home = os.getenv("HOME", os.path.expanduser("~"))
+    resp = os.path.join(home, ".vrt.resp")
+
+    response_file = [ ]
+    if os.path.exists(resp):
+        response_file = [ "@%s" % (resp) ]
+    cmd = ([ vrt,
+             "--dossier", options.new_dossier ] +
+           response_file)
+
     os.execv(vrt, cmd)
 
 
