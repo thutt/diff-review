@@ -45,7 +45,7 @@ class HelpDialog(QDialog):
             <li><b>File List:</b> Click any file to open it in a new tab (or switch to existing tab)</li>
             <li><b>Open All Files:</b> Button at top opens all files at once</li>
             <li><b>Blue Mark:</b> Indicates which files have open tabs</li>
-            <li><b>Ctrl+B:</b> Toggle sidebar visibility</li>
+            <li><b>Ctrl+B / Cmd+B:</b> Toggle sidebar visibility</li>
             <li><b>Resizable:</b> Drag the divider to resize the sidebar</li>
         </ul>
         
@@ -82,16 +82,18 @@ class HelpDialog(QDialog):
         <ul>
             <li><b>Colorblind Friendly (Default):</b>
                 <ul>
-                    <li>Added lines/content: Sky blue</li>
-                    <li>Deleted lines/content: Dark orange</li>
-                    <li>Modified content: Bright yellow</li>
+                    <li>Added lines/content: Sky blue background / sky blue text</li>
+                    <li>Deleted lines/content: Light orange background / dark orange text</li>
+                    <li>Modified content: Bright yellow text</li>
+                    <li>Line number backgrounds: Light blue (modified), light orange (base changes)</li>
                 </ul>
             </li>
             <li><b>Standard:</b>
                 <ul>
-                    <li>Added lines/content: Light green</li>
-                    <li>Deleted lines/content: Light red/pink</li>
-                    <li>Modified content: Yellow</li>
+                    <li>Added lines/content: Light green background / light green text</li>
+                    <li>Deleted lines/content: Light pink background / red text</li>
+                    <li>Modified content: Yellow text</li>
+                    <li>Line number backgrounds: Light green (modified), light pink (base changes)</li>
                 </ul>
             </li>
             <li><b>Both palettes:</b>
@@ -116,27 +118,31 @@ class HelpDialog(QDialog):
         <ul>
             <li><b>Double-click:</b> Quick note - adds the clicked line to your notes file</li>
             <li><b>Right-click → Take Note:</b> Add selected text to notes file</li>
-            <li><b>Ctrl+N:</b> Take note of selected text (works in commit message view too)</li>
+            <li><b>Ctrl+N / Cmd+N:</b> Take note of selected text (works in commit message view too)</li>
             <li><b>Yellow background:</b> Lines where notes have been taken are highlighted</li>
             <li>All notes are appended to the notes file specified at startup</li>
         </ul>
         
         <h3>Diff Map</h3>
         <ul>
-            <li>Vertical bar on the right shows overview of all changes in the file</li>
-            <li><b>Red:</b> Deletions</li>
-            <li><b>Green:</b> Insertions</li>
-            <li><b>Yellow:</b> Modifications</li>
-            <li><b>Blue rectangle:</b> Current viewport position</li>
+            <li>Vertical bar shows overview of all changes in the file</li>
+            <li><b>Color scheme depends on selected palette:</b>
+                <ul>
+                    <li><b>Colorblind Friendly:</b> Steel blue (insertions), dark orange (deletions), light orange (modifications)</li>
+                    <li><b>Standard:</b> Green (insertions), red (deletions), salmon (modifications)</li>
+                </ul>
+            </li>
+            <li><b>Gray rectangle:</b> Current viewport position</li>
             <li><b>Click on diff map:</b> Jump to that location in the file</li>
-            <li><b>Alt+H:</b> Toggle diff map visibility</li>
+            <li><b>Alt+H / Cmd+H:</b> Toggle diff map visibility</li>
+            <li><b>Mouse wheel:</b> Scroll through the file</li>
         </ul>
         
         <h3>Line Numbers</h3>
         <ul>
             <li>Shows original line numbers from each file</li>
-            <li>Background colors indicate changed lines (pink for base, light green for modified)</li>
-            <li><b>Alt+L:</b> Toggle line number visibility</li>
+            <li>Background colors indicate changed lines (colors depend on selected palette)</li>
+            <li><b>Alt+L / Cmd+L:</b> Toggle line number visibility</li>
         </ul>
         
         <h3>Line Length Indicator</h3>
@@ -144,7 +150,7 @@ class HelpDialog(QDialog):
             <li>A vivid magenta vertical line marks the maximum allowed line length</li>
             <li>The line scrolls horizontally with the text content</li>
             <li>Any text to the right of this line exceeds the configured character limit</li>
-            <li>The position is set via the max_line_length parameter when creating the viewer</li>
+            <li>The position is set via the --max-line-length parameter at startup</li>
         </ul>
         
         <h3>Color Palette</h3>
@@ -154,6 +160,14 @@ class HelpDialog(QDialog):
             <li><b>Standard:</b> Uses traditional red/green color scheme</li>
             <li><b>Instant Update:</b> All open tabs update immediately when palette is changed</li>
             <li><b>Persistent:</b> Selected palette applies to all subsequently opened files</li>
+        </ul>
+        
+        <h3>Command Line Options</h3>
+        <ul>
+            <li><b>--display-n-lines:</b> Set number of lines visible in initial window (default: 60)</li>
+            <li><b>--display-n-chars:</b> Set number of characters per pane in initial window (default: 90)</li>
+            <li><b>--max-line-length:</b> Set maximum line length indicator position (default: 80)</li>
+            <li><b>--note-file:</b> Specify file for saving notes</li>
         </ul>
         
         <h3>Status Bar</h3>
