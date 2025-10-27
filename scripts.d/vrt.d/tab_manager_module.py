@@ -543,28 +543,46 @@ class DiffViewerTabWidget(QMainWindow):
         self.file_buttons.append(button)
     
     def open_all_files(self):
-        """Open all files in tabs"""
-        if not self.file_classes:
+        """Open all files in tabs, including commit message if present"""
+        # Calculate total items (files + commit message if present)
+        total_items = len(self.file_classes)
+        if self._commit_msg_file:
+            total_items += 1
+        
+        if total_items == 0:
             return
         
         # Create progress dialog
-        progress = QProgressDialog("Loading files...", "Cancel", 0, len(self.file_classes), self)
+        progress = QProgressDialog("Loading files...", "Cancel", 0, total_items, self)
         progress.setWindowTitle("Opening Files")
         progress.setWindowModality(Qt.WindowModality.WindowModal)
         progress.setMinimumDuration(500)  # Only show if takes more than 500ms
         
-        for i, file_class in enumerate(self.file_classes):
+        current_index = 0
+        
+        # Open commit message first if it exists
+        if self._commit_msg_file:
+            if not progress.wasCanceled():
+                progress.setValue(current_index)
+                progress.setLabelText("Loading Commit Message...")
+                QApplication.processEvents()  # Keep UI responsive
+                self.on_commit_msg_clicked()
+                current_index += 1
+        
+        # Open all file diffs
+        for file_class in self.file_classes:
             if progress.wasCanceled():
                 break
             
             # Update progress
-            progress.setValue(i)
+            progress.setValue(current_index)
             progress.setLabelText(f"Loading {file_class.button_label()}...")
             QApplication.processEvents()  # Keep UI responsive
             
             self.on_file_clicked(file_class)
+            current_index += 1
         
-        progress.setValue(len(self.file_classes))
+        progress.setValue(total_items)
         progress.close()
     
     def on_file_clicked(self, file_class):
