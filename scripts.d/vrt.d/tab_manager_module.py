@@ -14,7 +14,7 @@ from PyQt6.QtWidgets import (QApplication, QTabWidget, QMainWindow, QHBoxLayout,
                               QVBoxLayout, QWidget, QPushButton, QScrollArea, QSplitter,
                               QPlainTextEdit, QMenu, QMessageBox, QProgressDialog, QFileDialog)
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QAction, QFont, QKeySequence, QActionGroup
+from PyQt6.QtGui import QAction, QFont, QKeySequence, QActionGroup, QFontMetrics
 
 from help_dialog import HelpDialog
 from search_dialogs import SearchDialog, SearchResultDialog
@@ -71,13 +71,16 @@ class FileButton(QPushButton):
 class DiffViewerTabWidget(QMainWindow):
     """Main window containing tabs of DiffViewer instances with file sidebar"""
     
-    def __init__(self):
+    def __init__(self, display_lines: int, display_chars: int):
         if QApplication.instance() is None:
             self._app = QApplication(sys.argv)
         else:
             self._app = QApplication.instance()
         
         super().__init__()
+        
+        self.display_lines = display_lines
+        self.display_chars = display_chars
         
         self.setWindowTitle("Diff Viewer")
         
@@ -230,13 +233,19 @@ class DiffViewerTabWidget(QMainWindow):
         help_action.triggered.connect(self.show_help)
         help_menu.addAction(help_action)
         
-        # Default window size
-        # Measured: 1672px shows 73 chars per pane (146 total) with sidebar closed
-        # Target: 80 chars per pane (160 total)
-        # Scale: 1672 * (160/146) = ~1832px
-        total_width = int(1672 * (160.0 / 146.0))
+        # Calculate window size based on display parameters
+        # Use Courier 12 Bold to match the text widget font
+        text_font = QFont("Courier", 12, QFont.Weight.Bold)
+        fm = QFontMetrics(text_font)
+        char_width = fm.horizontalAdvance('0')
+        line_height = fm.height()
         
-        self.resize(total_width, 900)
+        # Width: (chars * 2 panes) + line numbers (90*2) + diff map (30) + scrollbar (20) + margins (40) + sidebar (250)
+        total_width = (self.display_chars * char_width * 2) + (90 * 2) + 30 + 20 + 40 + 250
+        # Height: lines + labels (40) + scrollbar (20) + status bar (30) + margins (20) + menubar (30)
+        total_height = (self.display_lines * line_height) + 40 + 20 + 30 + 20 + 30
+        
+        self.resize(total_width, total_height)
     
     def add_commit_msg(self, commit_msg_file):
         """

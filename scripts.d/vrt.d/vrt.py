@@ -2,6 +2,7 @@
 # All Rights Reserved.
 # Licensed under Gnu GPL V3.
 #
+#---------#---------#---------#---------#---------#---------#---------#---------#---------#---------#---------
 import argparse
 import json
 import os
@@ -106,6 +107,22 @@ Return Code:
                    required = False,
                    dest     = "arg_review_name")
 
+    o.add_argument("--display-n-lines",
+                   help     = ("Set number of lines of source to display."),
+                   action   = "store",
+                   type     = int,
+                   default  = 60,
+                   required = False,
+                   dest     = "arg_display_n_lines")
+
+    o.add_argument("--display-n-chars",
+                   help     = ("Set number of characters of source to display."),
+                   action   = "store",
+                   type     = int,
+                   default  = 90,
+                   required = False,
+                   dest     = "arg_display_n_chars")
+
     o.add_argument("--max-line-length",
                    help     = ("Set maximum line length of source code."),
                    action   = "store",
@@ -198,7 +215,9 @@ def make_viewer(options, base, modi, note, commit_msg):
 
 def generate(options, note):
     application = PyQt6.QtWidgets.QApplication(sys.argv)
-    tab_widget  = tab_manager_module.DiffViewerTabWidget()
+    tab_widget  = tab_manager_module.DiffViewerTabWidget(options.arg_display_n_lines,
+                                                         options.arg_display_n_chars)
+
 
     if options.dossier_['commit_msg'] is not None:
         tab_widget.add_commit_msg(options.dossier_['commit_msg'])
