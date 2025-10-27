@@ -71,7 +71,7 @@ class FileButton(QPushButton):
 class DiffViewerTabWidget(QMainWindow):
     """Main window containing tabs of DiffViewer instances with file sidebar"""
     
-    def __init__(self, display_lines: int, display_chars: int):
+    def __init__(self, display_lines: int, display_chars: int, show_diff_map: bool):
         if QApplication.instance() is None:
             self._app = QApplication(sys.argv)
         else:
@@ -96,7 +96,7 @@ class DiffViewerTabWidget(QMainWindow):
         self.search_result_dialogs = []  # Track search result dialogs
         
         # Global view state for all tabs
-        self.diff_map_visible = True  # Default state for diff map
+        self.diff_map_visible = show_diff_map  # Initial state for diff map
         self.line_numbers_visible = True  # Default state for line numbers
         self.global_note_file = None  # Global note file for all viewers
         

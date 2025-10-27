@@ -26,7 +26,7 @@ from commit_msg_dialog import CommitMsgDialog
 
 class DiffViewer(QMainWindow):
     def __init__(self, base_file: str, modified_file: str, note_file: str, 
-                 commit_msg_file: str, max_line_length: int):
+                 commit_msg_file: str, max_line_length: int, show_diff_map: bool):
         if QApplication.instance() is None:
             self._app = QApplication(sys.argv)
         else:
@@ -39,6 +39,7 @@ class DiffViewer(QMainWindow):
         self.note_file = note_file
         self.commit_msg_file = commit_msg_file
         self.max_line_length = max_line_length
+        self.show_diff_map = show_diff_map
         self.note_count = 0
         
         self.base_noted_lines = set()
@@ -111,8 +112,10 @@ class DiffViewer(QMainWindow):
         
         self.diff_map = DiffMapWidget()
         self.diff_map.clicked.connect(self.on_diff_map_click)
-        self.diff_map_visible = True
+        self.diff_map_visible = self.show_diff_map
         content_layout.addWidget(self.diff_map)
+        if not self.show_diff_map:
+            self.diff_map.hide()
         
         modified_layout = QHBoxLayout()
         modified_layout.setSpacing(0)
@@ -170,14 +173,10 @@ class DiffViewer(QMainWindow):
         
         self.diff_map.wheelEvent = self.on_diff_map_wheel
         
-        font_metrics = QFont("Courier", 12, QFont.Weight.Bold)
-        fm = QFontMetrics(font_metrics)
-        char_width = fm.horizontalAdvance('0')
-        line_height = fm.height()
-        
-        total_width = (160 * char_width) + (90 * 2) + 30 + 20 + 40
-        total_height = (50 * line_height) + 40 + 20 + 30 + 20
-        self.resize(total_width, total_height)
+        # Create font and set it on text widgets
+        text_font = QFont("Courier", 12, QFont.Weight.Bold)
+        self.base_text.setFont(text_font)
+        self.modified_text.setFont(text_font)
     
     def add_line(self, base, modi):
         base_text = base.line_.rstrip('\n') if hasattr(base, 'line_') else ''
