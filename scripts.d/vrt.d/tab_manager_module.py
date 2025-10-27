@@ -266,7 +266,7 @@ class DiffViewerTabWidget(QMainWindow):
         self._commit_msg_file = commit_msg_file
         
         # Create a special button for commit message
-        self.commit_msg_button = QPushButton("📝 Commit Message")
+        self.commit_msg_button = QPushButton("Commit Message")
         self.commit_msg_button.clicked.connect(self.on_commit_msg_clicked)
         self.commit_msg_button.setStyleSheet("""
             QPushButton {
@@ -274,7 +274,7 @@ class DiffViewerTabWidget(QMainWindow):
                 padding: 8px 8px 8px 20px;
                 border: none;
                 background-color: #fff4e6;
-                border-left: 4px solid #ff9800;
+                border-left: 4px solid transparent;
                 font-weight: bold;
                 color: #e65100;
             }
@@ -831,7 +831,7 @@ class DiffViewerTabWidget(QMainWindow):
                         padding: 8px 8px 8px 20px;
                         border: none;
                         background-color: #fff4e6;
-                        border-left: 4px solid #ff9800;
+                        border-left: 4px solid transparent;
                         font-weight: bold;
                         color: #e65100;
                     }
