@@ -139,6 +139,14 @@ Return Code:
                    required = False,
                    dest     = "arg_hide_diff_map")
 
+    o.add_argument("--hide-line-numbers",
+                   help     = ("When selected, the line numbers will be hidden "
+                               "by on startup."),
+                   action   = "store_true",
+                   default  = False,
+                   required = False,
+                   dest     = "arg_hide_line_numbers")
+
     o.add_argument("--dossier",
                    help     = ("Json file containing change information"),
                    action   = "store",
@@ -215,11 +223,16 @@ def show_diff_map(options):
     return not options.arg_hide_diff_map
 
 
+def show_line_numbers(options):
+    return not options.arg_hide_line_numbers
+
+
 def make_viewer(options, base, modi, note, commit_msg):
 
     viewer = diff_viewer.DiffViewer(base, modi, note, commit_msg,
                                     options.arg_max_line_length,
-                                    show_diff_map(options))
+                                    show_diff_map(options),
+                                    show_line_numbers(options))
 
     desc = diffmgr.create_diff_descriptor(options.arg_verbose,
                                           base, modi)
@@ -231,7 +244,8 @@ def generate(options, note):
     application = PyQt6.QtWidgets.QApplication(sys.argv)
     tab_widget  = tab_manager_module.DiffViewerTabWidget(options.arg_display_n_lines,
                                                          options.arg_display_n_chars,
-                                                         show_diff_map(options))
+                                                         show_diff_map(options),
+                                                         show_line_numbers(options))
 
 
     if options.dossier_['commit_msg'] is not None:

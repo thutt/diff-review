@@ -26,7 +26,8 @@ from commit_msg_dialog import CommitMsgDialog
 
 class DiffViewer(QMainWindow):
     def __init__(self, base_file: str, modified_file: str, note_file: str, 
-                 commit_msg_file: str, max_line_length: int, show_diff_map: bool):
+                 commit_msg_file: str, max_line_length: int, show_diff_map: bool,
+                 show_line_numbers: bool):
         if QApplication.instance() is None:
             self._app = QApplication(sys.argv)
         else:
@@ -40,6 +41,7 @@ class DiffViewer(QMainWindow):
         self.commit_msg_file = commit_msg_file
         self.max_line_length = max_line_length
         self.show_diff_map = show_diff_map
+        self.show_line_numbers = show_line_numbers
         self.note_count = 0
         
         self.base_noted_lines = set()
@@ -131,7 +133,10 @@ class DiffViewer(QMainWindow):
         modified_container.setLayout(modified_layout)
         content_layout.addWidget(modified_container, 1)
         
-        self.line_numbers_visible = True
+        self.line_numbers_visible = self.show_line_numbers
+        if not self.show_line_numbers:
+            self.base_line_area.hide()
+            self.modified_line_area.hide()
         
         self.v_scrollbar = QScrollBar(Qt.Orientation.Vertical)
         self.v_scrollbar.valueChanged.connect(self.on_v_scroll)
