@@ -1069,6 +1069,10 @@ class DiffViewerTabWidget(QMainWindow):
         v_scroll_pos = viewer.base_text.verticalScrollBar().value()
         h_scroll_pos = viewer.base_text.horizontalScrollBar().value()
         
+        # Clear line number area backgrounds (O(1) operation)
+        viewer.base_line_area.line_backgrounds.clear()
+        viewer.modified_line_area.line_backgrounds.clear()
+        
         # Clear existing data
         viewer.base_display = []
         viewer.modified_display = []
