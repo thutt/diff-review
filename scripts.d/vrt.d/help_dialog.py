@@ -145,6 +145,18 @@ class HelpDialog(QDialog):
             <li><b>Alt+L / Cmd+L:</b> Toggle line number visibility</li>
         </ul>
         
+        <h3>Auto-reload Files</h3>
+        <ul>
+            <li><b>Automatic monitoring:</b> Watches source files for changes on disk</li>
+            <li><b>Visual indicator:</b> Sidebar button changes to change-indicator color when files are modified</li>
+            <li><b>Auto-reload (default ON):</b> Automatically reloads files 500ms after they stop changing</li>
+            <li><b>Manual reload:</b> Press F5 to reload current file at any time</li>
+            <li><b>Preserves position:</b> Scroll position is maintained after reload</li>
+            <li><b>Toggle preference:</b> View → Auto-reload Files to turn automatic reloading on/off</li>
+            <li><b>Status notification:</b> Brief "File reloaded" message appears in status bar</li>
+            <li><b>When OFF:</b> Files are still monitored, sidebar shows change indicator, but reload only happens with F5</li>
+        </ul>
+        
         <h3>Line Length Indicator</h3>
         <ul>
             <li>A vivid magenta vertical line marks the maximum allowed line length</li>

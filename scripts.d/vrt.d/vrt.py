@@ -2,7 +2,6 @@
 # All Rights Reserved.
 # Licensed under Gnu GPL V3.
 #
-#---------#---------#---------#---------#---------#---------#---------#---------#---------#---------#---------
 import argparse
 import json
 import os
@@ -131,21 +130,53 @@ Return Code:
                    required = False,
                    dest     = "arg_max_line_length")
 
-    o.add_argument("--hide-diff-map",
-                   help     = ("When selected, the diff map will be hidden "
-                               "by on startup."),
+    o.add_argument("--auto-reload",
+                   help     = ("Auto reload changed files into viewer.  "
+                               "See Help menu for details of auto-reload.  "
+                               "This faciliates self-review by not having to "
+                               "quit & reload the diff viewer when changes "
+                               "are made."),
                    action   = "store_true",
-                   default  = False,
+                   default  = True,
                    required = False,
-                   dest     = "arg_hide_diff_map")
+                   dest     = "arg_auto_reload")
 
-    o.add_argument("--hide-line-numbers",
-                   help     = ("When selected, the line numbers will be hidden "
-                               "by on startup."),
-                   action   = "store_true",
-                   default  = False,
+    o.add_argument("--no-auto-reload",
+                   help     = ("Do not auto reload changed files into viewer.  "
+                               "See Help menu for details of auto-reload."),
+                   action   = "store_false",
                    required = False,
-                   dest     = "arg_hide_line_numbers")
+                   dest     = "arg_auto_reload")
+
+    o.add_argument("--diff-map",
+                   help     = ("When selected, the diff map will be shown "
+                               "on startup."),
+                   action   = "store_true",
+                   default  = True,
+                   required = False,
+                   dest     = "arg_diff_map")
+
+    o.add_argument("--no-diff-map",
+                   help     = ("When selected, the diff map will be hidden "
+                               "on startup."),
+                   action   = "store_false",
+                   required = False,
+                   dest     = "arg_diff_map")
+
+    o.add_argument("--line-numbers",
+                   help     = ("When selected, the line numbers will be shown "
+                               "on startup."),
+                   action   = "store_true",
+                   default  = True,
+                   required = False,
+                   dest     = "arg_line_numbers")
+
+    o.add_argument("--no-line-numbers",
+                   help     = ("When selected, the line numbers will be hidden "
+                               "on startup."),
+                   action   = "store_false",
+                   required = False,
+                   dest     = "arg_line_numbers")
 
     o.add_argument("--dossier",
                    help     = ("Json file containing change information"),
@@ -220,11 +251,15 @@ def add_diff_to_viewer(desc, viewer):
 
 
 def show_diff_map(options):
-    return not options.arg_hide_diff_map
+    return options.arg_diff_map
+
+
+def auto_reload_enabled(options):
+    return options.arg_auto_reload
 
 
 def show_line_numbers(options):
-    return not options.arg_hide_line_numbers
+    return options.arg_line_numbers
 
 
 def make_viewer(options, base, modi, note, commit_msg):
@@ -245,7 +280,8 @@ def generate(options, note):
     tab_widget  = tab_manager_module.DiffViewerTabWidget(options.arg_display_n_lines,
                                                          options.arg_display_n_chars,
                                                          show_diff_map(options),
-                                                         show_line_numbers(options))
+                                                         show_line_numbers(options),
+                                                         auto_reload_enabled(options))
 
 
     if options.dossier_['commit_msg'] is not None:
