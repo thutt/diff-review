@@ -201,6 +201,23 @@ def find_rsync():
     return rsync
         
 
+# Fixup dossier to reference new location.
+def rewrite_dossier(new_dossier_path):
+    assert(os.path.exists(new_dossier_path)) # After rsync
+    with open(new_dossier_path, "r") as fp:
+        dossier = json.load(fp)
+
+    dossier["root"]       = os.path.dirname(new_dossier_path)
+    dossier["base"]       = os.path.join(os.path.dirname(new_dossier_path),
+                                         "base.d")
+    dossier["modi"]       = os.path.join(os.path.dirname(new_dossier_path),
+                                         "modi.d")
+    dossier["commit_msg"] = os.path.join(os.path.dirname(new_dossier_path),
+                                         "commit_msg.text")
+    with open(new_dossier_path, "w") as fp:
+        json.dump(dossier, fp)
+
+
 def rsync(options):
     home       = os.getenv("HOME", os.path.expanduser("~"))
     user       = os.getenv("USER", None)
@@ -240,6 +257,7 @@ def rsync(options):
                                        options.arg_fqdn,
                                        rel_dest, review_name, "dossier.json")
 
+    rewrite_dossier(options.new_dossier)
 
 def execute_vrt(options):
     parent_dir = os.path.abspath(os.path.join(os.path.dirname(sys.argv[0]),
