@@ -237,7 +237,8 @@ def rsync(options):
         fatal("%s failed." % (' '.join(cmd)))
 
     options.new_dossier = os.path.join(dst, review_dir,
-                                       review_name, "dossier.json")
+                                       options.arg_fqdn,
+                                       rel_dest, review_name, "dossier.json")
 
 
 def execute_vrt(options):
