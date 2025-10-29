@@ -440,8 +440,8 @@ class DiffViewer(QMainWindow):
         with open(self.note_file, 'a') as f:
             prefix = '(base): ' if side == 'base' else '(modi): '
             clean_filename = extract_display_path(filename)
-            f.write(f"{prefix}{clean_filename}\n")
-            f.write(f"  {line_nums[line_idx]}: {display_lines[line_idx]}\n\n")
+            f.write(f"> {prefix}{clean_filename}\n")
+            f.write(f">   {line_nums[line_idx]}: {display_lines[line_idx]}\n>\n\n\n")
         
         self.mark_noted_line(side, line_nums[line_idx])
         self.note_count += 1
@@ -488,13 +488,13 @@ class DiffViewer(QMainWindow):
         with open(self.note_file, 'a') as f:
             prefix = '(base): ' if side == 'base' else '(modi): '
             clean_filename = extract_display_path(filename)
-            f.write(f"{prefix}{clean_filename}\n")
+            f.write(f"> {prefix}{clean_filename}\n")
             
             for i in range(start_block_num, end_block_num + 1):
                 if i < len(line_nums) and line_nums[i] is not None:
-                    f.write(f"  {line_nums[i]}: {display_lines[i]}\n")
+                    f.write(f">   {line_nums[i]}: {display_lines[i]}\n")
                     self.mark_noted_line(side, line_nums[i])
-            f.write('\n')
+            f.write('>\n\n\n')
         
         self.note_count += 1
         self.update_status()

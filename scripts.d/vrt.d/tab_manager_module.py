@@ -455,10 +455,10 @@ class DiffViewerTabWidget(QMainWindow):
         
         try:
             with open(note_file, 'a') as f:
-                f.write("(commit_msg): Commit Message\n")
+                f.write("> (commit_msg): Commit Message\n")
                 for line in selected_text.split('\n'):
-                    f.write(f"  {line}\n")
-                f.write('\n')
+                    f.write(f">   {line}\n")
+                f.write('>\n\n\n')
             
             # Apply permanent yellow background to noted text
             from PyQt6.QtGui import QTextCharFormat, QColor
