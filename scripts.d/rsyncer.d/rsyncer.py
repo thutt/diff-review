@@ -230,7 +230,6 @@ def rsync(options):
     assert(options.arg_dossier[0] == '/') # Absolute path
     src_dir     = os.path.dirname(options.arg_dossier)
     review_name = os.path.basename(os.path.dirname(options.arg_dossier))
-    review_dir  = os.path.dirname(src_dir)
     rel_dest    = os.path.dirname(src_dir)[1:]
     src         = "%s@%s:%s" % (user, options.arg_fqdn, src_dir)
     dst         = os.path.join(review_dir, options.arg_fqdn, rel_dest)
@@ -259,6 +258,7 @@ def rsync(options):
 
     rewrite_dossier(options.new_dossier)
 
+
 def execute_vrt(options):
     parent_dir = os.path.abspath(os.path.join(os.path.dirname(sys.argv[0]),
                                               "..", ".."))
@@ -273,6 +273,7 @@ def execute_vrt(options):
              "--dossier", options.new_dossier ] +
            response_file)
 
+    print("EXEC: %s" % (' '.join(cmd)))
     os.execv(vrt, cmd)
 
 
