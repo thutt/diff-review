@@ -37,10 +37,10 @@ class ColorPalette:
 
 # Standard color palette - uses traditional red/green
 STANDARD_PALETTE = ColorPalette('Standard', {
-    # Line backgrounds
+    # Line backgrounds - more visible
     'placeholder': QColor("darkgray"),
-    'base_changed_bg': QColor(255, 238, 238),      # Light red/pink
-    'modi_changed_bg': QColor(238, 255, 238),      # Light green
+    'base_changed_bg': QColor(255, 220, 220),      # Darker pink/red for better visibility
+    'modi_changed_bg': QColor(220, 255, 220),      # Darker green for better visibility
     
     # Run colors (for text highlighting)
     'add_run': QColor("lightgreen"),
@@ -70,10 +70,10 @@ STANDARD_PALETTE = ColorPalette('Standard', {
 # Colorblind-friendly palette - avoids red/green combinations
 # Uses blue/orange which are distinguishable for most types of colorblindness
 COLORBLIND_PALETTE = ColorPalette('Colorblind Friendly', {
-    # Line backgrounds
+    # Line backgrounds - more visible
     'placeholder': QColor("darkgray"),
-    'base_changed_bg': QColor(255, 235, 205),      # Light orange/peach
-    'modi_changed_bg': QColor(230, 240, 255),      # Light blue
+    'base_changed_bg': QColor(255, 220, 180),      # Darker orange/peach for better visibility
+    'modi_changed_bg': QColor(200, 220, 255),      # Darker blue for better visibility
     
     # Run colors (for text highlighting)
     'add_run': QColor(135, 206, 250),              # Sky blue (instead of green)

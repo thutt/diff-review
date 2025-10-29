@@ -280,16 +280,22 @@ class DiffViewer(QMainWindow):
             if not base_line.show_line_number():
                 self.highlight_line(self.base_text, i, palette.get_color('placeholder'))
             else:
-                self.apply_runs(self.base_text, i, base_line)
+                # Apply full-line background if line has changes
                 if self.line_has_changes(base_line):
+                    self.highlight_line(self.base_text, i, palette.get_color('base_changed_bg'))
                     self.base_line_area.set_line_background(i, palette.get_color('base_changed_bg'))
+                # Then apply character-level run colors on top
+                self.apply_runs(self.base_text, i, base_line)
             
             if not modi_line.show_line_number():
                 self.highlight_line(self.modified_text, i, palette.get_color('placeholder'))
             else:
-                self.apply_runs(self.modified_text, i, modi_line)
+                # Apply full-line background if line has changes
                 if self.line_has_changes(modi_line):
+                    self.highlight_line(self.modified_text, i, palette.get_color('modi_changed_bg'))
                     self.modified_line_area.set_line_background(i, palette.get_color('modi_changed_bg'))
+                # Then apply character-level run colors on top
+                self.apply_runs(self.modified_text, i, modi_line)
     
     def highlight_line(self, text_widget, line_num, color):
         block = text_widget.document().findBlockByNumber(line_num)

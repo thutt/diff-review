@@ -137,7 +137,7 @@ class Line(object):
                 run = TextRunIntraline(idx, jdx - idx)
                 pass
             elif run_add:
-                run = TextRunAdded(idx, jdx - idx, False)
+                run = TextRunAdded(idx, jdx - idx, True)
             else:
                 run = TextRunUnknown(idx, jdx - idx)
             self.runs_.append(run)
