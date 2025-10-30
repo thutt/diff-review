@@ -29,19 +29,37 @@ class FileButton(QPushButton):
     def __init__(self, file_class, parent=None):
         super().__init__(parent)
         self.file_class = file_class
-        self.is_active = False
+        self.is_open = False       # Tab exists for this file
+        self.is_active = False     # This tab is currently selected
         self.setText(file_class.button_label())
         self.setCheckable(False)
         self.setStyleSheet(self._get_stylesheet())
     
-    def set_active(self, active):
-        """Set whether this button represents the active tab"""
-        self.is_active = active
+    def set_state(self, is_open, is_active):
+        """Set whether this button's tab is open and/or currently active"""
+        self.is_open = is_open
+        self.is_active = is_active
         self.setStyleSheet(self._get_stylesheet())
     
     def _get_stylesheet(self):
-        """Generate stylesheet based on active state"""
+        """Generate stylesheet based on open/active state"""
         if self.is_active:
+            # Currently selected tab - bright highlight with thick border
+            return """
+                QPushButton {
+                    text-align: left;
+                    padding: 8px 8px 8px 20px;
+                    border: none;
+                    background-color: #d6e8f5;
+                    border-left: 6px solid #0066cc;
+                    font-weight: bold;
+                }
+                QPushButton:hover {
+                    background-color: #c0d8ec;
+                }
+            """
+        elif self.is_open:
+            # Tab is open but not selected - subtle highlight
             return """
                 QPushButton {
                     text-align: left;
@@ -55,6 +73,7 @@ class FileButton(QPushButton):
                 }
             """
         else:
+            # Tab is closed - no highlight
             return """
                 QPushButton {
                     text-align: left;
@@ -1121,26 +1140,60 @@ class DiffViewerTabWidget(QMainWindow):
             viewer.init_scrollbars()
     
     def update_button_states(self):
-        """Update all button states based on open tabs"""
+        """Update all button states based on open tabs and currently selected tab"""
+        current_tab_index = self.tab_widget.currentIndex()
+        
         # Update file buttons
         for button in self.file_buttons:
             file_class = button.file_class
-            has_open_tab = file_class in self.file_to_tab_index
-            if has_open_tab:
+            
+            # Check if tab is open
+            is_open = file_class in self.file_to_tab_index
+            if is_open:
                 tab_index = self.file_to_tab_index[file_class]
                 if not (0 <= tab_index < self.tab_widget.count()):
-                    has_open_tab = False
-            button.set_active(has_open_tab)
+                    is_open = False
+            
+            # Check if this tab is currently selected
+            is_active = False
+            if is_open:
+                tab_index = self.file_to_tab_index[file_class]
+                is_active = (tab_index == current_tab_index)
+            
+            button.set_state(is_open, is_active)
         
-        # Update commit message button
+        # Update commit message button if it exists
         if self.commit_msg_button:
-            has_commit_msg_tab = 'commit_msg' in self.file_to_tab_index
-            if has_commit_msg_tab:
+            is_open = 'commit_msg' in self.file_to_tab_index
+            if is_open:
                 tab_index = self.file_to_tab_index['commit_msg']
                 if not (0 <= tab_index < self.tab_widget.count()):
-                    has_commit_msg_tab = False
+                    is_open = False
             
-            if has_commit_msg_tab:
+            is_active = False
+            if is_open:
+                tab_index = self.file_to_tab_index['commit_msg']
+                is_active = (tab_index == current_tab_index)
+            
+            # Update commit message button style based on state
+            if is_active:
+                # Currently selected - bright highlight
+                self.commit_msg_button.setStyleSheet("""
+                    QPushButton {
+                        text-align: left;
+                        padding: 8px 8px 8px 20px;
+                        border: none;
+                        background-color: #ffd699;
+                        border-left: 6px solid #ff9800;
+                        font-weight: bold;
+                        color: #e65100;
+                    }
+                    QPushButton:hover {
+                        background-color: #ffcc80;
+                    }
+                """)
+            elif is_open:
+                # Open but not selected - subtle highlight
                 self.commit_msg_button.setStyleSheet("""
                     QPushButton {
                         text-align: left;
@@ -1156,6 +1209,7 @@ class DiffViewerTabWidget(QMainWindow):
                     }
                 """)
             else:
+                # Closed - no highlight
                 self.commit_msg_button.setStyleSheet("""
                     QPushButton {
                         text-align: left;
@@ -1355,24 +1409,51 @@ class DiffViewerTabWidget(QMainWindow):
         for button in self.file_buttons:
             if button.file_class == file_class:
                 if changed:
-                    # Set button color to indicate change
+                    # File has changed - use special "changed" styling
+                    import color_palettes
                     palette = color_palettes.get_current_palette()
                     color = palette.get_color('base_changed_bg')
-                    button.setStyleSheet(f"""
-                        QPushButton {{
-                            text-align: left;
-                            padding: 8px 8px 8px 20px;
-                            border: none;
-                            background-color: {color.name()};
-                            border-left: 4px solid #0066cc;
-                        }}
-                        QPushButton:hover {{
-                            background-color: {color.darker(110).name()};
-                        }}
-                    """)
+                    
+                    # Check if this is the currently active tab
+                    tab_index = self.file_to_tab_index.get(file_class, -1)
+                    is_active = (tab_index == self.tab_widget.currentIndex())
+                    
+                    if is_active:
+                        # Changed AND active - bright changed color with thick border
+                        button.setStyleSheet(f"""
+                            QPushButton {{
+                                text-align: left;
+                                padding: 8px 8px 8px 20px;
+                                border: none;
+                                background-color: {color.name()};
+                                border-left: 6px solid #ff6600;
+                                font-weight: bold;
+                            }}
+                            QPushButton:hover {{
+                                background-color: {color.darker(110).name()};
+                            }}
+                        """)
+                    else:
+                        # Changed but not active - changed color with normal border
+                        button.setStyleSheet(f"""
+                            QPushButton {{
+                                text-align: left;
+                                padding: 8px 8px 8px 20px;
+                                border: none;
+                                background-color: {color.name()};
+                                border-left: 4px solid #ff6600;
+                            }}
+                            QPushButton:hover {{
+                                background-color: {color.darker(110).name()};
+                            }}
+                        """)
                 else:
-                    # Reset to normal active state
-                    button.set_active(True)
+                    # File no longer changed - restore normal state
+                    # Determine if tab is open and active
+                    tab_index = self.file_to_tab_index.get(file_class, -1)
+                    is_open = (0 <= tab_index < self.tab_widget.count())
+                    is_active = is_open and (tab_index == self.tab_widget.currentIndex())
+                    button.set_state(is_open, is_active)
                 break
     
     def reload_viewer(self, viewer):
