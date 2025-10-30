@@ -50,12 +50,14 @@ class FileButton(QPushButton):
                     text-align: left;
                     padding: 8px 8px 8px 20px;
                     border: none;
-                    background-color: #d6e8f5;
+                    background-color: #e0e0e0;
                     border-left: 6px solid #0066cc;
                     font-weight: bold;
+                    color: #000000;
                 }
                 QPushButton:hover {
-                    background-color: #c0d8ec;
+                    background-color: #d0d0d0;
+                    color: #000000;
                 }
             """
         elif self.is_open:
@@ -67,9 +69,11 @@ class FileButton(QPushButton):
                     border: none;
                     background-color: #f0f0f0;
                     border-left: 4px solid #0066cc;
+                    color: #000000;
                 }
                 QPushButton:hover {
                     background-color: #e0e0e0;
+                    color: #000000;
                 }
             """
         else:
@@ -79,11 +83,13 @@ class FileButton(QPushButton):
                     text-align: left;
                     padding: 8px 8px 8px 20px;
                     border: none;
-                    background-color: white;
+                    background-color: #f8f8f8;
                     border-left: 4px solid transparent;
+                    color: #000000;
                 }
                 QPushButton:hover {
                     background-color: #f0f0f0;
+                    color: #000000;
                 }
             """
 
