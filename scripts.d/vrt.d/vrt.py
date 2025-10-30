@@ -110,7 +110,7 @@ Return Code:
                    help     = ("Set number of lines of source to display."),
                    action   = "store",
                    type     = int,
-                   default  = 60,
+                   default  = 40,
                    required = False,
                    dest     = "arg_display_n_lines")
 
@@ -118,7 +118,7 @@ Return Code:
                    help     = ("Set number of characters of source to display."),
                    action   = "store",
                    type     = int,
-                   default  = 90,
+                   default  = 80,
                    required = False,
                    dest     = "arg_display_n_chars")
 
