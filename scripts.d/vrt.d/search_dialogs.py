@@ -323,26 +323,38 @@ class SearchResultDialog(QDialog):
         self.setWindowTitle(f"Search Results for: {self.search_text}")
         self.perform_search()
     
-    def perform_search(self):
-        """Perform the search and populate results"""
-        self.result_list.clear()
-        results = []
+    def find_all_matches_in_line(self, line_text):
+        """Find all match positions in a line. Returns list of (start_pos, match_text) tuples."""
+        matches = []
         
-        # Determine comparison function based on case sensitivity and regex
         if self.use_regex:
             try:
                 flags = 0 if self.case_sensitive else re.IGNORECASE
                 pattern = re.compile(self.search_text, flags)
-                matches = lambda line: pattern.search(line) is not None
-            except re.error as e:
-                self.info_label.setText(f"Invalid regular expression: {e}")
-                return
+                for match in pattern.finditer(line_text):
+                    matches.append((match.start(), match.group()))
+            except re.error:
+                pass
         else:
-            if self.case_sensitive:
-                matches = lambda line: self.search_text in line
-            else:
-                search_lower = self.search_text.lower()
-                matches = lambda line: search_lower in line.lower()
+            search_text = self.search_text if self.case_sensitive else self.search_text.lower()
+            search_in = line_text if self.case_sensitive else line_text.lower()
+            
+            pos = 0
+            while True:
+                found_pos = search_in.find(search_text, pos)
+                if found_pos < 0:
+                    break
+                # Get the actual matched text (with original case)
+                matched_text = line_text[found_pos:found_pos + len(self.search_text)]
+                matches.append((found_pos, matched_text))
+                pos = found_pos + len(self.search_text)
+        
+        return matches
+    
+    def perform_search(self):
+        """Perform the search and populate results - creates one result per match"""
+        self.result_list.clear()
+        results = []
         
         if self.search_all_tabs:
             # Search all tabs
@@ -356,9 +368,11 @@ class SearchResultDialog(QDialog):
                         text = tab_widget.toPlainText()
                         lines = text.split('\n')
                         for line_num, line_text in enumerate(lines):
-                            if matches(line_text):
+                            # Find ALL matches in this line
+                            matches = self.find_all_matches_in_line(line_text)
+                            for char_pos, matched_text in matches:
                                 results.append((tab_index, tab_title, 'commit_msg', 
-                                              line_num + 1, line_num, line_text))
+                                              line_num + 1, line_num, line_text, char_pos))
                 # Otherwise it's a diff viewer
                 elif hasattr(tab_widget, 'diff_viewer'):
                     viewer = tab_widget.diff_viewer
@@ -367,20 +381,23 @@ class SearchResultDialog(QDialog):
                     if self.search_base:
                         for i, (line_text, line_num) in enumerate(zip(viewer.base_display, 
                                                                        viewer.base_line_nums)):
-                            if line_num is not None and matches(line_text):
-                                results.append((tab_index, tab_title, 'base', 
-                                              line_num, i, line_text))
+                            if line_num is not None:
+                                # Find ALL matches in this line
+                                matches = self.find_all_matches_in_line(line_text)
+                                for char_pos, matched_text in matches:
+                                    results.append((tab_index, tab_title, 'base', 
+                                                  line_num, i, line_text, char_pos))
                     
                     # Search in modified
                     if self.search_modi:
                         for i, (line_text, line_num) in enumerate(zip(viewer.modified_display, 
                                                                        viewer.modified_line_nums)):
-                            if line_num is not None and matches(line_text):
-                                results.append((tab_index, tab_title, 'modified', 
-                                              line_num, i, line_text))
-                    
-                    # Don't search viewer's commit message file when searching all tabs
-                    # The commit message tab is separate and will be searched in its own iteration
+                            if line_num is not None:
+                                # Find ALL matches in this line
+                                matches = self.find_all_matches_in_line(line_text)
+                                for char_pos, matched_text in matches:
+                                    results.append((tab_index, tab_title, 'modified', 
+                                                  line_num, i, line_text, char_pos))
         else:
             # Search current tab only
             current_widget = self.parent_tab_widget.tab_widget.currentWidget()
@@ -389,14 +406,15 @@ class SearchResultDialog(QDialog):
             
             # Check if it's a commit message tab
             if hasattr(current_widget, 'is_commit_msg') and current_widget.is_commit_msg:
-                # Only search commit message if this IS the commit message tab
                 if self.search_commit_msg:
                     text = current_widget.toPlainText()
                     lines = text.split('\n')
                     for line_num, line_text in enumerate(lines):
-                        if matches(line_text):
+                        # Find ALL matches in this line
+                        matches = self.find_all_matches_in_line(line_text)
+                        for char_pos, matched_text in matches:
                             results.append((tab_index, tab_title, 'commit_msg', 
-                                          line_num + 1, line_num, line_text))
+                                          line_num + 1, line_num, line_text, char_pos))
             # Otherwise it's a diff viewer
             elif hasattr(current_widget, 'diff_viewer'):
                 viewer = current_widget.diff_viewer
@@ -405,19 +423,23 @@ class SearchResultDialog(QDialog):
                 if self.search_base:
                     for i, (line_text, line_num) in enumerate(zip(viewer.base_display, 
                                                                    viewer.base_line_nums)):
-                        if line_num is not None and matches(line_text):
-                            results.append((tab_index, tab_title, 'base', 
-                                          line_num, i, line_text))
+                        if line_num is not None:
+                            # Find ALL matches in this line
+                            matches = self.find_all_matches_in_line(line_text)
+                            for char_pos, matched_text in matches:
+                                results.append((tab_index, tab_title, 'base', 
+                                              line_num, i, line_text, char_pos))
                 
                 # Search in modified
                 if self.search_modi:
                     for i, (line_text, line_num) in enumerate(zip(viewer.modified_display, 
                                                                    viewer.modified_line_nums)):
-                        if line_num is not None and matches(line_text):
-                            results.append((tab_index, tab_title, 'modified', 
-                                          line_num, i, line_text))
-                
-                # Don't search commit message when searching current tab only
+                        if line_num is not None:
+                            # Find ALL matches in this line
+                            matches = self.find_all_matches_in_line(line_text)
+                            for char_pos, matched_text in matches:
+                                results.append((tab_index, tab_title, 'modified', 
+                                              line_num, i, line_text, char_pos))
         
         # Update info label
         tab_info = " across all tabs" if self.search_all_tabs else " in current tab"
@@ -425,16 +447,16 @@ class SearchResultDialog(QDialog):
         self.info_label.setText(f"Found {len(results)} matches{tab_info}{regex_info}:")
         
         # Populate results list
-        for tab_index, tab_title, source_type, line_num, line_idx, line_text in results:
-            # Determine color based on source type - using darker colors for better contrast
+        for tab_index, tab_title, source_type, line_num, line_idx, line_text, char_pos in results:
+            # Determine color based on source type
             if source_type == 'base':
-                color = '#2a70c9'  # Darker blue - better contrast
+                color = '#2a70c9'  # Darker blue
             elif source_type == 'modified':
-                color = '#4e9a06'  # Darker green - better contrast
+                color = '#4e9a06'  # Darker green
             else:  # commit_msg
-                color = '#8b4513'  # Saddle brown - better contrast
+                color = '#8b4513'  # Saddle brown
             
-            # Format: [tab_title:line_num] or just [tab_title:line_num] without source type labels
+            # Format location prefix
             if self.search_all_tabs:
                 location_prefix = f'<span style="color: {color};">[{tab_title}:{line_num}]</span>'
             else:
@@ -442,114 +464,34 @@ class SearchResultDialog(QDialog):
             
             item = QListWidgetItem()
             
-            # Build the display with colored location prefix
-            # The line content will have highlighting applied separately
+            # Build display with highlighted search match
             prefix = f'{location_prefix}: '
-            line_content = line_text
             
-            # Escape prefix HTML is already done above
+            # Highlight the specific match at char_pos
+            before = line_text[:char_pos]
+            match = line_text[char_pos:char_pos + len(self.search_text)]
+            after = line_text[char_pos + len(self.search_text):]
             
-            # Find and highlight all matches in the line content
-            highlighted = False
-            if self.use_regex:
-                try:
-                    flags = 0 if self.case_sensitive else re.IGNORECASE
-                    pattern = re.compile(self.search_text, flags)
-                    
-                    # Find all matches
-                    html_parts = []
-                    last_end = 0
-                    for match in pattern.finditer(line_content):
-                        # Add text before match
-                        before = line_content[last_end:match.start()]
-                        before_escaped = before.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;').replace(' ', '&nbsp;')
-                        html_parts.append(before_escaped)
-                        
-                        # Add highlighted match
-                        matched = line_content[match.start():match.end()]
-                        matched_escaped = matched.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;').replace(' ', '&nbsp;')
-                        html_parts.append(f'<span style="background-color: #ffff00; color: #000000; font-weight: bold;">{matched_escaped}</span>')
-                        
-                        last_end = match.end()
-                    
-                    # Add remaining text after last match
-                    if last_end < len(line_content):
-                        after = line_content[last_end:]
-                        after_escaped = after.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;').replace(' ', '&nbsp;')
-                        html_parts.append(after_escaped)
-                    
-                    if html_parts:
-                        html_text = prefix + ''.join(html_parts)
-                        item.setData(Qt.ItemDataRole.DisplayRole, html_text)
-                        highlighted = True
-                except:
-                    pass  # If highlighting fails, just show plain text
+            # Escape HTML
+            before_escaped = before.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;').replace(' ', '&nbsp;')
+            match_escaped = match.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;').replace(' ', '&nbsp;')
+            after_escaped = after.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;').replace(' ', '&nbsp;')
             
-            if not highlighted and not self.use_regex:
-                # Simple string search - find all occurrences
-                if self.case_sensitive:
-                    search_for = self.search_text
-                else:
-                    search_for = self.search_text.lower()
-                    line_content_lower = line_content.lower()
-                
-                html_parts = []
-                last_end = 0
-                pos = 0
-                
-                while True:
-                    if self.case_sensitive:
-                        pos = line_content.find(search_for, last_end)
-                    else:
-                        pos = line_content_lower.find(search_for, last_end)
-                    
-                    if pos < 0:
-                        break
-                    
-                    # Add text before match
-                    before = line_content[last_end:pos]
-                    before_escaped = before.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;').replace(' ', '&nbsp;')
-                    html_parts.append(before_escaped)
-                    
-                    # Add highlighted match
-                    matched = line_content[pos:pos + len(self.search_text)]
-                    matched_escaped = matched.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;').replace(' ', '&nbsp;')
-                    html_parts.append(f'<span style="background-color: #ffff00; color: #000000; font-weight: bold;">{matched_escaped}</span>')
-                    
-                    last_end = pos + len(self.search_text)
-                
-                # Add remaining text after last match
-                if last_end < len(line_content):
-                    after = line_content[last_end:]
-                    after_escaped = after.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;').replace(' ', '&nbsp;')
-                    html_parts.append(after_escaped)
-                
-                if html_parts:
-                    html_text = prefix + ''.join(html_parts)
-                    item.setData(Qt.ItemDataRole.DisplayRole, html_text)
-                    highlighted = True
+            html_text = (prefix + before_escaped + 
+                        f'<span style="background-color: #ffff00; color: #000000; font-weight: bold;">{match_escaped}</span>' +
+                        after_escaped)
             
-            # If no highlighting was applied, set plain text as fallback
-            if not highlighted:
-                # Build plain text version
-                if self.search_all_tabs:
-                    plain_text = f"[{tab_title}:{line_num}]: {line_text}"
-                else:
-                    plain_text = f"[{tab_title}:{line_num}]: {line_text}"
-                item.setText(plain_text)
+            item.setData(Qt.ItemDataRole.DisplayRole, html_text)
             
-            # Store the metadata for navigation
+            # Store metadata including char_pos for navigation
             item.setData(Qt.ItemDataRole.UserRole, 
-                        (tab_index, source_type, line_num, line_idx))
+                        (tab_index, source_type, line_num, line_idx, char_pos))
             self.result_list.addItem(item)
         
-        # Update button states after populating results
+        # Update button states
         if self.result_list.count() == 0:
             self.prev_button.setEnabled(False)
             self.next_button.setEnabled(False)
-        else:
-            # Will be updated by on_selection_changed when first item is selected
-            pass
     
     def on_selection_changed(self):
         """Enable select button when an item is selected"""
@@ -584,15 +526,15 @@ class SearchResultDialog(QDialog):
         selected_items = self.result_list.selectedItems()
         if selected_items:
             item = selected_items[0]
-            tab_index, source_type, line_num, line_idx = item.data(Qt.ItemDataRole.UserRole)
+            tab_index, source_type, line_num, line_idx, char_pos = item.data(Qt.ItemDataRole.UserRole)
             
             # Switch to the appropriate tab
             self.parent_tab_widget.tab_widget.setCurrentIndex(tab_index)
             
-            # Navigate within that tab
+            # Navigate within that tab, passing char_pos
             if source_type == 'commit_msg':
-                self.parent_tab_widget.select_commit_msg_result(line_idx)
+                self.parent_tab_widget.select_commit_msg_result(line_idx, self.search_text, char_pos)
             else:
-                self.parent_tab_widget.select_search_result(source_type, line_idx)
+                self.parent_tab_widget.select_search_result(source_type, line_idx, self.search_text, char_pos)
             
             # Don't close the dialog - let user select more results or manually close

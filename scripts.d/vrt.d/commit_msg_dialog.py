@@ -11,7 +11,8 @@ This module contains the dialog for viewing commit messages.
 from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QPlainTextEdit, QPushButton, 
                               QMenu, QMessageBox)
 from PyQt6.QtCore import Qt, QObject
-from PyQt6.QtGui import QFont, QFontMetrics, QAction, QTextCursor
+from PyQt6.QtGui import (QFont, QFontMetrics, QAction, QTextCursor, 
+                         QTextCharFormat, QColor, QTextDocument)
 
 from search_dialogs import SearchDialog, SearchResultDialog
 
@@ -131,30 +132,158 @@ class CommitMsgDialog(QDialog):
         selected_text = selected_text.replace('\u2029', '\n')
         
         with open(self.parent_viewer.note_file, 'a') as f:
-            f.write("(desc): Commit Message\n")
+            f.write("> (desc): Commit Message\n")
             for line in selected_text.split('\n'):
-                f.write(f"  {line}\n")
-            f.write('\n')
+                f.write(f">   {line}\n")
+            f.write('>\n\n\n')
         
         self.parent_viewer.note_count += 1
         self.parent_viewer.update_status()
     
-    def select_line(self, line_idx):
-        """Select and highlight a specific line in the commit message"""
+    def highlight_all_matches(self, search_text, highlight_color):
+        """
+        Find and highlight ALL occurrences of search_text in the commit message.
+        Uses case-insensitive search.
+        
+        Args:
+            search_text: The text to search for (case-insensitive)
+            highlight_color: QColor to use for highlighting all matches
+        """
+        from PyQt6.QtGui import QTextCursor
+        
+        # Get all text
+        all_text = self.commit_msg_text_area.toPlainText()
+        search_lower = search_text.lower()
+        all_text_lower = all_text.lower()
+        
+        # Find all positions manually
+        pos = 0
+        while True:
+            pos = all_text_lower.find(search_lower, pos)
+            if pos < 0:
+                break
+            
+            # Create cursor at this position and select the match
+            cursor = self.commit_msg_text_area.textCursor()
+            cursor.setPosition(pos)
+            cursor.setPosition(pos + len(search_text), QTextCursor.MoveMode.KeepAnchor)
+            
+            # Apply highlight format
+            fmt = QTextCharFormat()
+            fmt.setBackground(highlight_color)
+            cursor.mergeCharFormat(fmt)
+            
+            # Move to next potential match
+            pos += len(search_text)
+    
+    def select_line(self, line_idx, search_text=None):
+        """Select and highlight a specific line in the commit message with two-tier highlighting
+        
+        Two-tier highlighting system:
+        - ALL matches in the document highlighted with subtle color
+        - CURRENT match (on the specified line) highlighted with bright color
+        - User can see all matches while navigating through results
+        """
+        import color_palettes
+        
+        # Clear any previous search highlights first
+        self.clear_search_highlights()
+        
         cursor = self.commit_msg_text_area.textCursor()
         cursor.movePosition(QTextCursor.MoveOperation.Start)
         
+        # Move to the target line
         for _ in range(line_idx):
             cursor.movePosition(QTextCursor.MoveOperation.Down)
         
-        cursor.movePosition(QTextCursor.MoveOperation.StartOfBlock)
-        cursor.movePosition(QTextCursor.MoveOperation.EndOfBlock, QTextCursor.MoveMode.KeepAnchor)
+        # If search_text is provided, implement two-tier highlighting
+        if search_text:
+            palette = color_palettes.get_current_palette()
+            
+            # TIER 1: Highlight ALL matches in the entire document with subtle color
+            all_color = palette.get_color('search_highlight_all')
+            self.highlight_all_matches(search_text, all_color)
+            
+            # TIER 2: Find and highlight the match on THIS line with bright color
+            cursor.movePosition(QTextCursor.MoveOperation.StartOfBlock)
+            block = cursor.block()
+            line_text = block.text()
+            
+            # Find the search text in the current line (case-insensitive)
+            search_lower = search_text.lower()
+            line_lower = line_text.lower()
+            pos = line_lower.find(search_lower)
+            
+            if pos >= 0:
+                current_color = palette.get_color('search_highlight_current')
+                
+                # Position cursor at start of found text
+                cursor.setPosition(block.position() + pos)
+                # Select the found text
+                cursor.setPosition(block.position() + pos + len(search_text), 
+                                 QTextCursor.MoveMode.KeepAnchor)
+                
+                # Apply bright highlight to current match
+                fmt = QTextCharFormat()
+                fmt.setBackground(current_color)
+                cursor.mergeCharFormat(fmt)
+                
+                # Position cursor at match (without selection to avoid blue overlay)
+                cursor.setPosition(block.position() + pos)
+                self.commit_msg_text_area.setTextCursor(cursor)
+            else:
+                # If not found on this line, just select the whole line as fallback
+                cursor.movePosition(QTextCursor.MoveOperation.StartOfBlock)
+                cursor.movePosition(QTextCursor.MoveOperation.EndOfBlock, 
+                                  QTextCursor.MoveMode.KeepAnchor)
+                self.commit_msg_text_area.setTextCursor(cursor)
+        else:
+            # No search text, select the whole line
+            cursor.movePosition(QTextCursor.MoveOperation.StartOfBlock)
+            cursor.movePosition(QTextCursor.MoveOperation.EndOfBlock, 
+                              QTextCursor.MoveMode.KeepAnchor)
+            self.commit_msg_text_area.setTextCursor(cursor)
         
-        self.commit_msg_text_area.setTextCursor(cursor)
         self.commit_msg_text_area.centerCursor()
         
         self.raise_()
         self.activateWindow()
+    
+    def clear_search_highlights(self):
+        """Clear all search highlights from the commit message text area"""
+        import color_palettes
+        
+        palette = color_palettes.get_current_palette()
+        search_all_color = palette.get_color('search_highlight_all')
+        search_current_color = palette.get_color('search_highlight_current')
+        
+        # Iterate through the document and remove search highlight backgrounds
+        cursor = QTextCursor(self.commit_msg_text_area.document())
+        cursor.movePosition(QTextCursor.MoveOperation.Start)
+        
+        # Save current position
+        saved_cursor = self.commit_msg_text_area.textCursor()
+        current_pos = saved_cursor.position()
+        
+        # Go through each character and check/clear search highlighting
+        while not cursor.atEnd():
+            cursor.movePosition(QTextCursor.MoveOperation.NextCharacter, QTextCursor.MoveMode.KeepAnchor)
+            fmt = cursor.charFormat()
+            bg = fmt.background().color()
+            
+            # If this character has a search highlight color, clear it
+            if bg == search_all_color or bg == search_current_color:
+                # Create format that only sets background to transparent
+                clear_fmt = QTextCharFormat()
+                clear_fmt.setBackground(QColor(0, 0, 0, 0))  # Transparent
+                cursor.mergeCharFormat(clear_fmt)
+            
+            # Move to next position
+            cursor.movePosition(QTextCursor.MoveOperation.NextCharacter)
+        
+        # Restore original cursor position
+        saved_cursor.setPosition(current_pos)
+        self.commit_msg_text_area.setTextCursor(saved_cursor)
 
 
 class CommitMsgEventFilter(QObject):

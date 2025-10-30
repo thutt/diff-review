@@ -14,7 +14,8 @@ from PyQt6.QtWidgets import (QApplication, QTabWidget, QMainWindow, QHBoxLayout,
                               QVBoxLayout, QWidget, QPushButton, QScrollArea, QSplitter,
                               QPlainTextEdit, QMenu, QMessageBox, QProgressDialog, QFileDialog)
 from PyQt6.QtCore import Qt, QFileSystemWatcher, QTimer
-from PyQt6.QtGui import QAction, QFont, QKeySequence, QActionGroup, QFontMetrics
+from PyQt6.QtGui import (QAction, QFont, QKeySequence, QActionGroup, QFontMetrics, 
+                         QColor, QTextDocument)
 
 from help_dialog import HelpDialog
 from search_dialogs import SearchDialog, SearchResultDialog
@@ -728,26 +729,339 @@ class DiffViewerTabWidget(QMainWindow):
         
         menu.exec(text_widget.mapToGlobal(pos))
     
-    def select_search_result(self, side, line_idx):
-        """Navigate to a search result in the current viewer"""
-        viewer = self.get_current_viewer()
-        if viewer:
-            viewer.center_on_line(line_idx)
-            if side == 'base':
-                viewer.base_text.setFocus()
-            else:
-                viewer.modified_text.setFocus()
+    def highlight_all_matches_in_widget(self, text_widget, search_text, highlight_color):
+        """
+        Find and highlight ALL occurrences of search_text in the text widget.
+        Uses case-insensitive search.
+        
+        Args:
+            text_widget: The QPlainTextEdit to search in
+            search_text: The text to search for (case-insensitive)
+            highlight_color: QColor to use for highlighting all matches
+        """
+        from PyQt6.QtGui import QTextCharFormat, QTextCursor
+        
+        # Get all text
+        all_text = text_widget.toPlainText()
+        search_lower = search_text.lower()
+        all_text_lower = all_text.lower()
+        
+        # Find all positions manually
+        pos = 0
+        while True:
+            pos = all_text_lower.find(search_lower, pos)
+            if pos < 0:
+                break
+            
+            # Create cursor at this position and select the match
+            cursor = text_widget.textCursor()
+            cursor.setPosition(pos)
+            cursor.setPosition(pos + len(search_text), QTextCursor.MoveMode.KeepAnchor)
+            
+            # Apply highlight format
+            fmt = QTextCharFormat()
+            fmt.setBackground(highlight_color)
+            cursor.mergeCharFormat(fmt)
+            
+            # Move to next potential match
+            pos += len(search_text)
     
-    def select_commit_msg_result(self, line_idx):
-        """Navigate to a line in the commit message dialog"""
-        # Check if viewer has commit message, show it
+    def select_search_result(self, side, line_idx, search_text=None, char_pos=None):
+        """Navigate to a search result and use two-tier highlighting
+        
+        Two-tier highlighting system:
+        - ALL matches in both panes highlighted with subtle color (done once)
+        - CURRENT match highlighted with bright color (changed on each navigation)
+        - User can see all matches while navigating through results
+        
+        Args:
+            side: 'base' or 'modified'
+            line_idx: Line index in the display
+            search_text: Text to search for
+            char_pos: Character position of the specific match to highlight bright (optional)
+        """
         viewer = self.get_current_viewer()
-        if viewer and viewer.commit_msg_file:
-            self.show_commit_msg_dialog(viewer.commit_msg_file, viewer)
+        if not viewer:
+            return
+        
+        viewer.center_on_line(line_idx)
+        
+        # Select the appropriate text widget
+        text_widget = viewer.base_text if side == 'base' else viewer.modified_text
+        text_widget.setFocus()
+        
+        # If search_text is provided, implement two-tier highlighting
+        if search_text:
+            from PyQt6.QtGui import QTextCharFormat, QTextCursor
+            import color_palettes
+            
+            palette = color_palettes.get_current_palette()
+            all_color = palette.get_color('search_highlight_all')
+            current_color = palette.get_color('search_highlight_current')
+            
+            # Check if we need to do initial highlighting (search_text changed)
+            if not hasattr(viewer, '_last_search_text') or viewer._last_search_text != search_text:
+                # First time or new search - clear old highlights and highlight all matches
+                self.clear_search_highlights(viewer.base_text)
+                self.clear_search_highlights(viewer.modified_text)
+                
+                # TIER 1: Highlight ALL matches in BOTH panes with subtle color (ONCE)
+                self.highlight_all_matches_in_widget(viewer.base_text, search_text, all_color)
+                self.highlight_all_matches_in_widget(viewer.modified_text, search_text, all_color)
+                
+                viewer._last_search_text = search_text
+                viewer._last_bright_pos = None  # Track last bright position
+            else:
+                # Same search - just need to change bright highlight
+                # Change previous bright match back to subtle (if exists)
+                if hasattr(viewer, '_last_bright_pos') and viewer._last_bright_pos:
+                    last_widget, last_line_idx, last_char_pos, last_len = viewer._last_bright_pos
+                    block = last_widget.document().findBlockByNumber(last_line_idx)
+                    if block.isValid():
+                        cursor = last_widget.textCursor()
+                        cursor.setPosition(block.position() + last_char_pos)
+                        cursor.setPosition(block.position() + last_char_pos + last_len,
+                                         QTextCursor.MoveMode.KeepAnchor)
+                        fmt = QTextCharFormat()
+                        fmt.setBackground(all_color)  # Back to subtle
+                        cursor.mergeCharFormat(fmt)
+            
+            # TIER 2: Find and highlight the CURRENT match with bright color
+            block = text_widget.document().findBlockByNumber(line_idx)
+            if block.isValid():
+                line_text = block.text()
+                
+                # Use provided char_pos if available, otherwise find first match
+                if char_pos is not None:
+                    pos = char_pos
+                else:
+                    search_lower = search_text.lower()
+                    line_lower = line_text.lower()
+                    pos = line_lower.find(search_lower)
+                
+                if pos >= 0 and pos < len(line_text):
+                    # Apply bright highlight to current match
+                    cursor = text_widget.textCursor()
+                    cursor.setPosition(block.position() + pos)
+                    cursor.setPosition(block.position() + pos + len(search_text), 
+                                     QTextCursor.MoveMode.KeepAnchor)
+                    
+                    fmt = QTextCharFormat()
+                    fmt.setBackground(current_color)
+                    cursor.mergeCharFormat(fmt)
+                    
+                    # Remember this position for next time
+                    viewer._last_bright_pos = (text_widget, line_idx, pos, len(search_text))
+                    
+                    # Position cursor at current match (without selection to avoid blue overlay)
+                    cursor.setPosition(block.position() + pos)
+                    text_widget.setTextCursor(cursor)
+                    text_widget.ensureCursorVisible()
+    
+    def clear_search_highlights(self, text_widget):
+        """Clear all search highlights from a text widget by removing search highlight colors"""
+        from PyQt6.QtGui import QTextCharFormat, QTextCursor
+        import color_palettes
+        
+        palette = color_palettes.get_current_palette()
+        search_all_color = palette.get_color('search_highlight_all')
+        search_current_color = palette.get_color('search_highlight_current')
+        
+        # Iterate through the document and remove search highlight backgrounds
+        cursor = QTextCursor(text_widget.document())
+        cursor.movePosition(QTextCursor.MoveOperation.Start)
+        
+        # Save current position
+        saved_cursor = text_widget.textCursor()
+        current_pos = saved_cursor.position()
+        
+        # Go through each character and check/clear search highlighting
+        while not cursor.atEnd():
+            cursor.movePosition(QTextCursor.MoveOperation.NextCharacter, QTextCursor.MoveMode.KeepAnchor)
+            fmt = cursor.charFormat()
+            bg = fmt.background().color()
+            
+            # If this character has a search highlight color, clear it
+            if bg == search_all_color or bg == search_current_color:
+                # Create format that only sets background to transparent
+                clear_fmt = QTextCharFormat()
+                clear_fmt.setBackground(QColor(0, 0, 0, 0))  # Transparent
+                cursor.mergeCharFormat(clear_fmt)
+            
+            # Move to next position
+            cursor.movePosition(QTextCursor.MoveOperation.NextCharacter)
+        
+        # Restore original cursor position
+        saved_cursor.setPosition(current_pos)
+        text_widget.setTextCursor(saved_cursor)
+    
+    def select_commit_msg_result(self, line_idx, search_text=None, char_pos=None):
+        """Navigate to a line in the commit message tab and highlight search text
+        
+        Args:
+            line_idx: Line index in the commit message
+            search_text: Text to search for
+            char_pos: Character position of the specific match to highlight bright (optional)
+        """
+        # Find the commit message tab
+        commit_msg_widget = None
+        commit_msg_tab_index = None
+        
+        if 'commit_msg' in self.file_to_tab_index:
+            commit_msg_tab_index = self.file_to_tab_index['commit_msg']
+            if 0 <= commit_msg_tab_index < self.tab_widget.count():
+                widget = self.tab_widget.widget(commit_msg_tab_index)
+                if hasattr(widget, 'is_commit_msg') and widget.is_commit_msg:
+                    commit_msg_widget = widget
+        
+        if not commit_msg_widget:
+            # No commit message tab found
+            return
+        
+        # Switch to the commit message tab
+        self.tab_widget.setCurrentIndex(commit_msg_tab_index)
         
         # Navigate to the line
-        if self.commit_msg_dialog and self.commit_msg_dialog.isVisible():
-            self.commit_msg_dialog.select_line(line_idx)
+        cursor = commit_msg_widget.textCursor()
+        cursor.movePosition(cursor.MoveOperation.Start)
+        for _ in range(line_idx):
+            cursor.movePosition(cursor.MoveOperation.Down)
+        
+        # If search_text provided, do two-tier highlighting
+        if search_text:
+            from PyQt6.QtGui import QTextCharFormat, QTextCursor
+            import color_palettes
+            
+            palette = color_palettes.get_current_palette()
+            all_color = palette.get_color('search_highlight_all')
+            current_color = palette.get_color('search_highlight_current')
+            
+            # Check if we need to do initial highlighting (search_text changed)
+            if not hasattr(commit_msg_widget, '_last_search_text') or commit_msg_widget._last_search_text != search_text:
+                # First time or new search - clear old and highlight all matches
+                self.clear_commit_msg_tab_highlights(commit_msg_widget)
+                
+                # TIER 1: Highlight ALL matches (ONCE)
+                self.highlight_all_matches_in_commit_msg_tab(commit_msg_widget, search_text, all_color)
+                
+                commit_msg_widget._last_search_text = search_text
+                commit_msg_widget._last_bright_pos = None
+            else:
+                # Same search - just change bright highlight
+                # Change previous bright match back to subtle
+                if hasattr(commit_msg_widget, '_last_bright_pos') and commit_msg_widget._last_bright_pos:
+                    last_line_idx, last_char_pos, last_len = commit_msg_widget._last_bright_pos
+                    block = commit_msg_widget.document().findBlockByNumber(last_line_idx)
+                    if block.isValid():
+                        cursor = commit_msg_widget.textCursor()
+                        cursor.setPosition(block.position() + last_char_pos)
+                        cursor.setPosition(block.position() + last_char_pos + last_len,
+                                         QTextCursor.MoveMode.KeepAnchor)
+                        fmt = QTextCharFormat()
+                        fmt.setBackground(all_color)  # Back to subtle
+                        cursor.mergeCharFormat(fmt)
+            
+            # TIER 2: Highlight current match
+            cursor.movePosition(cursor.MoveOperation.StartOfBlock)
+            block = cursor.block()
+            line_text = block.text()
+            
+            # Use provided char_pos if available, otherwise find first match
+            if char_pos is not None:
+                pos = char_pos
+            else:
+                search_lower = search_text.lower()
+                line_lower = line_text.lower()
+                pos = line_lower.find(search_lower)
+            
+            if pos >= 0 and pos < len(line_text):
+                cursor.setPosition(block.position() + pos)
+                cursor.setPosition(block.position() + pos + len(search_text),
+                                 cursor.MoveMode.KeepAnchor)
+                
+                fmt = QTextCharFormat()
+                fmt.setBackground(current_color)
+                cursor.mergeCharFormat(fmt)
+                
+                # Remember this position
+                commit_msg_widget._last_bright_pos = (line_idx, pos, len(search_text))
+                
+                cursor.setPosition(block.position() + pos)
+                commit_msg_widget.setTextCursor(cursor)
+            else:
+                # Select whole line if not found
+                cursor.movePosition(cursor.MoveOperation.StartOfBlock)
+                cursor.movePosition(cursor.MoveOperation.EndOfBlock,
+                                  cursor.MoveMode.KeepAnchor)
+                commit_msg_widget.setTextCursor(cursor)
+        else:
+            # No search text, just select the line
+            cursor.movePosition(cursor.MoveOperation.StartOfBlock)
+            cursor.movePosition(cursor.MoveOperation.EndOfBlock,
+                              cursor.MoveMode.KeepAnchor)
+            commit_msg_widget.setTextCursor(cursor)
+        
+        commit_msg_widget.centerCursor()
+        commit_msg_widget.setFocus()
+    
+    def highlight_all_matches_in_commit_msg_tab(self, text_widget, search_text, highlight_color):
+        """Highlight all matches in commit message tab"""
+        from PyQt6.QtGui import QTextCharFormat, QTextCursor
+        
+        # Get all text
+        all_text = text_widget.toPlainText()
+        search_lower = search_text.lower()
+        all_text_lower = all_text.lower()
+        
+        # Find all positions manually
+        pos = 0
+        while True:
+            pos = all_text_lower.find(search_lower, pos)
+            if pos < 0:
+                break
+            
+            # Create cursor at this position and select the match
+            cursor = text_widget.textCursor()
+            cursor.setPosition(pos)
+            cursor.setPosition(pos + len(search_text), QTextCursor.MoveMode.KeepAnchor)
+            
+            # Apply highlight format
+            fmt = QTextCharFormat()
+            fmt.setBackground(highlight_color)
+            cursor.mergeCharFormat(fmt)
+            
+            # Move to next potential match
+            pos += len(search_text)
+    
+    def clear_commit_msg_tab_highlights(self, text_widget):
+        """Clear search highlights from commit message tab"""
+        from PyQt6.QtGui import QTextCharFormat, QTextCursor
+        import color_palettes
+        
+        palette = color_palettes.get_current_palette()
+        search_all_color = palette.get_color('search_highlight_all')
+        search_current_color = palette.get_color('search_highlight_current')
+        
+        cursor = QTextCursor(text_widget.document())
+        cursor.movePosition(QTextCursor.MoveOperation.Start)
+        
+        saved_cursor = text_widget.textCursor()
+        current_pos = saved_cursor.position()
+        
+        while not cursor.atEnd():
+            cursor.movePosition(QTextCursor.MoveOperation.NextCharacter, QTextCursor.MoveMode.KeepAnchor)
+            fmt = cursor.charFormat()
+            bg = fmt.background().color()
+            
+            if bg == search_all_color or bg == search_current_color:
+                clear_fmt = QTextCharFormat()
+                clear_fmt.setBackground(QColor(0, 0, 0, 0))
+                cursor.mergeCharFormat(clear_fmt)
+            
+            cursor.movePosition(QTextCursor.MoveOperation.NextCharacter)
+        
+        saved_cursor.setPosition(current_pos)
+        text_widget.setTextCursor(saved_cursor)
     
     def show_commit_msg_dialog(self, commit_msg_file, viewer):
         """Show the commit message dialog for a viewer"""

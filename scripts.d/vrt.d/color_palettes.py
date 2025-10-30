@@ -50,6 +50,10 @@ STANDARD_PALETTE = ColorPalette('Standard', {
     'unknown_run': QColor("orange"),               # Orange for unknown
     'notpresent_run': None,                        # No color for not present
     
+    # Search highlighting - two-tier system
+    'search_highlight_all': QColor(255, 255, 150),     # Subtle yellow for all matches
+    'search_highlight_current': QColor(255, 255, 0),   # Bright yellow for current match
+    
     # Line length indicator
     'max_line_length': QColor(255, 0, 255),        # Magenta
     
@@ -82,6 +86,10 @@ COLORBLIND_PALETTE = ColorPalette('Colorblind Friendly', {
     'normal_run': None,                            # No color for normal text
     'unknown_run': QColor(255, 165, 0),            # Orange for unknown
     'notpresent_run': None,                        # No color for not present
+    
+    # Search highlighting - two-tier system for colorblind palette
+    'search_highlight_all': QColor(255, 180, 255),     # Subtle magenta for all matches
+    'search_highlight_current': QColor(255, 0, 255),   # Bright magenta for current match
     
     # Line length indicator
     'max_line_length': QColor(255, 0, 255),        # Magenta (still vivid)
