@@ -15,7 +15,7 @@ from PyQt6.QtWidgets import (QApplication, QTabWidget, QMainWindow, QHBoxLayout,
                               QPlainTextEdit, QMenu, QMessageBox, QProgressDialog, QFileDialog)
 from PyQt6.QtCore import Qt, QFileSystemWatcher, QTimer
 from PyQt6.QtGui import (QAction, QFont, QKeySequence, QActionGroup, QFontMetrics, 
-                         QColor, QTextDocument)
+                         QColor, QTextDocument, QShortcut)
 
 from help_dialog import HelpDialog
 from search_dialogs import SearchDialog, SearchResultDialog
@@ -286,6 +286,13 @@ class DiffViewerTabWidget(QMainWindow):
         total_width = (self.display_chars * char_width * 2) + (90 * 2) + 30 + 20 + 40 + 250
         # Height: lines + labels (40) + scrollbar (20) + status bar (30) + margins (20) + menubar (30)
         total_height = (self.display_lines * line_height) + 40 + 20 + 30 + 20 + 30
+        
+        # Tab navigation shortcuts
+        next_tab_shortcut = QShortcut(QKeySequence("Shift+Tab"), self)
+        next_tab_shortcut.activated.connect(self.next_tab)
+        
+        prev_tab_shortcut = QShortcut(QKeySequence("Ctrl+Shift+Tab"), self)
+        prev_tab_shortcut.activated.connect(self.prev_tab)
         
         self.resize(total_width, total_height)
     
@@ -1311,6 +1318,20 @@ class DiffViewerTabWidget(QMainWindow):
         current_index = self.tab_widget.currentIndex()
         if current_index >= 0:
             self.close_tab(current_index)
+    
+    def next_tab(self):
+        """Navigate to next tab (left-to-right, wraps around)"""
+        if self.tab_widget.count() > 0:
+            current = self.tab_widget.currentIndex()
+            next_index = (current + 1) % self.tab_widget.count()
+            self.tab_widget.setCurrentIndex(next_index)
+    
+    def prev_tab(self):
+        """Navigate to previous tab (right-to-left, wraps around)"""
+        if self.tab_widget.count() > 0:
+            current = self.tab_widget.currentIndex()
+            prev_index = (current - 1) % self.tab_widget.count()
+            self.tab_widget.setCurrentIndex(prev_index)
     
     def toggle_sidebar(self):
         """Toggle sidebar visibility"""
