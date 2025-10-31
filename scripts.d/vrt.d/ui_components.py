@@ -11,6 +11,7 @@ This module contains the custom Qt widgets used in the diff viewer:
 - DiffMapWidget: Mini-map showing overview of changes
 - SyncedPlainTextEdit: Text editor with synchronized scrolling
 """
+import sys
 from PyQt6.QtWidgets import QWidget, QPlainTextEdit
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QColor, QPainter, QFont, QTextCursor, QFontMetrics, QPen
@@ -396,7 +397,11 @@ class SyncedPlainTextEdit(QPlainTextEdit):
                     pen.setWidth(3)
                     painter.setPen(pen)
                     painter.setBrush(Qt.BrushStyle.NoBrush)
-                    painter.drawRect(1, y_pos + 1, self.viewport().width() - 3, block_height - 3)
+                    # Mac needs top moved UP 2 more pixels
+                    if sys.platform == 'darwin':
+                        painter.drawRect(1, y_pos - 2, self.viewport().width() - 3, block_height + 1)
+                    else:
+                        painter.drawRect(1, y_pos + 1, self.viewport().width() - 3, block_height - 3)
         
         # Draw region highlight
         if self.region_highlight_start >= 0 and self.region_highlight_end > self.region_highlight_start:
