@@ -334,6 +334,12 @@ class DiffViewer(QMainWindow):
                 color = palette.get_color('delete_run')
             elif color_name == 'INTRALINE':
                 color = palette.get_color('intraline_run')
+            elif color_name == 'WS':
+                color = palette.get_color('WS')
+            elif color_name == 'TAB':
+                color = palette.get_color('TAB')
+            elif color_name == 'TRAILINGWS':
+                color = palette.get_color('TRAILINGWS')
             
             if color:
                 line_text = block.text()
