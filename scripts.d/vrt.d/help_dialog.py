@@ -51,6 +51,8 @@ class HelpDialog(QDialog):
         
         <h3>Tab Management</h3>
         <ul>
+            <li><b>Shift+Tab:</b> Switch to next tab (left-to-right, wraps around)</li>
+            <li><b>Ctrl+Shift+Tab:</b> Switch to previous tab (right-to-left, wraps around)</li>
             <li><b>Ctrl+W:</b> Close current tab</li>
             <li><b>Ctrl+Q:</b> Quit application</li>
             <li><b>X button:</b> Close individual tabs</li>
