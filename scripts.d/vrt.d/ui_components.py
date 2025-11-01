@@ -81,7 +81,8 @@ class LineNumberArea(QWidget):
                                self.line_backgrounds[block_num])
             
             if line_num is not None:
-                painter.setPen(QColor("black"))
+                # Use system palette text color for dark mode compatibility
+                painter.setPen(self.palette().color(self.palette().ColorRole.Text))
                 painter.drawText(10, y_pos + fm.ascent(), f"{line_num:6d} ")
             else:
                 painter.fillRect(0, y_pos, self.width(), line_height,
