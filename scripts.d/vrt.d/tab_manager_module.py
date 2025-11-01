@@ -44,52 +44,34 @@ class FileButton(QPushButton):
     def _get_stylesheet(self):
         """Generate stylesheet based on open/active state"""
         if self.is_active:
-            # Currently selected tab - bright highlight with thick border
+            # Currently selected tab - thick border only
             return """
                 QPushButton {
                     text-align: left;
                     padding: 8px 8px 8px 20px;
                     border: none;
-                    background-color: #e0e0e0;
                     border-left: 6px solid #0066cc;
                     font-weight: bold;
-                    color: #000000;
-                }
-                QPushButton:hover {
-                    background-color: #d0d0d0;
-                    color: #000000;
                 }
             """
         elif self.is_open:
-            # Tab is open but not selected - subtle highlight
+            # Tab is open but not selected - normal border
             return """
                 QPushButton {
                     text-align: left;
                     padding: 8px 8px 8px 20px;
                     border: none;
-                    background-color: #f0f0f0;
                     border-left: 4px solid #0066cc;
-                    color: #000000;
-                }
-                QPushButton:hover {
-                    background-color: #e0e0e0;
-                    color: #000000;
                 }
             """
         else:
-            # Tab is closed - no highlight
+            # Tab is closed - no border
             return """
                 QPushButton {
                     text-align: left;
                     padding: 8px 8px 8px 20px;
                     border: none;
-                    background-color: #f8f8f8;
                     border-left: 4px solid transparent;
-                    color: #000000;
-                }
-                QPushButton:hover {
-                    background-color: #f0f0f0;
-                    color: #000000;
                 }
             """
 
