@@ -65,6 +65,30 @@ class TextRunNotPresent(TextRun):
         return "NOTPRESENT"
 
 
+class TextRunWhitespace(TextRun):
+    def __init__(self, start, n_chars, changed):
+        super().__init__(start, n_chars, changed)
+
+    def color(self):
+        return "WS"
+
+
+class TextRunTrailingWhitespace(TextRun):
+    def __init__(self, start, n_chars, changed):
+        super().__init__(start, n_chars, changed)
+
+    def color(self):
+        return "TRAILINGWS"
+
+
+class TextRunTab(TextRun):
+    def __init__(self, start, n_chars, changed):
+        super().__init__(start, n_chars, changed)
+
+    def color(self):
+        return "TAB"
+
+
 class Line(object):
     def __init__(self, line):
         assert(isinstance(line, str))

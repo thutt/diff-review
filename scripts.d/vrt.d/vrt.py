@@ -141,6 +141,30 @@ Return Code:
                    required = False,
                    dest     = "arg_auto_reload")
 
+    o.add_argument("--ignore-whitespace",
+                   help     = ("When set, this causes the diff viewer to ignore "
+                               "changes to whitespace."),
+                   action   = "store_true",
+                   default  = False,
+                   required = False,
+                   dest     = "arg_ignore_whitespace")
+
+    o.add_argument("--ignore-trailing-whitespace",
+                   help     = ("When set, this causes the diff viewer to ignore "
+                               "trailing whitespace."),
+                   action   = "store_true",
+                   default  = False,
+                   required = False,
+                   dest     = "arg_ignore_trailing_whitespace")
+
+    o.add_argument("--ignore-tab",
+                   help     = ("When set, this causes the diff viewer to ignore "
+                               "tabs."),
+                   action   = "store_true",
+                   default  = False,
+                   required = False,
+                   dest     = "arg_ignore_tab")
+
     o.add_argument("--no-auto-reload",
                    help     = ("Do not auto reload changed files into viewer.  "
                                "See Help menu for details of auto-reload."),
@@ -281,7 +305,10 @@ def generate(options, note):
                                                          options.arg_display_n_chars,
                                                          show_diff_map(options),
                                                          show_line_numbers(options),
-                                                         auto_reload_enabled(options))
+                                                         auto_reload_enabled(options),
+                                                         options.arg_ignore_whitespace,
+                                                         options.arg_ignore_tab,
+                                                         options.arg_ignore_trailing_whitespace)
 
 
     if options.dossier_['commit_msg'] is not None:

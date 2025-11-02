@@ -59,6 +59,9 @@ class DiffViewer(QMainWindow):
         self.current_region = 0
         self.current_region_highlight = None
         self._target_region = None
+        self.ignore_ws = False  # Will be set by tab manager
+        self.ignore_tab = False  # Will be set by tab manager
+        self.ignore_trailing_ws = False  # Will be set by tab manager
         
         self.setup_gui()
     
@@ -263,6 +266,25 @@ class DiffViewer(QMainWindow):
             return False
         return any(run.changed_ for run in line_obj.runs_)
     
+    def line_has_visible_changes(self, line_obj):
+        """Check if line has changes that are currently visible (not ignored)"""
+        if not hasattr(line_obj, 'runs_'):
+            return False
+        for run in line_obj.runs_:
+            if not run.changed_:
+                continue
+            # Check if this change type should be visible
+            color_name = run.color()
+            if color_name == 'WS' and self.ignore_ws:
+                continue  # Ignoring whitespace changes
+            if color_name == 'TAB' and self.ignore_tab:
+                continue  # Ignoring tab changes
+            if color_name == 'TRAILINGWS' and self.ignore_trailing_ws:
+                continue  # Ignoring trailing whitespace changes
+            # This is a visible change
+            return True
+        return False
+    
     def populate_content(self):
         self.base_line_area.set_line_numbers(self.base_line_nums)
         self.modified_line_area.set_line_numbers(self.modified_line_nums)
@@ -280,20 +302,28 @@ class DiffViewer(QMainWindow):
             if not base_line.show_line_number():
                 self.highlight_line(self.base_text, i, palette.get_color('placeholder'))
             else:
-                # Apply full-line background if line has changes
-                if self.line_has_changes(base_line):
+                # Determine if line should have changed background
+                if self.line_has_visible_changes(base_line):
                     self.highlight_line(self.base_text, i, palette.get_color('base_changed_bg'))
                     self.base_line_area.set_line_background(i, palette.get_color('base_changed_bg'))
+                else:
+                    # Clear the background - no visible changes
+                    self.highlight_line(self.base_text, i, QColor(0, 0, 0, 0))
+                    self.base_line_area.line_backgrounds.pop(i, None)
                 # Then apply character-level run colors on top
                 self.apply_runs(self.base_text, i, base_line)
             
             if not modi_line.show_line_number():
                 self.highlight_line(self.modified_text, i, palette.get_color('placeholder'))
             else:
-                # Apply full-line background if line has changes
-                if self.line_has_changes(modi_line):
+                # Determine if line should have changed background
+                if self.line_has_visible_changes(modi_line):
                     self.highlight_line(self.modified_text, i, palette.get_color('modi_changed_bg'))
                     self.modified_line_area.set_line_background(i, palette.get_color('modi_changed_bg'))
+                else:
+                    # Clear the background - no visible changes
+                    self.highlight_line(self.modified_text, i, QColor(0, 0, 0, 0))
+                    self.modified_line_area.line_backgrounds.pop(i, None)
                 # Then apply character-level run colors on top
                 self.apply_runs(self.modified_text, i, modi_line)
     
@@ -335,11 +365,20 @@ class DiffViewer(QMainWindow):
             elif color_name == 'INTRALINE':
                 color = palette.get_color('intraline_run')
             elif color_name == 'WS':
-                color = palette.get_color('WS')
+                # Only highlight if not ignoring whitespace
+                if not self.ignore_ws:
+                    color = palette.get_color('WS')
+                # When ignoring, color stays None - no highlighting
             elif color_name == 'TAB':
-                color = palette.get_color('TAB')
+                # Only highlight if not ignoring tabs
+                if not self.ignore_tab:
+                    color = palette.get_color('TAB')
+                # When ignoring, color stays None - no highlighting
             elif color_name == 'TRAILINGWS':
-                color = palette.get_color('TRAILINGWS')
+                # Only highlight if not ignoring trailing whitespace
+                if not self.ignore_trailing_ws:
+                    color = palette.get_color('TRAILINGWS')
+                # When ignoring, color stays None - no highlighting
             
             if color:
                 line_text = block.text()

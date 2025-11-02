@@ -80,7 +80,8 @@ class DiffViewerTabWidget(QMainWindow):
     """Main window containing tabs of DiffViewer instances with file sidebar"""
     
     def __init__(self, display_lines: int, display_chars: int, show_diff_map: bool,
-                 show_line_numbers: bool, auto_reload: bool):
+                 show_line_numbers: bool, auto_reload: bool, ignore_ws: bool, 
+                 ignore_tab: bool, ignore_trailing_ws: bool):
         if QApplication.instance() is None:
             self._app = QApplication(sys.argv)
         else:
@@ -90,6 +91,9 @@ class DiffViewerTabWidget(QMainWindow):
         
         self.display_lines = display_lines
         self.display_chars = display_chars
+        self.ignore_ws = ignore_ws
+        self.ignore_tab = ignore_tab
+        self.ignore_trailing_ws = ignore_trailing_ws
         
         self.setWindowTitle("Diff Viewer")
         
@@ -223,6 +227,27 @@ class DiffViewerTabWidget(QMainWindow):
         toggle_line_numbers_action.setShortcuts([QKeySequence("Alt+L"), QKeySequence("Meta+L")])
         toggle_line_numbers_action.triggered.connect(self.toggle_line_numbers)
         view_menu.addAction(toggle_line_numbers_action)
+        
+        view_menu.addSeparator()
+        
+        # Whitespace visibility controls
+        self.show_ws_action = QAction("Show Whitespace", self)
+        self.show_ws_action.setCheckable(True)
+        self.show_ws_action.setChecked(not ignore_ws)
+        self.show_ws_action.triggered.connect(self.toggle_whitespace_visibility)
+        view_menu.addAction(self.show_ws_action)
+        
+        self.show_tab_action = QAction("Show Tabs", self)
+        self.show_tab_action.setCheckable(True)
+        self.show_tab_action.setChecked(not ignore_tab)
+        self.show_tab_action.triggered.connect(self.toggle_tab_visibility)
+        view_menu.addAction(self.show_tab_action)
+        
+        self.show_trailing_ws_action = QAction("Show Trailing Whitespace", self)
+        self.show_trailing_ws_action.setCheckable(True)
+        self.show_trailing_ws_action.setChecked(not ignore_trailing_ws)
+        self.show_trailing_ws_action.triggered.connect(self.toggle_trailing_ws_visibility)
+        view_menu.addAction(self.show_trailing_ws_action)
         
         view_menu.addSeparator()
         
@@ -706,6 +731,11 @@ class DiffViewerTabWidget(QMainWindow):
         if self.global_note_file:
             diff_viewer.note_file = self.global_note_file
         
+        # Apply global whitespace ignore settings
+        diff_viewer.ignore_ws = self.ignore_ws
+        diff_viewer.ignore_tab = self.ignore_tab
+        diff_viewer.ignore_trailing_ws = self.ignore_trailing_ws
+        
         # Set up file watching for this viewer
         self.setup_file_watcher(diff_viewer)
         
@@ -1133,6 +1163,14 @@ class DiffViewerTabWidget(QMainWindow):
         viewer = self.get_viewer_at_index(index)
         if viewer:
             viewer.init_scrollbars()
+            # Apply highlighting if this viewer needs an update
+            if hasattr(viewer, '_needs_highlighting_update') and viewer._needs_highlighting_update:
+                viewer.apply_highlighting()
+                viewer._needs_highlighting_update = False
+            # Refresh colors if this viewer needs a color update
+            if hasattr(viewer, '_needs_color_refresh') and viewer._needs_color_refresh:
+                viewer.refresh_colors()
+                viewer._needs_color_refresh = False
     
     def update_button_states(self):
         """Update all button states based on open tabs and currently selected tab"""
@@ -1356,6 +1394,48 @@ class DiffViewerTabWidget(QMainWindow):
                 if viewer in self.changed_files and self.changed_files[viewer]:
                     self.reload_viewer(viewer)
     
+    def toggle_whitespace_visibility(self):
+        """Toggle whitespace visibility in all viewers"""
+        self.ignore_ws = not self.show_ws_action.isChecked()
+        # Update current viewer immediately
+        viewer = self.get_current_viewer()
+        if viewer:
+            viewer.ignore_ws = self.ignore_ws
+            viewer.apply_highlighting()
+        # Mark all other viewers as needing update
+        for v in self.get_all_viewers():
+            if v != viewer:
+                v.ignore_ws = self.ignore_ws
+                v._needs_highlighting_update = True
+    
+    def toggle_tab_visibility(self):
+        """Toggle tab character visibility in all viewers"""
+        self.ignore_tab = not self.show_tab_action.isChecked()
+        # Update current viewer immediately
+        viewer = self.get_current_viewer()
+        if viewer:
+            viewer.ignore_tab = self.ignore_tab
+            viewer.apply_highlighting()
+        # Mark all other viewers as needing update
+        for v in self.get_all_viewers():
+            if v != viewer:
+                v.ignore_tab = self.ignore_tab
+                v._needs_highlighting_update = True
+    
+    def toggle_trailing_ws_visibility(self):
+        """Toggle trailing whitespace visibility in all viewers"""
+        self.ignore_trailing_ws = not self.show_trailing_ws_action.isChecked()
+        # Update current viewer immediately
+        viewer = self.get_current_viewer()
+        if viewer:
+            viewer.ignore_trailing_ws = self.ignore_trailing_ws
+            viewer.apply_highlighting()
+        # Mark all other viewers as needing update
+        for v in self.get_all_viewers():
+            if v != viewer:
+                v.ignore_trailing_ws = self.ignore_trailing_ws
+                v._needs_highlighting_update = True
+    
     def setup_file_watcher(self, viewer):
         """Set up file system watching for a viewer's files"""
         watcher = QFileSystemWatcher()
@@ -1549,10 +1629,14 @@ class DiffViewerTabWidget(QMainWindow):
     def switch_palette(self, palette_name):
         """Switch to a different color palette and refresh all viewers"""
         if color_palettes.set_current_palette(palette_name):
-            # Refresh all open diff viewers
-            viewers = self.get_all_viewers()
-            for viewer in viewers:
+            # Refresh current viewer immediately
+            viewer = self.get_current_viewer()
+            if viewer:
                 viewer.refresh_colors()
+            # Mark all other viewers as needing color refresh
+            for v in self.get_all_viewers():
+                if v != viewer:
+                    v._needs_color_refresh = True
     
     def keyPressEvent(self, event):
         """Handle key press events"""
