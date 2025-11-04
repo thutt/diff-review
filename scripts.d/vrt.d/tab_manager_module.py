@@ -294,12 +294,16 @@ class DiffViewerTabWidget(QMainWindow):
         # Height: lines + labels (40) + scrollbar (20) + status bar (30) + margins (20) + menubar (30)
         total_height = (self.display_lines * line_height) + 40 + 20 + 30 + 20 + 30
         
-        # Tab navigation shortcuts
+        # Tab navigation shortcuts (support both Ctrl and Meta for Mac compatibility)
         next_tab_shortcut = QShortcut(QKeySequence("Ctrl+Tab"), self)
-        next_tab_shortcut.activated.connect(self.next_tab)
+        next_tab_shortcut.activated.connect(lambda: self.next_tab_debug("Ctrl+Tab"))
+        next_tab_shortcut_alt = QShortcut(QKeySequence("Meta+Tab"), self)
+        next_tab_shortcut_alt.activated.connect(lambda: self.next_tab_debug("Meta+Tab"))
         
         prev_tab_shortcut = QShortcut(QKeySequence("Ctrl+Shift+Tab"), self)
-        prev_tab_shortcut.activated.connect(self.prev_tab)
+        prev_tab_shortcut.activated.connect(lambda: self.prev_tab_debug("Ctrl+Shift+Tab"))
+        prev_tab_shortcut_alt = QShortcut(QKeySequence("Meta+Shift+Tab"), self)
+        prev_tab_shortcut_alt.activated.connect(lambda: self.prev_tab_debug("Meta+Shift+Tab"))
         
         self.resize(total_width, total_height)
     
@@ -1338,6 +1342,18 @@ class DiffViewerTabWidget(QMainWindow):
         current_index = self.tab_widget.currentIndex()
         if current_index >= 0:
             self.close_tab(current_index)
+    
+    def next_tab_debug(self, shortcut_name):
+        """Debug wrapper for next_tab to see which shortcut fired"""
+        print(f"next_tab triggered by: {shortcut_name}")
+        sys.stdout.flush()
+        self.next_tab()
+    
+    def prev_tab_debug(self, shortcut_name):
+        """Debug wrapper for prev_tab to see which shortcut fired"""
+        print(f"prev_tab triggered by: {shortcut_name}")
+        sys.stdout.flush()
+        self.prev_tab()
     
     def next_tab(self):
         """Navigate to next tab (left-to-right, wraps around)"""
