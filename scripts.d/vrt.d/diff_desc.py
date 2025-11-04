@@ -14,6 +14,9 @@ class TextRun(object):
     def color(self):
         raise NotImplementedError("color is not defined.")
 
+    def __str__(self):
+        return "%s(%d, %d) " % (self.color(), self.start_, self.len_)
+
 
 class TextRunNormal(TextRun):
     def __init__(self, start, n_chars):
@@ -78,7 +81,6 @@ class TextRunTrailingWhitespace(TextRun):
     def color(self):
         return "TRAILINGWS"
 
-
 class TextRunTab(TextRun):
     def __init__(self, start, n_chars, changed):
         super().__init__(start, n_chars, changed)
@@ -93,12 +95,22 @@ class Line(object):
         self.line_      = line     # Text of source line.
         self.line_num_  = -1       # Not known on construction.
         self.runs_      = [ ]      # TextRun instances
-
+        self.uncolored_ = False    # Indicates if there are colors on this line.
+                                   #
+                                   #   Only unmodified lines w/o
+                                   #   trailing whitespace or tabs
+                                   #   will have this set.  The
+                                   #   'unmodified lines' are in
+                                   #   'equal' line regions produced
+                                   #   by difflib.SequenceMatcher().
     def dump(self, hdr):
-        print("%5s  %s" % (hdr, self.line_[:-1]))
+        print("%5s  %s" % (hdr, self.line_))
+
+        rdisp = "[ "
         for r in self.runs_:
-            r.dump()
-        print(self.runs_)
+            rdisp += str(r)
+        rdisp += " ]"
+        print(rdisp)
 
     def show_line_number(self):
         return True
