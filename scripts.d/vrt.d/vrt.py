@@ -33,11 +33,11 @@ class FileButton (object):
         return self.modi_rel_path_
 
     def add_viewer(self, tab_widget):
-        base = os.path.join(self.root_path_, "base.d", self.base_rel_path_)
-        modi = os.path.join(self.root_path_, "modi.d", self.modi_rel_path_)
-        viewer  = make_viewer(self.options_, base, modi,
-                              self.options_.arg_note,
-                              self.options_.dossier_["commit_msg"])
+        base   = os.path.join(self.root_path_, "base.d", self.base_rel_path_)
+        modi   = os.path.join(self.root_path_, "modi.d", self.modi_rel_path_)
+        viewer = make_viewer(self.options_, base, modi,
+                             self.options_.arg_note,
+                             self.options_.dossier_["commit_msg"])
         tab_widget.add_viewer(viewer)
 
 
@@ -270,8 +270,7 @@ def add_diff_to_viewer(desc, viewer):
         modi = desc.modi_[idx]
         viewer.add_line(base, modi)  # Repeat for each line pair
 
-    viewer.finalize() 
-    viewer.apply_highlighting()
+    viewer.finalize()
 
 
 def show_diff_map(options):
@@ -320,7 +319,7 @@ def generate(options, note):
                                options.dossier_["root"],
                                f["base_rel_path"],
                                f["modi_rel_path"])
-        
+
         tab_widget.add_file(file_inst)
 
     tab_widget.run()
