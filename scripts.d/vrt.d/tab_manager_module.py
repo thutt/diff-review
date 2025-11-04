@@ -295,7 +295,7 @@ class DiffViewerTabWidget(QMainWindow):
         total_height = (self.display_lines * line_height) + 40 + 20 + 30 + 20 + 30
         
         # Tab navigation shortcuts
-        next_tab_shortcut = QShortcut(QKeySequence("Shift+Tab"), self)
+        next_tab_shortcut = QShortcut(QKeySequence("Ctrl+Tab"), self)
         next_tab_shortcut.activated.connect(self.next_tab)
         
         prev_tab_shortcut = QShortcut(QKeySequence("Ctrl+Shift+Tab"), self)
