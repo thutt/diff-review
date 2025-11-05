@@ -1551,7 +1551,7 @@ class DiffViewerTabWidget(QMainWindow):
     
     def reload_viewer(self, viewer):
         """Reload a viewer's diff data"""
-        import diffmgr
+        import diffmgrng as diffmgr
         
         # Save current scroll position
         v_scroll_pos = viewer.base_text.verticalScrollBar().value()

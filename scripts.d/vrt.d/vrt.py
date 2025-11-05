@@ -11,7 +11,7 @@ import signal
 import sys
 import traceback
 
-import diffmgr
+import diffmgrng as diffmgr
 import diff_viewer
 import tab_manager_module
 

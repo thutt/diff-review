@@ -1,12 +1,13 @@
-# Copyright (c) 2025  Logic MAGICIANS Software (Taylor Hutt).
+# Copyright (c) 2025  Logic Magicians Software (Taylor Hutt).
 # All Rights Reserved.
 # Licensed under Gnu GPL V3.
 #
 class TextRun(object):
-    def __init__(self, start, n_chars, changed):
+    def __init__(self, kind, start, n_chars, changed):
         self.start_   = start
         self.len_     = n_chars
         self.changed_ = changed # Text is altered, or not altered in this run.
+        self.kind_    = kind    # Identifies the class type.
 
     def dump(self):
         print("%d:%d" % (self.start_, self.len_))
@@ -20,7 +21,7 @@ class TextRun(object):
 
 class TextRunNormal(TextRun):
     def __init__(self, start, n_chars):
-        super().__init__(start, n_chars, False)
+        super().__init__(0, start, n_chars, False)
 
     def color(self):
         return "NORMAL"
@@ -28,7 +29,7 @@ class TextRunNormal(TextRun):
 
 class TextRunAdded(TextRun):
     def __init__(self, start, n_chars, changed):
-        super().__init__(start, n_chars, changed)
+        super().__init__(1, start, n_chars, changed)
 
     def color(self):
         return "ADD"
@@ -36,7 +37,7 @@ class TextRunAdded(TextRun):
 
 class TextRunDeleted(TextRun):
     def __init__(self, start, n_chars):
-        super().__init__(start, n_chars, True)
+        super().__init__(2, start, n_chars, True)
 
     def color(self):
         return "DELETE"
@@ -44,31 +45,15 @@ class TextRunDeleted(TextRun):
 
 class TextRunIntraline(TextRun):
     def __init__(self, start, n_chars):
-        super().__init__(start, n_chars, True)
+        super().__init__(3, start, n_chars, True)
 
     def color(self):
         return "INTRALINE"
 
 
-class TextRunUnknown(TextRun):
-    def __init__(self, start, n_chars):
-        super().__init__(start, n_chars, True)
-
-    def color(self):
-        return "UNKNOWN"        # Unknown meta marker on '? ' command.
-
-
-class TextRunNotPresent(TextRun):
-    def __init__(self, start, n_chars, changed):
-        super().__init__(start, n_chars, changed)
-
-    def color(self):
-        return "NOTPRESENT"
-
-
 class TextRunWhitespace(TextRun):
     def __init__(self, start, n_chars, changed):
-        super().__init__(start, n_chars, changed)
+        super().__init__(4, start, n_chars, changed)
 
     def color(self):
         return "WS"
@@ -76,17 +61,33 @@ class TextRunWhitespace(TextRun):
 
 class TextRunTrailingWhitespace(TextRun):
     def __init__(self, start, n_chars, changed):
-        super().__init__(start, n_chars, changed)
+        super().__init__(5, start, n_chars, changed)
 
     def color(self):
         return "TRAILINGWS"
 
 class TextRunTab(TextRun):
     def __init__(self, start, n_chars, changed):
-        super().__init__(start, n_chars, changed)
+        super().__init__(6, start, n_chars, changed)
 
     def color(self):
         return "TAB"
+
+
+class TextRunNotPresent(TextRun):
+    def __init__(self, start, n_chars, changed):
+        super().__init__(7, start, n_chars, changed)
+
+    def color(self):
+        return "NOTPRESENT"
+
+
+class TextRunUnknown(TextRun):
+    def __init__(self, start, n_chars):
+        super().__init__(8, start, n_chars, True)
+
+    def color(self):
+        return "UNKNOWN"        # Unknown meta marker on '? ' command.
 
 
 class Line(object):
@@ -190,7 +191,7 @@ class Line(object):
 
 class NotPresent(Line):         # Line doesn't exist in this file.
     def __init__(self):
-        super().__init__("\n")
+        super().__init__("")
         self.add_run_not_present_coverage()
 
     def show_line_number(self):
@@ -233,10 +234,15 @@ class DiffDesc(object):
         self.modi_     = [ ]    # Lines in modi file.
 
     def add_base_line(self, line):
+        if False:
+            line.dump("base")
         self.base_.append(line)
 
     def add_modi_line(self, line):
+        if False:
+            line.dump("modi")
         self.modi_.append(line)
+
 
     def cache_modi(self, line):
         assert(isinstance(line, Line))
@@ -247,6 +253,28 @@ class DiffDesc(object):
         assert(isinstance(line, Line))
         self.cl_.base_ = line
         self.cl_.base_.set_line_number(self.cl_.base_line_)
+
+    # Amends a line with no more than one TRAILINGWS run, if needed.
+    def amend_line_with_tws(self, line):
+        l_line   = len(line.line_)
+        l_rline  = len(line.line_.rstrip())
+
+        if l_line != l_rline:
+
+            # There is traliing whitespace.
+            # The last run needs to be split, and a TRAILINGWS run added.
+            last_idx = len(line.runs_) - 1 # Last run.
+
+            assert(l_line > l_rline)
+            n_spaces = l_line - l_rline
+            last       = line.runs_[last_idx]
+            orig_len   = last.len_
+            last.len_ -= n_spaces
+            tws        = TextRunTrailingWhitespace(last.start_ + last.len_,
+                                                   n_spaces, True)
+
+            assert(orig_len == last.len_ + tws.len_)
+            line.runs_.append(tws)
 
     def flush(self, idx, intraline, marks): # Flush a line.
         if self.verbose_:
@@ -263,6 +291,9 @@ class DiffDesc(object):
                 print("  mark: %s" % (marks[:-1]))
             print("")
 
+        self.amend_line_with_tws(self.cl_.base_)
+        self.amend_line_with_tws(self.cl_.modi_)
+
         self.add_base_line(self.cl_.base_)
         if self.cl_.base_.show_line_number():
             self.cl_.base_line_ = self.cl_.base_line_ + 1
@@ -270,6 +301,7 @@ class DiffDesc(object):
         self.add_modi_line(self.cl_.modi_)
         if self.cl_.modi_.show_line_number():
             self.cl_.modi_line_ = self.cl_.modi_line_ + 1
+
 
         self.cl_.base_ = None
         self.cl_.modi_ = None
@@ -297,10 +329,10 @@ class DiffDesc(object):
         idx = 0
         while idx < ll:
             base_type_ = type(self.base_[idx]).__name__
-            base = self.base_[idx].line_.replace('\n', '')
+            base = self.base_[idx]
 
             modi_type_ = type(self.modi_[idx]).__name__
-            modi = self.modi_[idx].line_.replace('\n', '')
+            modi = self.modi_[idx]
 
             if True:
                 self.base_[idx].dump("base")
@@ -309,3 +341,126 @@ class DiffDesc(object):
                 print("(%s) %s   |   (%s) %s" % (base_type_, base,
                                                  modi_type_, modi))
             idx = idx + 1
+
+
+def compute_tab_runs(line, m_run):
+    tab_runs = [ ]
+    line     = line.line_[m_run.start_:m_run.start_ + m_run.len_]
+    tab_idxs = [i for i, c in enumerate(line) if c == '\t']
+
+    # inv: tab_idxs contains all indicies in 'line' that are '\t'.
+    #      It can be empty.
+    t_idx = 0
+    r_beg = t_idx
+    r_end = 0
+    if len(tab_idxs) > 0:
+        while t_idx < len(tab_idxs):
+            r_beg = tab_idxs[t_idx]
+            r_end = r_beg + 1
+            if t_idx + 1 < len(tab_idxs):
+                if tab_idxs[t_idx + 1] == r_end:
+                    # Multiple tabs.  Accumulate them.
+                    t_idx += 1
+                    while (t_idx < len(tab_idxs) and
+                           tab_idxs[t_idx] == r_end):
+                        r_end += 1
+                        t_idx += 1
+                else:
+                    # Single tab.
+                    t_idx += 1
+            else:
+                # End of line, or single tab.
+                t_idx += 1
+
+            t_run = TextRunTab(r_beg, r_end - r_beg, True)
+            tab_runs.append(t_run)
+
+    return tab_runs
+
+
+def make_text_run(kind, r_beg, r_len):
+    if kind == 0:               # TextRunNormal
+        run = TextRunNormal(r_beg, r_len)
+    elif kind == 1:             # TextRunAdded
+        run = TextRunAdded(r_beg, r_len, True)
+    elif kind == 2:             # TextRunDeleted
+        run = TextRunDeleted(r_beg, r_len)
+    elif kind == 3:             # TextRunIntraline
+        run = TextRunIntraline(r_beg, r_len)
+    elif kind == 4:             # TextRunWhitespace
+        run = TextRunWhitespace(r_beg, r_len)
+    elif kind == 5:             # TextRunTrailingWhitespace
+        run = TextRunTrailingWhitespace(r_beg, r_len)
+    elif kind == 6:             # TextRunTab
+        run = TextRunTab(r_beg, r_len)
+    elif kind == 7:             # TextRunNotPresentx
+        run = TextRunNotPresentx(r_beg, r_len)
+    else:                       # TextRunUnknown
+        assert(kind == 8)
+        run = diff_desc.TextRunUnknown(r_beg, r_len)
+
+    return run
+
+
+# Amends a single run by adding in TAB runs where needed.
+# The result will be a list of runs.
+#
+def amend_run_with_tab(line, m_run):
+    result = [ ]
+    assert(isinstance(line, Line))
+    t_runs = compute_tab_runs(line, m_run)
+
+    orig_length = m_run.len_
+    if len(t_runs) > 0:
+        residual = True
+        # Tab runs will be 0-based, but they are actually relative to m_run.
+        for t in t_runs:
+            if t.start_ + t.len_ == m_run.len_:
+                # Split at the end.
+                m_run.len_ -= t.len_
+                t.start_ += m_run.start_
+                if m_run.len_ > 0:
+                    result.append(m_run)
+                result.append(t)
+                residual = False
+                continue        # inv: end of elements in t_runs.
+
+            if t.start_ > 0:    # Split in the middle of run?
+                # m_run.start_ does not change.
+                # The length shrinks.
+                m_run_delta = t.start_ - m_run.start_
+                n_len       = m_run.len_ - m_run_delta - t.len_
+                m_run.len_  = m_run_delta
+                assert(m_run.len_ > 0)
+
+                n_run = make_text_run(m_run.kind_, t.start_ + t.len_,
+                                      n_len)
+                if m_run.len_ > 0:
+                    result.append(m_run)
+                result.append(t)
+                # Length of 't' has not changed.
+
+                m_run = n_run
+
+                # Fall through to split at beginning of run to handle
+                # 't' against new 'm_run'.
+
+            if t.start_ + m_run.start_ == m_run.start_:
+                # Split at the beginning.
+                assert(m_run.len_ >= t.len_)
+                t.start_     += m_run.start_
+                m_run.start_ += t.len_
+                m_run.len_   = m_run.len_ - t.len_
+                result.append(t)
+
+        if residual and m_run.len_ > 0:
+            result.append(m_run)
+    else:
+        result = [ m_run ]
+
+    final_length = 0
+    for r in result:
+        final_length += r.len_
+    assert(final_length == orig_length)
+
+    return result

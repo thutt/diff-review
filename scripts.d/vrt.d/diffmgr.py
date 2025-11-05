@@ -1,4 +1,4 @@
-# Copyright (c) 2025  Logic MAGICIANS Software (Taylor Hutt).
+# Copyright (c) 2025  Logic Magicians Software (Taylor Hutt).
 # All Rights Reserved.
 # Licensed under Gnu GPL V3.
 #
@@ -7,7 +7,15 @@ import diff_desc
 
 def read_file(path):
     with open(path, "r") as fp:
-        result = fp.readlines()
+        # Convert all line endings to a single '\n'.
+        lines = fp.read()
+
+    lines = lines.replace("\r\n", "\n") # Convert Windows files to Linux.
+    lines = lines.replace("\r", "\n")   # Convert Mac files to Linux.
+
+    result = lines.splitlines()
+    # The returned list strings will NOT have '\n' at the end.
+    # Blank lines will be zero length.
     return result
 
 
