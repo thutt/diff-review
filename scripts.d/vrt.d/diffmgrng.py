@@ -181,7 +181,6 @@ def add_replaced_line_region(desc, base_l, modi_l):
                 m_run = diff_desc.TextRunIntraline(m_beg, m_end - m_beg)
                 l_base.runs_.append(b_run)
                 l_modi.runs_.append(m_run)
-
             elif opc == "delete":
                 assert((m_end - m_beg) == 0) # Characters deleted.
                 b_run = diff_desc.TextRunDeleted(b_beg, b_end - b_beg)
@@ -226,7 +225,8 @@ def add_replaced_line_region(desc, base_l, modi_l):
 
 
 def create_diff_descriptor(verbose, base, modi):
-    beg   = datetime.datetime.now()
+    if False:
+        beg = datetime.datetime.now()
     desc  = diff_desc.DiffDesc(verbose)
     marks = ""
 
@@ -257,6 +257,7 @@ def create_diff_descriptor(verbose, base, modi):
                                      base_l[b_beg:b_end],
                                      modi_l[m_beg:m_end])
 
-    end   = datetime.datetime.now()
-    print("create_diff_descriptor: %s: %s" % (end - beg, base))
+    if False:
+        end = datetime.datetime.now()
+        print("create_diff_descriptor: %s: %s" % (end - beg, base))
     return desc
