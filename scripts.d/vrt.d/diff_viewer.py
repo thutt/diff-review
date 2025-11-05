@@ -300,8 +300,9 @@ class DiffViewer(QMainWindow):
         self.diff_map.set_change_regions(self.change_regions, len(self.base_display))
     
     def apply_highlighting(self):
-        import time
-        start_time = time.time()
+        if False:  # Debug timing
+            import time
+            start_time = time.time()
         
         for i, (base_line, modi_line) in enumerate(zip(self.base_line_objects,
                                                         self.modified_line_objects)):
@@ -341,9 +342,10 @@ class DiffViewer(QMainWindow):
                     self.highlight_line(self.modified_text, i, QColor(0, 0, 0, 0))
                     self.modified_line_area.line_backgrounds.pop(i, None)
         
-        elapsed = time.time() - start_time
-        print(f"apply_highlighting: {elapsed:.3f} seconds ({len(self.base_line_objects)} lines)")
-        sys.stdout.flush()
+        if False:  # Debug timing
+            elapsed = time.time() - start_time
+            print(f"apply_highlighting: {elapsed:.3f} seconds ({len(self.base_line_objects)} lines)")
+            sys.stdout.flush()
     
     def highlight_line(self, text_widget, line_num, color):
         block = text_widget.document().findBlockByNumber(line_num)
