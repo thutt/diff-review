@@ -1,0 +1,17 @@
+Mac OS Related Tips
+===================
+
+Installation Issues
+-------------------
+
+At times, the installation of pyQt6 may fail when using the following
+command.
+
+$ pip3 install pyqt6
+
+To get around this, prerequisites may need to be installed along with
+pyQt6.
+
+$ pip3 install pyqt6-tools
+
+This should fix any issues that failed with the previous command.
