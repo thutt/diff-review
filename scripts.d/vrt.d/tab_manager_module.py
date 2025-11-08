@@ -1574,9 +1574,9 @@ class DiffViewerTabWidget(QMainWindow):
         try:
             desc = diffmgr.create_diff_descriptor(False, viewer.base_file, viewer.modified_file)
             
-            for idx in range(len(desc.base_)):
-                base = desc.base_[idx]
-                modi = desc.modi_[idx]
+            for idx in range(len(desc.base_.lines_)):
+                base = desc.base_.lines_[idx]
+                modi = desc.modi_.lines_[idx]
                 viewer.add_line(base, modi)
             
             viewer.finalize()

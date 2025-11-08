@@ -216,6 +216,9 @@ def create_diff_descriptor(verbose, base, modi):
         m_end = opinfo[4]  # modi end index.
 
         assert(opc in ('replace', 'delete', 'insert', 'equal'))
+        desc.add_base_region(opc, b_beg, b_end - b_beg)
+        desc.add_modi_region(opc, m_beg, m_end - m_beg)
+
         if opc == "equal":
             assert((b_end - b_beg) == (m_end - m_beg)) # Equal number of lines.
             add_equal_line_region(desc, base_l[b_beg:b_end], modi_l[m_beg:m_end])

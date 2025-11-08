@@ -55,6 +55,7 @@ class DiffViewer(QMainWindow):
         self.change_regions = []
         self.base_line_objects = []
         self.modified_line_objects = []
+        self.n_changed_regions = 0  # Count of non-EQUAL regions from diff descriptor
         
         self.current_region = 0
         self.current_region_highlight = None
@@ -187,6 +188,10 @@ class DiffViewer(QMainWindow):
         self.base_text.setFont(text_font)
         self.modified_text.setFont(text_font)
     
+    def set_changed_region_count(self, count):
+        """Set the number of changed regions from the diff descriptor"""
+        self.n_changed_regions = count
+    
     def add_line(self, base, modi):
         base_text = base.line_.rstrip('\n') if hasattr(base, 'line_') else ''
         modi_text = modi.line_.rstrip('\n') if hasattr(modi, 'line_') else ''
@@ -267,26 +272,24 @@ class DiffViewer(QMainWindow):
         return any(run.changed_ for run in line_obj.runs_)
     
     def line_has_visible_changes(self, line_obj):
-        """Check if line has changes that are currently visible (not ignored)"""
+        """Check if line has content changes (not just whitespace annotations)
+        
+        This determines whether the line background should be colored.
+        Whitespace annotations (TAB/WS/TRAILINGWS) don't affect line background,
+        only character-level highlighting within the line.
+        """
         if not hasattr(line_obj, 'runs_'):
             return False
         for run in line_obj.runs_:
-            color_name = run.color()
-            
-            # Check ignore flags first (boolean checks are faster)
-            if self.ignore_ws and color_name == 'WS':
-                continue
-            if self.ignore_tab and color_name == 'TAB':
-                continue
-            if self.ignore_trailing_ws and color_name == 'TRAILINGWS':
-                continue
-            
-            # For whitespace-type runs, visible if not ignored
-            if color_name in ['WS', 'TAB', 'TRAILINGWS']:
-                return True
-            
-            # For other run types, only visible if changed
-            if run.changed_:
+            if run.changed_:  # Only actual changes affect line background
+                color_name = run.color()
+                # Skip ignored whitespace changes
+                if self.ignore_ws and color_name == 'WS':
+                    continue
+                if self.ignore_tab and color_name == 'TAB':
+                    continue
+                if self.ignore_trailing_ws and color_name == 'TRAILINGWS':
+                    continue
                 return True
         return False
     
@@ -304,43 +307,92 @@ class DiffViewer(QMainWindow):
             import time
             start_time = time.time()
         
+        # Build lookup for which region each line belongs to
+        # We need this for both base and modified sides
+        import diff_desc
+        
+        # Get region lists from line objects if available
+        base_regions = []
+        modi_regions = []
+        
+        # Extract regions from the first line object that has them
+        for line in self.base_line_objects:
+            if hasattr(line, '__dict__'):
+                # This is a hack to get the parent DiffDesc regions
+                # We'll need to pass these in properly
+                break
+        
+        # For now, we'll determine background by checking the line's region type
+        # We need to track which region each line index belongs to
+        palette = color_palettes.get_current_palette()
+        
         for i, (base_line, modi_line) in enumerate(zip(self.base_line_objects,
                                                         self.modified_line_objects)):
-            palette = color_palettes.get_current_palette()
             
             # BASE SIDE
             if not base_line.show_line_number():
+                # Placeholder line
                 self.highlight_line(self.base_text, i, palette.get_color('placeholder'))
             elif hasattr(base_line, 'uncolored_') and base_line.uncolored_:
                 # Line has no colors to apply - skip all highlighting
                 pass
             else:
-                # Line has changes - check if visible and highlight
-                if self.line_has_visible_changes(base_line):
-                    self.highlight_line(self.base_text, i, palette.get_color('base_changed_bg'))
-                    self.base_line_area.set_line_background(i, palette.get_color('base_changed_bg'))
-                    self.apply_runs(self.base_text, i, base_line)
-                else:
-                    # Has changes but all ignored - clear highlighting
-                    self.highlight_line(self.base_text, i, QColor(0, 0, 0, 0))
-                    self.base_line_area.line_backgrounds.pop(i, None)
+                # Determine background color based on region type
+                # For now, use the old logic until regions are properly passed
+                bg_color = None
+                
+                # Check what kind of line this is based on placeholder status
+                base_present = base_line.show_line_number()
+                modi_present = modi_line.show_line_number()
+                
+                if base_present and not modi_present:
+                    # DELETE region - base has content, modi is placeholder
+                    bg_color = palette.get_color('base_changed_bg')
+                elif base_present and modi_present:
+                    # Could be EQUAL or CHANGE
+                    # If line has any changes, it's CHANGE, otherwise EQUAL
+                    if self.line_has_changes(base_line):
+                        bg_color = palette.get_color('base_changed_bg')
+                    # else: EQUAL - no background
+                
+                if bg_color:
+                    self.highlight_line(self.base_text, i, bg_color)
+                    self.base_line_area.set_line_background(i, bg_color)
+                
+                # Always apply runs for colored lines
+                self.apply_runs(self.base_text, i, base_line)
             
             # MODIFIED SIDE
             if not modi_line.show_line_number():
+                # Placeholder line
                 self.highlight_line(self.modified_text, i, palette.get_color('placeholder'))
             elif hasattr(modi_line, 'uncolored_') and modi_line.uncolored_:
                 # Line has no colors to apply - skip all highlighting
                 pass
             else:
-                # Line has changes - check if visible and highlight
-                if self.line_has_visible_changes(modi_line):
-                    self.highlight_line(self.modified_text, i, palette.get_color('modi_changed_bg'))
-                    self.modified_line_area.set_line_background(i, palette.get_color('modi_changed_bg'))
-                    self.apply_runs(self.modified_text, i, modi_line)
-                else:
-                    # Has changes but all ignored - clear highlighting
-                    self.highlight_line(self.modified_text, i, QColor(0, 0, 0, 0))
-                    self.modified_line_area.line_backgrounds.pop(i, None)
+                # Determine background color based on region type
+                bg_color = None
+                
+                # Check what kind of line this is based on placeholder status
+                base_present = base_line.show_line_number()
+                modi_present = modi_line.show_line_number()
+                
+                if not base_present and modi_present:
+                    # ADD region - modi has content, base is placeholder
+                    bg_color = palette.get_color('modi_changed_bg')
+                elif base_present and modi_present:
+                    # Could be EQUAL or CHANGE
+                    # If line has any changes, it's CHANGE, otherwise EQUAL
+                    if self.line_has_changes(modi_line):
+                        bg_color = palette.get_color('modi_changed_bg')
+                    # else: EQUAL - no background
+                
+                if bg_color:
+                    self.highlight_line(self.modified_text, i, bg_color)
+                    self.modified_line_area.set_line_background(i, bg_color)
+                
+                # Always apply runs for colored lines
+                self.apply_runs(self.modified_text, i, modi_line)
         
         if False:  # Debug timing
             elapsed = time.time() - start_time
@@ -738,7 +790,7 @@ class DiffViewer(QMainWindow):
         self.modified_text.set_region_highlight(start, end)
     
     def update_status(self):
-        total = len(self.change_regions)
+        total = self.n_changed_regions
         current = self.current_region + 1 if total > 0 else 0
         self.region_label.setText(f"Region: {current} of {total}")
         self.notes_label.setText(f"Notes: {self.note_count}")

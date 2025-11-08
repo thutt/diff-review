@@ -82,7 +82,7 @@ class TextRunNotPresent(TextRun):
         return "NOTPRESENT"
 
 
-class TextRunUnknown(TextRun):
+class TextRunUnknown(TextRun):  # XXX Remove with diffmgr.
     def __init__(self, start, n_chars):
         super().__init__(8, start, n_chars, True)
 
@@ -104,6 +104,7 @@ class Line(object):
                                    #   'unmodified lines' are in
                                    #   'equal' line regions produced
                                    #   by difflib.SequenceMatcher().
+
     def dump(self, hdr):
         print("%5s  %s" % (hdr, self.line_))
 
@@ -135,7 +136,7 @@ class Line(object):
         run = TextRunDeleted(0, len(self.line_))
         self.runs_.append(run)
 
-    def add_runs(self, run_info):
+    def add_runs(self, run_info): # XXX diffmgr only
         assert(run_info is not None)
         assert(run_info[len(run_info) - 1] == '\n')
 
@@ -213,7 +214,6 @@ class NotPresentDelete(NotPresent):
     def __init__(self):
         super().__init__()
 
-
     def kind(self):
         return "NotPresentDelete"
 
@@ -226,22 +226,72 @@ class CurrentLine(object):
         self.modi_line_ = 1     # Increment on flush.
 
 
+# 
+class RegionDesc(object):
+    UNKNOWN = -1                # Uninitialized
+    EQUAL   = 0                 # Unchanged line.
+    DELETE  = 1                 # Deleted line (base file only)
+    ADD     = 2                 # Added line (modi file only)
+    CHANGE  = 3                 # Changed line.
+
+    def __init__(self, kind, r_beg, r_len):
+        if kind == "equal":
+            kind = self.EQUAL
+        elif kind == "delete":
+            kind = self.DELETE
+        elif kind == "insert":
+            kind = self.ADD
+        else:
+            assert(kind == "replace")
+            kind = self.CHANGE
+
+        self.kind_ = kind
+        self.beg_  = r_beg
+        self.len_  = r_len
+
+    def __str__(self):
+        names = [ "eql", "del", "add", "chg" ]
+        # Lines are numbered from one; make the region human readable.
+        beg = self.beg_ + 1
+        return "%s: [%d, %d)" % (names[self.kind_], beg, beg + self.len_)
+
+
+#  Describes lines that are present in the file.
+class LineInfoDesc(object):
+    def __init__(self):
+        self.regions_           = [ ]     # List of Region
+        self.lines_             = [ ]     # List of Line
+        self.n_changed_regions_ = 0       # Not EQUAL RegionDesc.
+
+
 class DiffDesc(object):
     def __init__(self, verbose):
         self.verbose_  = verbose
         self.cl_       = CurrentLine()
-        self.base_     = [ ]    # Lines in base file.
-        self.modi_     = [ ]    # Lines in modi file.
+        self.base_     = LineInfoDesc()    # Lines in base file.
+        self.modi_     = LineInfoDesc()    # Lines in modi file.
+
+    def add_base_region(self, kind, r_beg, r_len):
+        r = RegionDesc(kind, r_beg, r_len)
+        self.base_.regions_.append(r)
+        if r.kind_ != RegionDesc.EQUAL:
+            self.base_.n_changed_regions_ += 1
+
+    def add_modi_region(self, kind, r_beg, r_len):
+        r = RegionDesc(kind, r_beg, r_len)
+        self.modi_.regions_.append(r)
+        if r.kind_ != RegionDesc.EQUAL:
+            self.modi_.n_changed_regions_ += 1
 
     def add_base_line(self, line):
         if False:
             line.dump("base")
-        self.base_.append(line)
+        self.base_.lines_.append(line)
 
     def add_modi_line(self, line):
         if False:
             line.dump("modi")
-        self.modi_.append(line)
+        self.modi_.lines_.append(line)
 
 
     def cache_modi(self, line):
@@ -308,35 +358,35 @@ class DiffDesc(object):
 
 
     def dump(self):
-        assert(len(self.base_) == len(self.modi_))
-        ll = len(self.base_)
+        assert(len(self.base_.lines_) == len(self.modi_.lines_))
+        ll = len(self.base_.lines_)
 
         # Write basic text to known files to validate with tkdiff.
         with open("/tmp/base", "w") as fp:
             idx = 0
-            while idx < len(self.base_):
-                base = self.base_[idx].line_
+            while idx < len(self.base_.lines_):
+                base = self.base_.lines_[idx].line_
                 fp.write(base)
                 idx = idx + 1
 
         with open("/tmp/modi", "w") as fp:
             idx = 0
-            while idx < len(self.modi_):
-                modi = self.modi_[idx].line_
+            while idx < len(self.modi_.lines_):
+                modi = self.modi_.lines_[idx].line_
                 fp.write(modi)
                 idx = idx + 1
 
         idx = 0
         while idx < ll:
-            base_type_ = type(self.base_[idx]).__name__
-            base = self.base_[idx]
+            base_type_ = type(self.base_.lines_[idx]).__name__
+            base = self.base_.lines_[idx]
 
-            modi_type_ = type(self.modi_[idx]).__name__
-            modi = self.modi_[idx]
+            modi_type_ = type(self.modi_.lines_[idx]).__name__
+            modi = self.modi_.lines_[idx]
 
             if True:
-                self.base_[idx].dump("base")
-                self.modi_[idx].dump("modi")
+                self.base_.lines_[idx].dump("base")
+                self.modi_.lines_[idx].dump("modi")
             else:
                 print("(%s) %s   |   (%s) %s" % (base_type_, base,
                                                  modi_type_, modi))

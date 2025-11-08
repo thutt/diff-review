@@ -263,12 +263,13 @@ def process_command_line():
 
 
 def add_diff_to_viewer(desc, viewer):
-    assert(len(desc.base_) == len(desc.modi_))
+    assert(len(desc.base_.lines_) == len(desc.modi_.lines_))
 
-    for idx in range(0, len(desc.base_)):
-        base = desc.base_[idx]
-        modi = desc.modi_[idx]
-        viewer.add_line(base, modi)  # Repeat for each line pair
+    viewer.set_changed_region_count(desc.base_.n_changed_regions_)
+    for idx in range(0, len(desc.base_.lines_)):
+        base = desc.base_.lines_[idx]
+        modi = desc.modi_.lines_[idx]
+        viewer.add_line(base, modi)
 
     viewer.finalize()
 
