@@ -52,7 +52,7 @@ STANDARD_PALETTE = ColorPalette('Standard', {
     
     # Whitespace visualization
     'WS': QColor(220, 220, 255),                   # Light blue for spaces
-    'TAB': QColor(200, 255, 200),                  # Light green for tabs
+    'TAB': QColor(255, 180, 255),                  # Light magenta for tabs - better contrast
     'TRAILINGWS': QColor(255, 200, 200),           # Light red for trailing whitespace
     
     # Search highlighting - two-tier system
@@ -94,7 +94,7 @@ COLORBLIND_PALETTE = ColorPalette('Colorblind Friendly', {
     
     # Whitespace visualization
     'WS': QColor(210, 210, 240),                   # Light purple-blue for spaces
-    'TAB': QColor(180, 220, 255),                  # Light cyan for tabs
+    'TAB': QColor(255, 200, 100),                  # Light orange/yellow for tabs - better contrast
     'TRAILINGWS': QColor(255, 200, 150),           # Light orange for trailing whitespace
     
     # Search highlighting - two-tier system for colorblind palette
