@@ -24,17 +24,24 @@ from ui_components import LineNumberArea, DiffMapWidget, SyncedPlainTextEdit
 from commit_msg_dialog import CommitMsgDialog
 import color_palettes
 
+# Debug flag for diagnostic output
+DEBUG = False
+
 
 class DiffViewer(QMainWindow):
     def __init__(self, base_file: str, modified_file: str, note_file: str, 
                  commit_msg_file: str, max_line_length: int, show_diff_map: bool,
-                 show_line_numbers: bool):
+                 show_line_numbers: bool, ignore_ws: bool = False, 
+                 ignore_tab: bool = False, ignore_trailing_ws: bool = False):
         if QApplication.instance() is None:
             self._app = QApplication(sys.argv)
         else:
             self._app = QApplication.instance()
         
         super().__init__()
+        
+        # Cache for QTextCharFormat objects (reuse instead of creating thousands)
+        self._format_cache = {}
         
         self.base_file = base_file
         self.modified_file = modified_file
@@ -57,12 +64,16 @@ class DiffViewer(QMainWindow):
         self.modified_line_objects = []
         self.n_changed_regions = 0  # Count of non-EQUAL regions from diff descriptor
         
+        # Lazy formatting tracking
+        self.formatted_lines = set()  # Lines that have been formatted
+        self.lazy_formatting_enabled = True  # Enable lazy formatting by default
+        
         self.current_region = 0
         self.current_region_highlight = None
         self._target_region = None
-        self.ignore_ws = False  # Will be set by tab manager
-        self.ignore_tab = False  # Will be set by tab manager
-        self.ignore_trailing_ws = False  # Will be set by tab manager
+        self.ignore_ws = ignore_ws
+        self.ignore_tab = ignore_tab
+        self.ignore_trailing_ws = ignore_trailing_ws
         
         self.setup_gui()
     
@@ -171,6 +182,10 @@ class DiffViewer(QMainWindow):
         self.base_text.verticalScrollBar().valueChanged.connect(self.sync_v_scroll)
         self.base_text.horizontalScrollBar().valueChanged.connect(self.sync_h_scroll)
         
+        # Connect scroll to lazy formatting
+        if self.lazy_formatting_enabled:
+            self.base_text.verticalScrollBar().valueChanged.connect(self.on_scroll_format)
+        
         self.base_text.verticalScrollBar().valueChanged.connect(self.base_line_area.update)
         self.modified_text.verticalScrollBar().valueChanged.connect(self.modified_line_area.update)
         
@@ -209,7 +224,12 @@ class DiffViewer(QMainWindow):
     def finalize(self):
         self.build_change_regions()
         self.populate_content()
-        self.apply_highlighting()
+        
+        # Skip initial highlighting if lazy formatting is enabled
+        # Lines will be formatted on-demand as they become visible
+        if not self.lazy_formatting_enabled:
+            self.apply_highlighting()
+        
         self.update_status()
         QTimer.singleShot(100, self.init_scrollbars)
         
@@ -220,6 +240,10 @@ class DiffViewer(QMainWindow):
         
         if self.change_regions:
             QTimer.singleShot(200, self.navigate_to_first_region)
+        
+        # Format initially visible lines after UI is set up
+        if self.lazy_formatting_enabled:
+            QTimer.singleShot(250, self.format_visible_lines)
     
     def navigate_to_first_region(self):
         if self.change_regions:
@@ -278,6 +302,114 @@ class DiffViewer(QMainWindow):
             }.get(region_kind, 'unknown')
             self.change_regions.append((tag_name, region_start, len(self.base_line_objects), 0, 0, 0, 0))
     
+    def on_scroll_format(self):
+        """Called when scrolling - format newly visible lines"""
+        if self.lazy_formatting_enabled:
+            self.format_visible_lines()
+    
+    def format_visible_lines(self):
+        """Format only the lines currently visible in the viewport"""
+        if not self.lazy_formatting_enabled:
+            return
+        
+        if DEBUG:
+            import time
+            start_time = time.time()
+        
+        # Get visible line range
+        first_visible = self.base_text.firstVisibleBlock().blockNumber()
+        viewport_height = self.base_text.viewport().height()
+        line_height = self.base_text.fontMetrics().height()
+        visible_lines = (viewport_height // line_height if line_height > 0 else 50) + 10  # +10 for buffer
+        last_visible = min(first_visible + visible_lines, len(self.base_line_objects))
+        
+        lines_to_format = []
+        for i in range(first_visible, last_visible):
+            if i not in self.formatted_lines and i < len(self.base_line_objects):
+                lines_to_format.append(i)
+        
+        if not lines_to_format:
+            return  # Nothing to format
+        
+        # Format each visible line that hasn't been formatted yet
+        import diff_desc
+        palette = color_palettes.get_current_palette()
+        
+        for i in lines_to_format:
+            
+            base_line = self.base_line_objects[i]
+            modi_line = self.modified_line_objects[i]
+            
+            # Format BASE SIDE
+            if not base_line.show_line_number():
+                self.highlight_line(self.base_text, i, palette.get_color('placeholder'))
+            elif not (hasattr(base_line, 'uncolored_') and base_line.uncolored_):
+                bg_color = None
+                needs_runs = False
+                
+                if hasattr(base_line, 'region_') and base_line.region_:
+                    region_kind = base_line.region_.kind_
+                    
+                    if region_kind == diff_desc.RegionDesc.DELETE or \
+                       region_kind == diff_desc.RegionDesc.CHANGE:
+                        bg_color = palette.get_color('base_changed_bg')
+                        needs_runs = True
+                    elif region_kind == diff_desc.RegionDesc.EQUAL:
+                        if hasattr(base_line, 'runs_'):
+                            for run in base_line.runs_:
+                                color_name = run.color()
+                                if (color_name == 'TAB' and not self.ignore_tab) or \
+                                   (color_name == 'WS' and not self.ignore_ws) or \
+                                   (color_name == 'TRAILINGWS' and not self.ignore_trailing_ws):
+                                    needs_runs = True
+                                    break
+                
+                if bg_color:
+                    self.highlight_line(self.base_text, i, bg_color)
+                    self.base_line_area.set_line_background(i, bg_color)
+                
+                if needs_runs:
+                    self.apply_runs(self.base_text, i, base_line)
+            
+            # Format MODIFIED SIDE
+            if not modi_line.show_line_number():
+                self.highlight_line(self.modified_text, i, palette.get_color('placeholder'))
+            elif not (hasattr(modi_line, 'uncolored_') and modi_line.uncolored_):
+                bg_color = None
+                needs_runs = False
+                
+                if hasattr(modi_line, 'region_') and modi_line.region_:
+                    region_kind = modi_line.region_.kind_
+                    
+                    if region_kind == diff_desc.RegionDesc.ADD or \
+                       region_kind == diff_desc.RegionDesc.CHANGE:
+                        bg_color = palette.get_color('modi_changed_bg')
+                        needs_runs = True
+                    elif region_kind == diff_desc.RegionDesc.EQUAL:
+                        if hasattr(modi_line, 'runs_'):
+                            for run in modi_line.runs_:
+                                color_name = run.color()
+                                if (color_name == 'TAB' and not self.ignore_tab) or \
+                                   (color_name == 'WS' and not self.ignore_ws) or \
+                                   (color_name == 'TRAILINGWS' and not self.ignore_trailing_ws):
+                                    needs_runs = True
+                                    break
+                
+                if bg_color:
+                    self.highlight_line(self.modified_text, i, bg_color)
+                    self.modified_line_area.set_line_background(i, bg_color)
+                
+                if needs_runs:
+                    self.apply_runs(self.modified_text, i, modi_line)
+            
+            # Mark as formatted
+            self.formatted_lines.add(i)
+        
+        if DEBUG:
+            elapsed = time.time() - start_time
+            print(f"format_visible_lines: {elapsed:.3f}s for {len(lines_to_format)} lines (range {first_visible}-{last_visible}, total formatted: {len(self.formatted_lines)})")
+            sys.stdout.flush()
+    
     def populate_content(self):
         self.base_line_area.set_line_numbers(self.base_line_nums)
         self.modified_line_area.set_line_numbers(self.modified_line_nums)
@@ -288,9 +420,11 @@ class DiffViewer(QMainWindow):
         self.diff_map.set_change_regions(self.change_regions, len(self.base_display))
     
     def apply_highlighting(self):
-        if False:  # Debug timing
+        if DEBUG:
             import time
             start_time = time.time()
+            highlight_count = 0
+            run_count = 0
         
         import diff_desc
         palette = color_palettes.get_current_palette()
@@ -302,12 +436,15 @@ class DiffViewer(QMainWindow):
             if not base_line.show_line_number():
                 # Placeholder line
                 self.highlight_line(self.base_text, i, palette.get_color('placeholder'))
+                if DEBUG:
+                    highlight_count += 1
             elif hasattr(base_line, 'uncolored_') and base_line.uncolored_:
                 # Line has no colors to apply - skip all highlighting
                 pass
             else:
                 # Determine background color based on region type
                 bg_color = None
+                needs_runs = False
                 
                 if hasattr(base_line, 'region_') and base_line.region_:
                     region_kind = base_line.region_.kind_
@@ -315,25 +452,43 @@ class DiffViewer(QMainWindow):
                     if region_kind == diff_desc.RegionDesc.DELETE or \
                        region_kind == diff_desc.RegionDesc.CHANGE:
                         bg_color = palette.get_color('base_changed_bg')
-                    # EQUAL and ADD regions don't get background on base side
+                        needs_runs = True  # Changed regions need run formatting
+                    elif region_kind == diff_desc.RegionDesc.EQUAL:
+                        # EQUAL regions only need runs if they have visible whitespace annotations
+                        if hasattr(base_line, 'runs_'):
+                            for run in base_line.runs_:
+                                color_name = run.color()
+                                if (color_name == 'TAB' and not self.ignore_tab) or \
+                                   (color_name == 'WS' and not self.ignore_ws) or \
+                                   (color_name == 'TRAILINGWS' and not self.ignore_trailing_ws):
+                                    needs_runs = True
+                                    break
                 
                 if bg_color:
                     self.highlight_line(self.base_text, i, bg_color)
                     self.base_line_area.set_line_background(i, bg_color)
+                    if DEBUG:
+                        highlight_count += 1
                 
-                # Always apply runs for colored lines
-                self.apply_runs(self.base_text, i, base_line)
+                # Only apply runs if needed
+                if needs_runs:
+                    self.apply_runs(self.base_text, i, base_line)
+                    if DEBUG:
+                        run_count += 1
             
             # MODIFIED SIDE
             if not modi_line.show_line_number():
                 # Placeholder line
                 self.highlight_line(self.modified_text, i, palette.get_color('placeholder'))
+                if DEBUG:
+                    highlight_count += 1
             elif hasattr(modi_line, 'uncolored_') and modi_line.uncolored_:
                 # Line has no colors to apply - skip all highlighting
                 pass
             else:
                 # Determine background color based on region type
                 bg_color = None
+                needs_runs = False
                 
                 if hasattr(modi_line, 'region_') and modi_line.region_:
                     region_kind = modi_line.region_.kind_
@@ -341,18 +496,39 @@ class DiffViewer(QMainWindow):
                     if region_kind == diff_desc.RegionDesc.ADD or \
                        region_kind == diff_desc.RegionDesc.CHANGE:
                         bg_color = palette.get_color('modi_changed_bg')
-                    # EQUAL and DELETE regions don't get background on modi side
+                        needs_runs = True  # Changed regions need run formatting
+                    elif region_kind == diff_desc.RegionDesc.EQUAL:
+                        # EQUAL regions only need runs if they have visible whitespace annotations
+                        if hasattr(modi_line, 'runs_'):
+                            for run in modi_line.runs_:
+                                color_name = run.color()
+                                if (color_name == 'TAB' and not self.ignore_tab) or \
+                                   (color_name == 'WS' and not self.ignore_ws) or \
+                                   (color_name == 'TRAILINGWS' and not self.ignore_trailing_ws):
+                                    needs_runs = True
+                                    break
                 
                 if bg_color:
                     self.highlight_line(self.modified_text, i, bg_color)
                     self.modified_line_area.set_line_background(i, bg_color)
+                    if DEBUG:
+                        highlight_count += 1
                 
-                # Always apply runs for colored lines
-                self.apply_runs(self.modified_text, i, modi_line)
+                # Only apply runs if needed
+                if needs_runs:
+                    self.apply_runs(self.modified_text, i, modi_line)
+                    if DEBUG:
+                        run_count += 1
         
-        if False:  # Debug timing
+        if DEBUG:
             elapsed = time.time() - start_time
             print(f"apply_highlighting: {elapsed:.3f} seconds ({len(self.base_line_objects)} lines)")
+            print(f"  highlight_line calls: {highlight_count}")
+            print(f"  apply_runs calls: {run_count}")
+            if hasattr(self, '_apply_runs_count'):
+                max_calls = max(self._apply_runs_count.values()) if self._apply_runs_count else 0
+                avg_calls = sum(self._apply_runs_count.values()) / len(self._apply_runs_count) if self._apply_runs_count else 0
+                print(f"  apply_runs per line - max: {max_calls}, avg: {avg_calls:.2f}")
             sys.stdout.flush()
     
     def highlight_line(self, text_widget, line_num, color):
@@ -368,6 +544,12 @@ class DiffViewer(QMainWindow):
         cursor.setBlockFormat(block_fmt)
     
     def apply_runs(self, text_widget, line_idx, line_obj):
+        # Track calls per line to detect redundant formatting
+        if DEBUG:
+            if not hasattr(self, '_apply_runs_count'):
+                self._apply_runs_count = {}
+            self._apply_runs_count[line_idx] = self._apply_runs_count.get(line_idx, 0) + 1
+        
         if not hasattr(line_obj, 'runs_'):
             return
         
@@ -437,8 +619,15 @@ class DiffViewer(QMainWindow):
                             cursor.setPosition(start_pos)
                             cursor.setPosition(end_pos, QTextCursor.MoveMode.KeepAnchor)
                             
-                            fmt = QTextCharFormat()
-                            fmt.setBackground(color)
+                            # Use cached format object instead of creating new one
+                            color_key = color.rgba()
+                            if color_key not in self._format_cache:
+                                fmt = QTextCharFormat()
+                                fmt.setBackground(color)
+                                self._format_cache[color_key] = fmt
+                            else:
+                                fmt = self._format_cache[color_key]
+                            
                             cursor.mergeCharFormat(fmt)
     
     def init_scrollbars(self):
