@@ -229,7 +229,6 @@ class CurrentLine(object):
         self.modi_      = None
         self.modi_line_ = 1     # Increment on flush.
 
-
 # 
 class RegionDesc(object):
     UNKNOWN = -1                # Uninitialized
@@ -358,7 +357,6 @@ class DiffDesc(object):
         self.add_modi_line(self.cl_.modi_)
         if self.cl_.modi_.show_line_number():
             self.cl_.modi_line_ = self.cl_.modi_line_ + 1
-
 
         self.cl_.base_ = None
         self.cl_.modi_ = None

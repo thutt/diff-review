@@ -6,11 +6,6 @@ import datetime
 import difflib
 import diff_desc
 
-global NPD
-global NPA
-NPA   = diff_desc.NotPresentAdd()        # Only one instance needed.
-NPD   = diff_desc.NotPresentDelete()     # Only one instance needed.
-
 
 def read_file(path):
     with open(path, "r") as fp:
@@ -90,24 +85,28 @@ def add_equal_line_region(desc, base_l, modi_l):
     assert(len(base_l) == len(modi_l))
 
     for l_idx in range(0, len(base_l)):
-        l_desc = create_line_desc(0, base_l[l_idx])
-        desc.cache_base(l_desc)
-        desc.cache_modi(l_desc)
+        # Cannot use same descriptor for equal lines because line
+        # number will be incremented wrong.
+        b_desc = create_line_desc(0, base_l[l_idx])
+        m_desc = create_line_desc(0, base_l[l_idx])
+        desc.cache_base(b_desc)
+        desc.cache_modi(m_desc)
         desc.flush(0, False, None)
-        l_desc.uncolored_ = len(l_desc.runs_) == 1
+        b_desc.uncolored_ = len(b_desc.runs_) == 1
+        m_desc.uncolored_ = len(m_desc.runs_) == 1
 
 def add_deleted_line_region(desc, base_l):
     for l_idx in range(0, len(base_l)):
         l_desc = create_line_desc(2, base_l[l_idx])
         desc.cache_base(l_desc)
-        desc.cache_modi(NPD)
+        desc.cache_modi(diff_desc.NotPresentDelete())
         desc.flush(0, False, None)
 
 
 def add_inserted_line_region(desc, modi_l):
     for l_idx in range(0, len(modi_l)):
         l_desc = create_line_desc(1, modi_l[l_idx])
-        desc.cache_base(NPA)
+        desc.cache_base(diff_desc.NotPresentAdd())
         desc.cache_modi(l_desc)
         desc.flush(0, False, None)
 
@@ -178,7 +177,7 @@ def add_replaced_line_region(desc, base_l, modi_l):
             m_run  = diff_desc.TextRunAdded(0, len(modi_l[k]), True)
             m_run  = diff_desc.amend_run_with_tab(l_modi, m_run)
             l_modi.runs_ += m_run
-            desc.cache_base(NPA)
+            desc.cache_base(diff_desc.NotPresentAdd())
             desc.cache_modi(l_modi)
             desc.flush(0, False, None)
 
@@ -190,7 +189,7 @@ def add_replaced_line_region(desc, base_l, modi_l):
             b_run  = diff_desc.TextRunDeleted(0, len(base_l[k]))
             b_run  = diff_desc.amend_run_with_tab(l_base, b_run)
             l_base.runs_ += b_run
-            desc.cache_modi(NPD)
+            desc.cache_modi(diff_desc.NotPresentDelete())
             desc.cache_base(l_base)
             desc.flush(0, False, None)
     else:
