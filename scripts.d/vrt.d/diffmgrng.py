@@ -153,7 +153,7 @@ def add_replaced_line_region(desc, base_l, modi_l):
                 l_base.runs_ += b_run
             elif opc == "insert":
                 assert((b_end - b_beg) == 0) # Characters added.
-                m_run = diff_desc.TextRunAdded(m_beg, m_end - m_beg, True)
+                m_run = diff_desc.TextRunAdded(m_beg, m_end - m_beg)
                 m_run = diff_desc.amend_run_with_tab(l_modi, m_run)
                 l_modi.runs_ += m_run
             elif opc == "equal":
@@ -174,7 +174,7 @@ def add_replaced_line_region(desc, base_l, modi_l):
         assert(l_changed <= len_modi)
         for k in range(l_changed, len_modi):
             l_modi = diff_desc.Line(modi_l[k])
-            m_run  = diff_desc.TextRunAdded(0, len(modi_l[k]), True)
+            m_run  = diff_desc.TextRunAdded(0, len(modi_l[k]))
             m_run  = diff_desc.amend_run_with_tab(l_modi, m_run)
             l_modi.runs_ += m_run
             desc.cache_base(diff_desc.NotPresentAdd())

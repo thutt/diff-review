@@ -3,10 +3,9 @@
 # Licensed under Gnu GPL V3.
 #
 class TextRun(object):
-    def __init__(self, kind, start, n_chars, changed):
+    def __init__(self, kind, start, n_chars):
         self.start_   = start
         self.len_     = n_chars
-        self.changed_ = changed # Text is altered, or not altered in this run.
         self.kind_    = kind    # Identifies the class type.
 
     def dump(self):
@@ -21,15 +20,15 @@ class TextRun(object):
 
 class TextRunNormal(TextRun):
     def __init__(self, start, n_chars):
-        super().__init__(0, start, n_chars, False)
+        super().__init__(0, start, n_chars)
 
     def color(self):
         return "NORMAL"
 
 
 class TextRunAdded(TextRun):
-    def __init__(self, start, n_chars, changed):
-        super().__init__(1, start, n_chars, changed)
+    def __init__(self, start, n_chars):
+        super().__init__(1, start, n_chars)
 
     def color(self):
         return "ADD"
@@ -37,7 +36,7 @@ class TextRunAdded(TextRun):
 
 class TextRunDeleted(TextRun):
     def __init__(self, start, n_chars):
-        super().__init__(2, start, n_chars, True)
+        super().__init__(2, start, n_chars)
 
     def color(self):
         return "DELETE"
@@ -45,38 +44,38 @@ class TextRunDeleted(TextRun):
 
 class TextRunIntraline(TextRun):
     def __init__(self, start, n_chars):
-        super().__init__(3, start, n_chars, True)
+        super().__init__(3, start, n_chars)
 
     def color(self):
         return "INTRALINE"
 
 
 class TextRunWhitespace(TextRun):
-    def __init__(self, start, n_chars, changed):
-        super().__init__(4, start, n_chars, changed)
+    def __init__(self, start, n_chars):
+        super().__init__(4, start, n_chars)
 
     def color(self):
         return "WS"
 
 
 class TextRunTrailingWhitespace(TextRun):
-    def __init__(self, start, n_chars, changed):
-        super().__init__(5, start, n_chars, changed)
+    def __init__(self, start, n_chars):
+        super().__init__(5, start, n_chars)
 
     def color(self):
         return "TRAILINGWS"
 
 class TextRunTab(TextRun):
-    def __init__(self, start, n_chars, changed):
-        super().__init__(6, start, n_chars, changed)
+    def __init__(self, start, n_chars):
+        super().__init__(6, start, n_chars)
 
     def color(self):
         return "TAB"
 
 
 class TextRunNotPresent(TextRun):
-    def __init__(self, start, n_chars, changed):
-        super().__init__(7, start, n_chars, changed)
+    def __init__(self, start, n_chars):
+        super().__init__(7, start, n_chars)
 
     def color(self):
         return "NOTPRESENT"
@@ -84,7 +83,7 @@ class TextRunNotPresent(TextRun):
 
 class TextRunUnknown(TextRun):  # XXX Remove with diffmgr.
     def __init__(self, start, n_chars):
-        super().__init__(8, start, n_chars, True)
+        super().__init__(8, start, n_chars)
 
     def color(self):
         return "UNKNOWN"        # Unknown meta marker on '? ' command.
@@ -125,7 +124,7 @@ class Line(object):
         self.line_num_ = line_num
 
     def add_run_not_present_coverage(self):
-        run = TextRunNotPresent(0, len(self.line_), False)
+        run = TextRunNotPresent(0, len(self.line_))
         self.runs_.append(run)
 
     def add_run_unchanged(self):
@@ -133,7 +132,7 @@ class Line(object):
         self.runs_.append(run)
 
     def add_run_added_line(self):
-        run = TextRunAdded(0, len(self.line_), True)
+        run = TextRunAdded(0, len(self.line_))
         self.runs_.append(run)
 
     def add_run_deleted_line(self):
@@ -177,7 +176,7 @@ class Line(object):
                 run = TextRunIntraline(idx, jdx - idx)
                 pass
             elif run_add:
-                run = TextRunAdded(idx, jdx - idx, True)
+                run = TextRunAdded(idx, jdx - idx)
             else:
                 run = TextRunUnknown(idx, jdx - idx)
             self.runs_.append(run)
@@ -327,7 +326,7 @@ class DiffDesc(object):
             orig_len   = last.len_
             last.len_ -= n_spaces
             tws        = TextRunTrailingWhitespace(last.start_ + last.len_,
-                                                   n_spaces, True)
+                                                   n_spaces)
 
             assert(orig_len == last.len_ + tws.len_)
             line.runs_.append(tws)
@@ -427,7 +426,7 @@ def compute_tab_runs(line, m_run):
                 # End of line, or single tab.
                 t_idx += 1
 
-            t_run = TextRunTab(r_beg, r_end - r_beg, True)
+            t_run = TextRunTab(r_beg, r_end - r_beg)
             tab_runs.append(t_run)
 
     return tab_runs
@@ -437,7 +436,7 @@ def make_text_run(kind, r_beg, r_len):
     if kind == 0:               # TextRunNormal
         run = TextRunNormal(r_beg, r_len)
     elif kind == 1:             # TextRunAdded
-        run = TextRunAdded(r_beg, r_len, True)
+        run = TextRunAdded(r_beg, r_len)
     elif kind == 2:             # TextRunDeleted
         run = TextRunDeleted(r_beg, r_len)
     elif kind == 3:             # TextRunIntraline
