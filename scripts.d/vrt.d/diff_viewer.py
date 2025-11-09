@@ -278,33 +278,6 @@ class DiffViewer(QMainWindow):
             }.get(region_kind, 'unknown')
             self.change_regions.append((tag_name, region_start, len(self.base_line_objects), 0, 0, 0, 0))
     
-    def line_has_changes(self, line_obj):
-        if not hasattr(line_obj, 'runs_'):
-            return False
-        return any(run.changed_ for run in line_obj.runs_)
-    
-    def line_has_visible_changes(self, line_obj):
-        """Check if line has content changes (not just whitespace annotations)
-        
-        This determines whether the line background should be colored.
-        Whitespace annotations (TAB/WS/TRAILINGWS) don't affect line background,
-        only character-level highlighting within the line.
-        """
-        if not hasattr(line_obj, 'runs_'):
-            return False
-        for run in line_obj.runs_:
-            if run.changed_:  # Only actual changes affect line background
-                color_name = run.color()
-                # Skip ignored whitespace changes
-                if self.ignore_ws and color_name == 'WS':
-                    continue
-                if self.ignore_tab and color_name == 'TAB':
-                    continue
-                if self.ignore_trailing_ws and color_name == 'TRAILINGWS':
-                    continue
-                return True
-        return False
-    
     def populate_content(self):
         self.base_line_area.set_line_numbers(self.base_line_nums)
         self.modified_line_area.set_line_numbers(self.modified_line_nums)
