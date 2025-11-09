@@ -265,7 +265,9 @@ def process_command_line():
 def add_diff_to_viewer(desc, viewer):
     assert(len(desc.base_.lines_) == len(desc.modi_.lines_))
 
+    # Set the changed region count from the diff descriptor
     viewer.set_changed_region_count(desc.base_.n_changed_regions_)
+
     for idx in range(0, len(desc.base_.lines_)):
         base = desc.base_.lines_[idx]
         modi = desc.modi_.lines_[idx]

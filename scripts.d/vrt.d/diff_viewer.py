@@ -229,42 +229,54 @@ class DiffViewer(QMainWindow):
             self.highlight_current_region()
     
     def build_change_regions(self):
+        """Build change regions from line.region_ references (only non-EQUAL regions)"""
         self.change_regions = []
+        
+        import diff_desc
+        
         region_start = None
-        region_tag = None
+        region_kind = None
         
-        for i, (base_line, modi_line) in enumerate(zip(self.base_line_objects,
-                                                        self.modified_line_objects)):
-            base_present = base_line.show_line_number()
-            modi_present = modi_line.show_line_number()
-            
-            if base_present and modi_present:
-                is_changed = self.line_has_changes(base_line) or self.line_has_changes(modi_line)
-                current_tag = 'replace' if is_changed else None
-            elif base_present and not modi_present:
-                current_tag = 'delete'
-            elif not base_present and modi_present:
-                current_tag = 'insert'
-            else:
-                current_tag = None
-            
-            if current_tag is not None:
-                if region_start is None:
-                    region_start = i
-                    region_tag = current_tag
-                elif region_tag != current_tag:
-                    self.change_regions.append((region_tag, region_start, i, 0, 0, 0, 0))
-                    region_start = i
-                    region_tag = current_tag
-            else:
-                if region_start is not None:
-                    self.change_regions.append((region_tag, region_start, i, 0, 0, 0, 0))
-                    region_start = None
-                    region_tag = None
+        for i, base_line in enumerate(self.base_line_objects):
+            # Get the region from the line object
+            if hasattr(base_line, 'region_') and base_line.region_:
+                current_kind = base_line.region_.kind_
+                
+                # Only track non-EQUAL regions
+                if current_kind != diff_desc.RegionDesc.EQUAL:
+                    if region_start is None or region_kind != current_kind:
+                        # Start new region
+                        if region_start is not None:
+                            # Close previous region
+                            tag_name = {
+                                diff_desc.RegionDesc.DELETE: 'delete',
+                                diff_desc.RegionDesc.ADD: 'insert',
+                                diff_desc.RegionDesc.CHANGE: 'replace'
+                            }.get(region_kind, 'unknown')
+                            self.change_regions.append((tag_name, region_start, i, 0, 0, 0, 0))
+                        
+                        region_start = i
+                        region_kind = current_kind
+                else:
+                    # EQUAL region - close any open region
+                    if region_start is not None:
+                        tag_name = {
+                            diff_desc.RegionDesc.DELETE: 'delete',
+                            diff_desc.RegionDesc.ADD: 'insert',
+                            diff_desc.RegionDesc.CHANGE: 'replace'
+                        }.get(region_kind, 'unknown')
+                        self.change_regions.append((tag_name, region_start, i, 0, 0, 0, 0))
+                        region_start = None
+                        region_kind = None
         
+        # Close final region if open
         if region_start is not None:
-            self.change_regions.append((region_tag, region_start, 
-                                       len(self.base_line_objects), 0, 0, 0, 0))
+            tag_name = {
+                diff_desc.RegionDesc.DELETE: 'delete',
+                diff_desc.RegionDesc.ADD: 'insert',
+                diff_desc.RegionDesc.CHANGE: 'replace'
+            }.get(region_kind, 'unknown')
+            self.change_regions.append((tag_name, region_start, len(self.base_line_objects), 0, 0, 0, 0))
     
     def line_has_changes(self, line_obj):
         if not hasattr(line_obj, 'runs_'):
@@ -307,23 +319,7 @@ class DiffViewer(QMainWindow):
             import time
             start_time = time.time()
         
-        # Build lookup for which region each line belongs to
-        # We need this for both base and modified sides
         import diff_desc
-        
-        # Get region lists from line objects if available
-        base_regions = []
-        modi_regions = []
-        
-        # Extract regions from the first line object that has them
-        for line in self.base_line_objects:
-            if hasattr(line, '__dict__'):
-                # This is a hack to get the parent DiffDesc regions
-                # We'll need to pass these in properly
-                break
-        
-        # For now, we'll determine background by checking the line's region type
-        # We need to track which region each line index belongs to
         palette = color_palettes.get_current_palette()
         
         for i, (base_line, modi_line) in enumerate(zip(self.base_line_objects,
@@ -338,22 +334,15 @@ class DiffViewer(QMainWindow):
                 pass
             else:
                 # Determine background color based on region type
-                # For now, use the old logic until regions are properly passed
                 bg_color = None
                 
-                # Check what kind of line this is based on placeholder status
-                base_present = base_line.show_line_number()
-                modi_present = modi_line.show_line_number()
-                
-                if base_present and not modi_present:
-                    # DELETE region - base has content, modi is placeholder
-                    bg_color = palette.get_color('base_changed_bg')
-                elif base_present and modi_present:
-                    # Could be EQUAL or CHANGE
-                    # If line has any changes, it's CHANGE, otherwise EQUAL
-                    if self.line_has_changes(base_line):
+                if hasattr(base_line, 'region_') and base_line.region_:
+                    region_kind = base_line.region_.kind_
+                    
+                    if region_kind == diff_desc.RegionDesc.DELETE or \
+                       region_kind == diff_desc.RegionDesc.CHANGE:
                         bg_color = palette.get_color('base_changed_bg')
-                    # else: EQUAL - no background
+                    # EQUAL and ADD regions don't get background on base side
                 
                 if bg_color:
                     self.highlight_line(self.base_text, i, bg_color)
@@ -373,19 +362,13 @@ class DiffViewer(QMainWindow):
                 # Determine background color based on region type
                 bg_color = None
                 
-                # Check what kind of line this is based on placeholder status
-                base_present = base_line.show_line_number()
-                modi_present = modi_line.show_line_number()
-                
-                if not base_present and modi_present:
-                    # ADD region - modi has content, base is placeholder
-                    bg_color = palette.get_color('modi_changed_bg')
-                elif base_present and modi_present:
-                    # Could be EQUAL or CHANGE
-                    # If line has any changes, it's CHANGE, otherwise EQUAL
-                    if self.line_has_changes(modi_line):
+                if hasattr(modi_line, 'region_') and modi_line.region_:
+                    region_kind = modi_line.region_.kind_
+                    
+                    if region_kind == diff_desc.RegionDesc.ADD or \
+                       region_kind == diff_desc.RegionDesc.CHANGE:
                         bg_color = palette.get_color('modi_changed_bg')
-                    # else: EQUAL - no background
+                    # EQUAL and DELETE regions don't get background on modi side
                 
                 if bg_color:
                     self.highlight_line(self.modified_text, i, bg_color)

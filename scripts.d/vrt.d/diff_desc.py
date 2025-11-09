@@ -96,6 +96,7 @@ class Line(object):
         self.line_      = line     # Text of source line.
         self.line_num_  = -1       # Not known on construction.
         self.runs_      = [ ]      # TextRun instances
+        self.region_    = None     # Containing RegionDesc
         self.uncolored_ = False    # Indicates if there are colors on this line.
                                    #
                                    #   Only unmodified lines w/o
@@ -113,6 +114,9 @@ class Line(object):
             rdisp += str(r)
         rdisp += " ]"
         print(rdisp)
+
+    def add_parent_region(self, region):
+        self.region_ = region
 
     def show_line_number(self):
         return True
@@ -263,6 +267,16 @@ class LineInfoDesc(object):
         self.lines_             = [ ]     # List of Line
         self.n_changed_regions_ = 0       # Not EQUAL RegionDesc.
 
+    def add_region(self, kind, r_beg, r_len):
+        r = RegionDesc(kind, r_beg, r_len)
+        self.regions_.append(r)
+        if r.kind_ != RegionDesc.EQUAL:
+            self.n_changed_regions_ += 1
+
+    def add_line(self, line):
+        self.lines_.append(line)
+        idx = len(self.regions_) - 1 # Index to most recently opened region.
+        line.add_parent_region(self.regions_[idx])
 
 class DiffDesc(object):
     def __init__(self, verbose):
@@ -272,27 +286,20 @@ class DiffDesc(object):
         self.modi_     = LineInfoDesc()    # Lines in modi file.
 
     def add_base_region(self, kind, r_beg, r_len):
-        r = RegionDesc(kind, r_beg, r_len)
-        self.base_.regions_.append(r)
-        if r.kind_ != RegionDesc.EQUAL:
-            self.base_.n_changed_regions_ += 1
+        self.base_.add_region(kind, r_beg, r_len)
 
     def add_modi_region(self, kind, r_beg, r_len):
-        r = RegionDesc(kind, r_beg, r_len)
-        self.modi_.regions_.append(r)
-        if r.kind_ != RegionDesc.EQUAL:
-            self.modi_.n_changed_regions_ += 1
+        self.modi_.add_region(kind, r_beg, r_len)
 
     def add_base_line(self, line):
         if False:
             line.dump("base")
-        self.base_.lines_.append(line)
+        self.base_.add_line(line)
 
     def add_modi_line(self, line):
         if False:
             line.dump("modi")
-        self.modi_.lines_.append(line)
-
+        self.modi_.add_line(line)
 
     def cache_modi(self, line):
         assert(isinstance(line, Line))
