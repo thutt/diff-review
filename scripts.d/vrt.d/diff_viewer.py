@@ -66,6 +66,8 @@ class DiffViewer(QMainWindow):
         self.highlighting_applied = False  # Deferred until tab becomes visible
         self.highlighting_in_progress = False  # True during background highlighting
         self.highlighting_next_line = 0  # Next line to highlight
+        self._needs_highlighting_update = False  # Set by tab_manager for deferred updates
+        self._needs_color_refresh = False  # Set by tab_manager for deferred color updates
         
         self.setup_gui()
     
