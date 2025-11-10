@@ -293,10 +293,7 @@ def make_viewer(options, base, modi, note, commit_msg):
     viewer = diff_viewer.DiffViewer(base, modi, note, commit_msg,
                                     options.arg_max_line_length,
                                     show_diff_map(options),
-                                    show_line_numbers(options),
-                                    options.arg_ignore_whitespace,
-                                    options.arg_ignore_tab,
-                                    options.arg_ignore_trailing_whitespace)
+                                    show_line_numbers(options))
 
     desc = diffmgr.create_diff_descriptor(options.arg_verbose,
                                           base, modi)
