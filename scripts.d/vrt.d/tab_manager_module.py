@@ -1189,7 +1189,7 @@ class DiffViewerTabWidget(QMainWindow):
                 viewer.ensure_highlighting_applied()
             # Apply highlighting if this viewer needs an update
             if hasattr(viewer, '_needs_highlighting_update') and viewer._needs_highlighting_update:
-                viewer.apply_highlighting()
+                viewer.restart_highlighting()
                 viewer._needs_highlighting_update = False
             # Refresh colors if this viewer needs a color update
             if hasattr(viewer, '_needs_color_refresh') and viewer._needs_color_refresh:
@@ -1425,7 +1425,7 @@ class DiffViewerTabWidget(QMainWindow):
         viewer = self.get_current_viewer()
         if viewer:
             viewer.ignore_ws = self.ignore_ws
-            viewer.apply_highlighting()
+            viewer.restart_highlighting()
         # Mark all other viewers as needing update
         for v in self.get_all_viewers():
             if v != viewer:
@@ -1439,7 +1439,7 @@ class DiffViewerTabWidget(QMainWindow):
         viewer = self.get_current_viewer()
         if viewer:
             viewer.ignore_tab = self.ignore_tab
-            viewer.apply_highlighting()
+            viewer.restart_highlighting()
         # Mark all other viewers as needing update
         for v in self.get_all_viewers():
             if v != viewer:
@@ -1453,7 +1453,7 @@ class DiffViewerTabWidget(QMainWindow):
         viewer = self.get_current_viewer()
         if viewer:
             viewer.ignore_trailing_ws = self.ignore_trailing_ws
-            viewer.apply_highlighting()
+            viewer.restart_highlighting()
         # Mark all other viewers as needing update
         for v in self.get_all_viewers():
             if v != viewer:

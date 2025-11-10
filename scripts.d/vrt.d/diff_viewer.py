@@ -64,6 +64,8 @@ class DiffViewer(QMainWindow):
         self.ignore_tab = False  # Will be set by tab manager
         self.ignore_trailing_ws = False  # Will be set by tab manager
         self.highlighting_applied = False  # Deferred until tab becomes visible
+        self.highlighting_in_progress = False  # True during background highlighting
+        self.highlighting_next_line = 0  # Next line to highlight
         
         self.setup_gui()
     
@@ -358,10 +360,101 @@ class DiffViewer(QMainWindow):
             sys.stdout.flush()
     
     def ensure_highlighting_applied(self):
-        """Apply highlighting if not yet done. Called when tab becomes visible."""
-        if not self.highlighting_applied:
-            self.apply_highlighting()
+        """Start progressive highlighting if not yet done."""
+        if not self.highlighting_applied and not self.highlighting_in_progress:
+            self.start_progressive_highlighting()
+    
+    def start_progressive_highlighting(self):
+        """Start background highlighting in chunks."""
+        self.highlighting_in_progress = True
+        self.highlighting_next_line = 0
+        self.update_highlighting_status()
+        QTimer.singleShot(0, self.highlight_next_chunk)
+    
+    def highlight_next_chunk(self):
+        """Highlight next chunk of lines."""
+        if not self.highlighting_in_progress:
+            return
+        
+        chunk_size = 500
+        start_line = self.highlighting_next_line
+        end_line = min(start_line + chunk_size, len(self.base_line_objects))
+        
+        import diff_desc
+        palette = color_palettes.get_current_palette()
+        
+        for i in range(start_line, end_line):
+            base_line = self.base_line_objects[i]
+            modi_line = self.modified_line_objects[i]
+            
+            # BASE SIDE
+            if not base_line.show_line_number():
+                self.highlight_line(self.base_text, i, palette.get_color('placeholder'))
+            elif hasattr(base_line, 'uncolored_') and base_line.uncolored_:
+                pass
+            else:
+                bg_color = None
+                if hasattr(base_line, 'region_') and base_line.region_:
+                    region_kind = base_line.region_.kind_
+                    if region_kind == diff_desc.RegionDesc.DELETE or \
+                       region_kind == diff_desc.RegionDesc.CHANGE:
+                        bg_color = palette.get_color('base_changed_bg')
+                
+                if bg_color:
+                    self.highlight_line(self.base_text, i, bg_color)
+                    self.base_line_area.set_line_background(i, bg_color)
+                self.apply_runs(self.base_text, i, base_line)
+            
+            # MODIFIED SIDE
+            if not modi_line.show_line_number():
+                self.highlight_line(self.modified_text, i, palette.get_color('placeholder'))
+            elif hasattr(modi_line, 'uncolored_') and modi_line.uncolored_:
+                pass
+            else:
+                bg_color = None
+                if hasattr(modi_line, 'region_') and modi_line.region_:
+                    region_kind = modi_line.region_.kind_
+                    if region_kind == diff_desc.RegionDesc.ADD or \
+                       region_kind == diff_desc.RegionDesc.CHANGE:
+                        bg_color = palette.get_color('modi_changed_bg')
+                
+                if bg_color:
+                    self.highlight_line(self.modified_text, i, bg_color)
+                    self.modified_line_area.set_line_background(i, bg_color)
+                self.apply_runs(self.modified_text, i, modi_line)
+        
+        self.highlighting_next_line = end_line
+        
+        if end_line >= len(self.base_line_objects):
+            # Done
+            self.highlighting_in_progress = False
             self.highlighting_applied = True
+            self.clear_highlighting_status()
+        else:
+            # Continue
+            self.update_highlighting_status()
+            QTimer.singleShot(0, self.highlight_next_chunk)
+    
+    def update_highlighting_status(self):
+        """Update status bar with highlighting progress."""
+        if not self.highlighting_in_progress:
+            return
+        total = len(self.base_line_objects)
+        current = self.highlighting_next_line
+        percent = int((current / total) * 100) if total > 0 else 0
+        self.statusBar().showMessage(f"Highlighting: {percent}% ({current}/{total} lines)")
+    
+    def clear_highlighting_status(self):
+        """Clear highlighting status message."""
+        self.statusBar().clearMessage()
+    
+    def restart_highlighting(self):
+        """Cancel current highlighting and restart from beginning."""
+        self.highlighting_in_progress = False
+        self.highlighting_applied = False
+        self.highlighting_next_line = 0
+        self.start_progressive_highlighting()
+
     
     def highlight_line(self, text_widget, line_num, color):
         block = text_widget.document().findBlockByNumber(line_num)
