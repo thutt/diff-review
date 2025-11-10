@@ -63,6 +63,7 @@ class DiffViewer(QMainWindow):
         self.ignore_ws = False  # Will be set by tab manager
         self.ignore_tab = False  # Will be set by tab manager
         self.ignore_trailing_ws = False  # Will be set by tab manager
+        self.highlighting_applied = False  # Deferred until tab becomes visible
         
         self.setup_gui()
     
@@ -209,7 +210,8 @@ class DiffViewer(QMainWindow):
     def finalize(self):
         self.build_change_regions()
         self.populate_content()
-        self.apply_highlighting()
+        # NOTE: apply_highlighting() is deferred until tab becomes visible
+        # This is handled by ensure_highlighting_applied() called from on_tab_changed()
         self.update_status()
         QTimer.singleShot(100, self.init_scrollbars)
         
@@ -354,6 +356,12 @@ class DiffViewer(QMainWindow):
             elapsed = time.time() - start_time
             print(f"apply_highlighting: {elapsed:.3f} seconds ({len(self.base_line_objects)} lines)")
             sys.stdout.flush()
+    
+    def ensure_highlighting_applied(self):
+        """Apply highlighting if not yet done. Called when tab becomes visible."""
+        if not self.highlighting_applied:
+            self.apply_highlighting()
+            self.highlighting_applied = True
     
     def highlight_line(self, text_widget, line_num, color):
         block = text_widget.document().findBlockByNumber(line_num)
@@ -768,6 +776,13 @@ class DiffViewer(QMainWindow):
             self.base_line_area.show()
             self.modified_line_area.show()
             self.line_numbers_visible = True
+    
+    def showEvent(self, event):
+        """Override to ensure highlighting is applied when window becomes visible"""
+        super().showEvent(event)
+        # This is a safety net in case the tab becomes visible through a path
+        # other than on_tab_changed (e.g., first show, or restoration from minimize)
+        self.ensure_highlighting_applied()
     
     def keyPressEvent(self, event):
         key = event.key()

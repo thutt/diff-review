@@ -94,6 +94,7 @@ class DiffViewerTabWidget(QMainWindow):
         self.ignore_ws = ignore_ws
         self.ignore_tab = ignore_tab
         self.ignore_trailing_ws = ignore_trailing_ws
+        self._bulk_loading = False  # Suppress highlighting during "Open All Files"
         
         self.setWindowTitle("Diff Viewer")
         
@@ -611,6 +612,9 @@ class DiffViewerTabWidget(QMainWindow):
         if total_items == 0:
             return
         
+        # Enable bulk loading mode to suppress highlighting during load
+        self._bulk_loading = True
+        
         # Create progress dialog
         progress = QProgressDialog("Loading files...", "Cancel", 0, total_items, self)
         progress.setWindowTitle("Opening Files")
@@ -644,9 +648,16 @@ class DiffViewerTabWidget(QMainWindow):
         progress.setValue(total_items)
         progress.close()
         
+        # Disable bulk loading mode
+        self._bulk_loading = False
+        
         # Focus the first tab (commit message if present, otherwise first file)
         if self.tab_widget.count() > 0:
             self.tab_widget.setCurrentIndex(0)
+            # Now apply highlighting to the visible tab
+            viewer = self.get_viewer_at_index(0)
+            if viewer:
+                viewer.ensure_highlighting_applied()
     
     def on_file_clicked(self, file_class):
         """Handle file button click"""
@@ -724,6 +735,11 @@ class DiffViewerTabWidget(QMainWindow):
         
         # Switch to new tab
         self.tab_widget.setCurrentIndex(index)
+        
+        # Apply highlighting immediately if not in bulk loading mode
+        # (on_tab_changed is suppressed during bulk load)
+        if not self._bulk_loading:
+            diff_viewer.ensure_highlighting_applied()
         
         # Apply global view state to new viewer
         if self.diff_map_visible != diff_viewer.diff_map_visible:
@@ -1167,6 +1183,10 @@ class DiffViewerTabWidget(QMainWindow):
         viewer = self.get_viewer_at_index(index)
         if viewer:
             viewer.init_scrollbars()
+            # Skip highlighting if we're in bulk loading mode
+            if not self._bulk_loading:
+                # Apply highlighting if this viewer hasn't been highlighted yet
+                viewer.ensure_highlighting_applied()
             # Apply highlighting if this viewer needs an update
             if hasattr(viewer, '_needs_highlighting_update') and viewer._needs_highlighting_update:
                 viewer.apply_highlighting()
@@ -1580,6 +1600,9 @@ class DiffViewerTabWidget(QMainWindow):
                 viewer.add_line(base, modi)
             
             viewer.finalize()
+            
+            # Since this viewer is currently visible (being reloaded), apply highlighting now
+            viewer.ensure_highlighting_applied()
             
             # Restore scroll position
             viewer.base_text.verticalScrollBar().setValue(v_scroll_pos)
