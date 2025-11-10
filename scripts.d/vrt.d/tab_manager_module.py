@@ -150,7 +150,7 @@ class DiffViewerTabWidget(QMainWindow):
         self.open_all_button.clicked.connect(self.open_all_files)
         self.open_all_button.setStyleSheet("""
             QPushButton {
-                text-align: center;
+                text-align: left;
                 padding: 10px;
                 border: none;
                 background-color: #e8f4f8;
@@ -1188,11 +1188,11 @@ class DiffViewerTabWidget(QMainWindow):
                 # Apply highlighting if this viewer hasn't been highlighted yet
                 viewer.ensure_highlighting_applied()
             # Apply highlighting if this viewer needs an update
-            if hasattr(viewer, '_needs_highlighting_update') and viewer._needs_highlighting_update:
+            if viewer._needs_highlighting_update:
                 viewer.restart_highlighting()
                 viewer._needs_highlighting_update = False
             # Refresh colors if this viewer needs a color update
-            if hasattr(viewer, '_needs_color_refresh') and viewer._needs_color_refresh:
+            if viewer._needs_color_refresh:
                 viewer.refresh_colors()
                 viewer._needs_color_refresh = False
     
