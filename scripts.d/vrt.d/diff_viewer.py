@@ -160,9 +160,13 @@ class DiffViewer(QMainWindow):
         
         status_layout = QHBoxLayout()
         self.region_label = QLabel("Region: 0 of 0")
+        self.highlighting_label = QLabel("")
+        self.highlighting_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.notes_label = QLabel("Notes: 0")
         
         status_layout.addWidget(self.region_label)
+        status_layout.addStretch()
+        status_layout.addWidget(self.highlighting_label)
         status_layout.addStretch()
         status_layout.addWidget(self.notes_label)
         status_frame = QFrame()
@@ -448,11 +452,11 @@ class DiffViewer(QMainWindow):
         total = len(self.base_line_objects)
         current = self.highlighting_next_line
         percent = int((current / total) * 100) if total > 0 else 0
-        self.statusBar().showMessage(f"Highlighting: {percent}% ({current}/{total} lines)")
+        self.highlighting_label.setText(f"  Highlighting: {percent}% ({current}/{total} lines)")
     
     def clear_highlighting_status(self):
         """Clear highlighting status message."""
-        self.statusBar().clearMessage()
+        self.highlighting_label.setText("")
     
     def restart_highlighting(self):
         """Cancel current highlighting and restart from beginning."""
