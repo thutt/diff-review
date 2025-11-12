@@ -228,7 +228,10 @@ class CurrentLine(object):
         self.modi_      = None
         self.modi_line_ = 1     # Increment on flush.
 
-# 
+# RegionDesc describes a region of lines.  They region can be 'equal',
+# 'delete', 'add', or 'change'.  This is used to provide background
+# color for blocks of lines.
+#
 class RegionDesc(object):
     UNKNOWN = -1                # Uninitialized
     EQUAL   = 0                 # Unchanged line.
@@ -456,58 +459,83 @@ def make_text_run(kind, r_beg, r_len):
     return run
 
 
+# split_run: Splits 'run' at 'split_idx'
+#
+#  split_idx is 0-based and relative to 'run'.
+#
+# Returns split original run and new run
+#
+def split_run(run, split_idx):
+    assert(run.start_ + run.len_  >= split_idx) # Big enough to split?
+    assert(0         <= split_idx and
+           split_idx <  run.start_ + run.len_) # 'split_idx' in bounds?
+
+    if split_idx == run.start_:
+        # Split at beginning.
+        # No split, just return (None, run).
+        #
+        n_run = run
+        run   = None
+    elif split_idx == run.start_ + run.len_:
+        # Split at end.
+        # No split, just return (run, None).
+        #
+        n_run = None
+    else:
+        orig_len = run.len_
+        n_beg    = split_idx
+        run.len_ = n_beg - run.start_
+        n_len    = orig_len - run.len_
+        n_run    = make_text_run(run.kind_, n_beg, n_len)
+
+        # NOTE: It is possible to split at index 0.
+        #       Leaving 'run' with size 0.
+        assert(run.len_ + n_run.len_ == orig_len)
+    return (run, n_run)
+
+
 # Amends a single run by adding in TAB runs where needed.
 # The result will be a list of runs.
 #
 def amend_run_with_tab(line, m_run):
-    result = [ ]
     assert(isinstance(line, Line))
+    result = [ ]
     t_runs = compute_tab_runs(line, m_run)
 
+    orig_start  = m_run.start_
     orig_length = m_run.len_
     if len(t_runs) > 0:
-        residual = True
-        # Tab runs will be 0-based, but they are actually relative to m_run.
+        # Tab runs are 0-based, but they are actually relative to
+        # 'm_run'.  The start of 'm_run' must be added to the start of
+        # 't' to get proper offsets.
         for t in t_runs:
-            if t.start_ + t.len_ == m_run.len_:
-                # Split at the end.
-                m_run.len_ -= t.len_
-                t.start_ += m_run.start_
-                if m_run.len_ > 0:
-                    result.append(m_run)
-                result.append(t)
-                residual = False
-                continue        # inv: end of elements in t_runs.
+            assert(m_run is not None)
+            (m_run, n_run) = split_run(m_run, orig_start + t.start_)
 
-            if t.start_ > 0:    # Split in the middle of run?
-                # m_run.start_ does not change.
-                # The length shrinks.
-                m_run_delta = t.start_ - m_run.start_
-                n_len       = m_run.len_ - m_run_delta - t.len_
-                m_run.len_  = m_run_delta
-                assert(m_run.len_ > 0)
+            if m_run is None:
+                # Split at beginning.
+                assert(n_run is not None)
 
-                n_run = make_text_run(m_run.kind_, t.start_ + t.len_,
-                                      n_len)
-                if m_run.len_ > 0:
-                    result.append(m_run)
-                result.append(t)
-                # Length of 't' has not changed.
+                n_run.len_   = n_run.len_ - t.len_
+                n_run.start_ = n_run.start_ + t.len_
+                result       = result + [ t ]
+                m_run        = n_run
+            elif n_run is None:
+                # Split at end.
+                # Processing a single run, so this will be then end of the tabs.
+                #
+                assert(m_run is not None)
+                m_run.len_ = m_run.len_ - t.len_
+                m_run      = None    # Sentinel end.
+            else:
+                # Split in middle.
+                assert(m_run.len_ > 0 and n_run.len_ > 0)
+                n_run.len_     = n_run.len_ - t.len_
+                n_run.start_   = n_run.start_ + t.len_
+                result         = result + [ m_run, t ]
+                m_run          = n_run
 
-                m_run = n_run
-
-                # Fall through to split at beginning of run to handle
-                # 't' against new 'm_run'.
-
-            if t.start_ + m_run.start_ == m_run.start_:
-                # Split at the beginning.
-                assert(m_run.len_ >= t.len_)
-                t.start_     += m_run.start_
-                m_run.start_ += t.len_
-                m_run.len_   = m_run.len_ - t.len_
-                result.append(t)
-
-        if residual and m_run.len_ > 0:
+        if m_run is not None:
             result.append(m_run)
     else:
         result = [ m_run ]
@@ -515,6 +543,7 @@ def amend_run_with_tab(line, m_run):
     final_length = 0
     for r in result:
         final_length += r.len_
+
     assert(final_length == orig_length)
 
     return result
