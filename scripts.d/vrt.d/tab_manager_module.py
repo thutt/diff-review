@@ -604,48 +604,62 @@ class DiffViewerTabWidget(QMainWindow):
     
     def open_all_files(self):
         """Open all files in tabs, including commit message if present"""
-        # Calculate total items (files + commit message if present)
-        total_items = len(self.file_classes)
-        if self._commit_msg_file:
-            total_items += 1
+        # Build list of files that need to be opened
+        files_to_open = []
         
-        if total_items == 0:
+        # Check commit message
+        if self._commit_msg_file:
+            commit_msg_open = False
+            for i in range(self.tab_widget.count()):
+                widget = self.tab_widget.widget(i)
+                if hasattr(widget, 'is_commit_msg') and widget.is_commit_msg:
+                    commit_msg_open = True
+                    break
+            if not commit_msg_open:
+                files_to_open.append(('commit_msg', None))
+        
+        # Check which files aren't open yet
+        for file_class in self.file_classes:
+            if file_class not in self.file_to_tab_index:
+                files_to_open.append(('file', file_class))
+        
+        if len(files_to_open) == 0:
+            # All already open, just focus first tab
+            if self.tab_widget.count() > 0:
+                self.tab_widget.setCurrentIndex(0)
             return
         
         # Enable bulk loading mode to suppress highlighting during load
         self._bulk_loading = True
         
         # Create progress dialog
-        progress = QProgressDialog("Loading files...", "Cancel", 0, total_items, self)
+        progress = QProgressDialog("Loading files...", "Cancel", 0, len(files_to_open), self)
         progress.setWindowTitle("Opening Files")
         progress.setWindowModality(Qt.WindowModality.WindowModal)
         progress.setMinimumDuration(500)  # Only show if takes more than 500ms
         
         current_index = 0
         
-        # Open commit message first if it exists
-        if self._commit_msg_file:
-            if not progress.wasCanceled():
-                progress.setValue(current_index)
-                progress.setLabelText("Loading Commit Message...")
-                QApplication.processEvents()  # Keep UI responsive
-                self.on_commit_msg_clicked()
-                current_index += 1
-        
-        # Open all file diffs
-        for file_class in self.file_classes:
+        # Open files that aren't already open
+        for item_type, item_data in files_to_open:
             if progress.wasCanceled():
                 break
             
             # Update progress
             progress.setValue(current_index)
-            progress.setLabelText(f"Loading {file_class.button_label()}...")
+            if item_type == 'commit_msg':
+                progress.setLabelText("Loading Commit Message...")
+            else:
+                progress.setLabelText(f"Loading {item_data.button_label()}...")
             QApplication.processEvents()  # Keep UI responsive
             
-            self.on_file_clicked(file_class)
+            if item_type == 'commit_msg':
+                self.on_commit_msg_clicked()
+            else:
+                self.on_file_clicked(item_data)
             current_index += 1
         
-        progress.setValue(total_items)
+        progress.setValue(len(files_to_open))
         progress.close()
         
         # Disable bulk loading mode

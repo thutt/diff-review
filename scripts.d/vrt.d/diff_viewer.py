@@ -291,7 +291,8 @@ class DiffViewer(QMainWindow):
         self.base_text.setPlainText('\n'.join(self.base_display))
         self.modified_text.setPlainText('\n'.join(self.modified_display))
         
-        self.diff_map.set_change_regions(self.change_regions, len(self.base_display))
+        # Defer diff_map update until highlighting starts
+        # self.diff_map.set_change_regions(self.change_regions, len(self.base_display))
     
     def apply_highlighting(self):
         if False:  # Debug timing
@@ -368,6 +369,9 @@ class DiffViewer(QMainWindow):
     
     def start_progressive_highlighting(self):
         """Start background highlighting in chunks."""
+        # Update diff_map now that we're rendering
+        self.diff_map.set_change_regions(self.change_regions, len(self.base_display))
+        
         self.highlighting_in_progress = True
         self.highlighting_next_line = 0
         self.update_highlighting_status()
