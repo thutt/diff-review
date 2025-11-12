@@ -79,6 +79,9 @@ class HelpDialog(QDialog):
             <li><b>Magenta Vertical Line:</b> Indicates the maximum allowed line length; content beyond this line exceeds the character limit</li>
         </ul>
         
+        <h3>Progressive Highlighting</h3>
+        <p>Files are highlighted in the background when tabs are first opened. A status message appears at the bottom of each viewer showing highlighting progress (e.g., "Highlighting: 45% (2250/5000 lines)"). The viewer remains fully interactive during highlighting. Large files may take a few seconds to complete.</p>
+        
         <h3>Color Coding</h3>
         <p>The diff viewer uses a colorblind-friendly palette by default (blue/orange). You can switch to the traditional red/green palette via the Palette menu.</p>
         <ul>
@@ -110,7 +113,7 @@ class HelpDialog(QDialog):
         <h3>Search Functionality</h3>
         <ul>
             <li><b>Ctrl+S:</b> Open search dialog to search across base, modified, and commit message files</li>
-            <li><b>Right-click → Search:</b> Search for currently selected text</li>
+            <li><b>Right-click â†’ Search:</b> Search for currently selected text</li>
             <li>Use checkboxes in search dialog to choose which sources to search (Base/Modi/Desc)</li>
             <li>Toggle case sensitivity in search dialog</li>
             <li>Double-click search results to jump to that location</li>
@@ -119,7 +122,7 @@ class HelpDialog(QDialog):
         <h3>Note Taking</h3>
         <ul>
             <li><b>Double-click:</b> Quick note - adds the clicked line to your notes file</li>
-            <li><b>Right-click → Take Note:</b> Add selected text to notes file</li>
+            <li><b>Right-click â†’ Take Note:</b> Add selected text to notes file</li>
             <li><b>Ctrl+N / Cmd+N:</b> Take note of selected text (works in commit message view too)</li>
             <li><b>Yellow background:</b> Lines where notes have been taken are highlighted</li>
             <li>All notes are appended to the notes file specified at startup</li>
@@ -147,6 +150,15 @@ class HelpDialog(QDialog):
             <li><b>Alt+L / Cmd+L:</b> Toggle line number visibility</li>
         </ul>
         
+        <h3>Whitespace Display</h3>
+        <ul>
+            <li><b>Show Whitespace:</b> View → Show Whitespace to toggle highlighting of all whitespace characters</li>
+            <li><b>Show Tabs:</b> View → Show Tabs to toggle highlighting of tab characters</li>
+            <li><b>Show Trailing Whitespace:</b> View → Show Trailing Whitespace to toggle highlighting of whitespace at end of lines</li>
+            <li>When enabled, whitespace is highlighted in the configured color (magenta by default)</li>
+            <li>Toggle affects current tab immediately; other tabs update when viewed</li>
+        </ul>
+        
         <h3>Auto-reload Files</h3>
         <ul>
             <li><b>Automatic monitoring:</b> Watches source files for changes on disk</li>
@@ -154,7 +166,7 @@ class HelpDialog(QDialog):
             <li><b>Auto-reload (default ON):</b> Automatically reloads files 500ms after they stop changing</li>
             <li><b>Manual reload:</b> Press F5 to reload current file at any time</li>
             <li><b>Preserves position:</b> Scroll position is maintained after reload</li>
-            <li><b>Toggle preference:</b> View → Auto-reload Files to turn automatic reloading on/off</li>
+            <li><b>Toggle preference:</b> View â†’ Auto-reload Files to turn automatic reloading on/off</li>
             <li><b>Status notification:</b> Brief "File reloaded" message appears in status bar</li>
             <li><b>When OFF:</b> Files are still monitored, sidebar shows change indicator, but reload only happens with F5</li>
         </ul>
