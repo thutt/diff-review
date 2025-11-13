@@ -87,25 +87,25 @@ class HelpDialog(QDialog):
         <ul>
             <li><b>Colorblind Friendly (Default):</b>
                 <ul>
-                    <li><span style="background-color: rgb(200, 220, 255); padding: 2px 6px;">Added lines/content: Sky blue background</span> / <span style="color: rgb(135, 206, 250);">sky blue text</span></li>
-                    <li><span style="background-color: rgb(255, 220, 180); padding: 2px 6px;">Deleted lines/content: Light orange background</span> / <span style="color: rgb(255, 140, 0);">dark orange text</span></li>
-                    <li><span style="background-color: rgb(255, 255, 100); padding: 2px 6px;">Modified content: Bright yellow text</span></li>
-                    <li>Line number backgrounds: <span style="background-color: rgb(200, 220, 255); padding: 2px 6px;">Light blue (modified)</span>, <span style="background-color: rgb(255, 220, 180); padding: 2px 6px;">light orange (base changes)</span></li>
+                    <li><span style="background-color: rgb(200, 220, 255); padding: 2px 6px;">Added lines background</span> / <span style="background-color: rgb(135, 206, 250); padding: 2px 6px;">added text</span></li>
+                    <li><span style="background-color: rgb(255, 220, 180); padding: 2px 6px;">Deleted lines background</span> / <span style="background-color: rgb(255, 140, 0); padding: 2px 6px;">deleted text</span></li>
+                    <li><span style="background-color: rgb(255, 255, 100); padding: 2px 6px;">Modified content (intraline)</span></li>
+                    <li>Line number backgrounds: <span style="background-color: rgb(200, 220, 255); padding: 2px 6px;">modified lines</span>, <span style="background-color: rgb(255, 220, 180); padding: 2px 6px;">base changes</span></li>
                 </ul>
             </li>
             <li><b>Standard:</b>
                 <ul>
-                    <li><span style="background-color: rgb(220, 255, 220); padding: 2px 6px;">Added lines/content: Light green background</span> / <span style="color: lightgreen;">light green text</span></li>
-                    <li><span style="background-color: rgb(255, 220, 220); padding: 2px 6px;">Deleted lines/content: Light pink background</span> / <span style="color: red;">red text</span></li>
-                    <li><span style="background-color: yellow; padding: 2px 6px;">Modified content: Yellow text</span></li>
-                    <li>Line number backgrounds: <span style="background-color: rgb(220, 255, 220); padding: 2px 6px;">Light green (modified)</span>, <span style="background-color: rgb(255, 220, 220); padding: 2px 6px;">light pink (base changes)</span></li>
+                    <li><span style="background-color: rgb(220, 255, 220); padding: 2px 6px;">Added lines background</span> / <span style="background-color: lightgreen; padding: 2px 6px;">added text</span></li>
+                    <li><span style="background-color: rgb(255, 220, 220); padding: 2px 6px;">Deleted lines background</span> / <span style="background-color: red; color: white; padding: 2px 6px;">deleted text</span></li>
+                    <li><span style="background-color: yellow; padding: 2px 6px;">Modified content (intraline)</span></li>
+                    <li>Line number backgrounds: <span style="background-color: rgb(220, 255, 220); padding: 2px 6px;">modified lines</span>, <span style="background-color: rgb(255, 220, 220); padding: 2px 6px;">base changes</span></li>
                 </ul>
             </li>
             <li><b>Both palettes:</b>
                 <ul>
-                    <li><span style="background-color: darkgray; padding: 2px 6px;">Dark gray: Lines that don't exist in one version (placeholder lines)</span></li>
-                    <li><span style="background-color: rgb(255, 0, 255); padding: 2px 6px;">Magenta: Maximum line length indicator (vertical line)</span></li>
-                    <li><span style="background-color: orange; padding: 2px 6px;">Orange: Unknown markers</span></li>
+                    <li><span style="background-color: darkgray; padding: 2px 6px;">Placeholder lines (don't exist in one version)</span></li>
+                    <li><span style="background-color: rgb(255, 0, 255); padding: 2px 6px;">Maximum line length indicator</span></li>
+                    <li><span style="background-color: orange; padding: 2px 6px;">Unknown markers</span></li>
                 </ul>
             </li>
         </ul>
