@@ -1665,7 +1665,7 @@ class DiffViewerTabWidget(QMainWindow):
     def show_help(self):
         """Show help dialog"""
         help_dialog = HelpDialog(self)
-        help_dialog.exec()
+        help_dialog.show()
     
     def switch_palette(self, palette_name):
         """Switch to a different color palette and refresh all viewers"""
