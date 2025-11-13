@@ -165,6 +165,14 @@ Return Code:
                    required = False,
                    dest     = "arg_ignore_tab")
 
+    o.add_argument("--ignore-intraline",
+                   help     = ("When set, this causes the diff viewer to ignore "
+                               "intraline changes (character-level differences)."),
+                   action   = "store_true",
+                   default  = False,
+                   required = False,
+                   dest     = "arg_ignore_intraline")
+
     o.add_argument("--no-auto-reload",
                    help     = ("Do not auto reload changed files into viewer.  "
                                "See Help menu for details of auto-reload."),
@@ -310,7 +318,8 @@ def generate(options, note):
                                                          auto_reload_enabled(options),
                                                          options.arg_ignore_whitespace,
                                                          options.arg_ignore_tab,
-                                                         options.arg_ignore_trailing_whitespace)
+                                                         options.arg_ignore_trailing_whitespace,
+                                                         options.arg_ignore_intraline)
 
 
     if options.dossier_['commit_msg'] is not None:

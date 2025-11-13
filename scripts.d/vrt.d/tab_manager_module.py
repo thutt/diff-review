@@ -81,7 +81,7 @@ class DiffViewerTabWidget(QMainWindow):
     
     def __init__(self, display_lines: int, display_chars: int, show_diff_map: bool,
                  show_line_numbers: bool, auto_reload: bool, ignore_ws: bool, 
-                 ignore_tab: bool, ignore_trailing_ws: bool):
+                 ignore_tab: bool, ignore_trailing_ws: bool, ignore_intraline: bool):
         if QApplication.instance() is None:
             self._app = QApplication(sys.argv)
         else:
@@ -94,6 +94,7 @@ class DiffViewerTabWidget(QMainWindow):
         self.ignore_ws = ignore_ws
         self.ignore_tab = ignore_tab
         self.ignore_trailing_ws = ignore_trailing_ws
+        self.ignore_intraline = ignore_intraline
         self._bulk_loading = False  # Suppress highlighting during "Open All Files"
         
         self.setWindowTitle("Diff Viewer")
@@ -249,6 +250,12 @@ class DiffViewerTabWidget(QMainWindow):
         self.show_trailing_ws_action.setChecked(not ignore_trailing_ws)
         self.show_trailing_ws_action.triggered.connect(self.toggle_trailing_ws_visibility)
         view_menu.addAction(self.show_trailing_ws_action)
+        
+        self.show_intraline_action = QAction("Show Intraline Changes", self)
+        self.show_intraline_action.setCheckable(True)
+        self.show_intraline_action.setChecked(not ignore_intraline)
+        self.show_intraline_action.triggered.connect(self.toggle_intraline_visibility)
+        view_menu.addAction(self.show_intraline_action)
         
         view_menu.addSeparator()
         
@@ -769,6 +776,7 @@ class DiffViewerTabWidget(QMainWindow):
         diff_viewer.ignore_ws = self.ignore_ws
         diff_viewer.ignore_tab = self.ignore_tab
         diff_viewer.ignore_trailing_ws = self.ignore_trailing_ws
+        diff_viewer.ignore_intraline = self.ignore_intraline
         
         # Set up file watching for this viewer
         self.setup_file_watcher(diff_viewer)
@@ -1472,6 +1480,20 @@ class DiffViewerTabWidget(QMainWindow):
         for v in self.get_all_viewers():
             if v != viewer:
                 v.ignore_trailing_ws = self.ignore_trailing_ws
+                v._needs_highlighting_update = True
+    
+    def toggle_intraline_visibility(self):
+        """Toggle intraline changes visibility in all viewers"""
+        self.ignore_intraline = not self.show_intraline_action.isChecked()
+        # Update current viewer immediately
+        viewer = self.get_current_viewer()
+        if viewer:
+            viewer.ignore_intraline = self.ignore_intraline
+            viewer.restart_highlighting()
+        # Mark all other viewers as needing update
+        for v in self.get_all_viewers():
+            if v != viewer:
+                v.ignore_intraline = self.ignore_intraline
                 v._needs_highlighting_update = True
     
     def setup_file_watcher(self, viewer):

@@ -63,6 +63,7 @@ class DiffViewer(QMainWindow):
         self.ignore_ws = False  # Will be set by tab manager
         self.ignore_tab = False  # Will be set by tab manager
         self.ignore_trailing_ws = False  # Will be set by tab manager
+        self.ignore_intraline = False  # Will be set by tab manager
         self.highlighting_applied = False  # Deferred until tab becomes visible
         self.highlighting_in_progress = False  # True during background highlighting
         self.highlighting_next_line = 0  # Next line to highlight
@@ -502,7 +503,12 @@ class DiffViewer(QMainWindow):
             elif color_name == 'DELETE':
                 color = palette.get_color('delete_run')
             elif color_name == 'INTRALINE':
-                color = palette.get_color('intraline_run')
+                # Only highlight if not ignoring intraline changes
+                if not self.ignore_intraline:
+                    color = palette.get_color('intraline_run')
+                else:
+                    # Actively clear TAB formatting
+                    color = QColor(0, 0, 0, 0)
             elif color_name == 'WS':
                 # Only highlight if not ignoring whitespace
                 if not self.ignore_ws:
