@@ -51,7 +51,7 @@ class HelpDialog(QDialog):
         
         <h3>Tab Management</h3>
         <ul>
-            <li><b>Shift+Tab:</b> Switch to next tab (left-to-right, wraps around)</li>
+            <li><b>Ctrl+Tab:</b> Switch to next tab (left-to-right, wraps around)</li>
             <li><b>Ctrl+Shift+Tab:</b> Switch to previous tab (right-to-left, wraps around)</li>
             <li><b>Ctrl+W:</b> Close current tab</li>
             <li><b>Ctrl+Q:</b> Quit application</li>
@@ -62,7 +62,7 @@ class HelpDialog(QDialog):
         <h3>Navigation</h3>
         <ul>
             <li><b>Arrow Keys:</b> Navigate up/down/left/right</li>
-            <li><b>Tab:</b> Switch focus between base and modified panes (stays on same line)</li>
+            <li><b>Tab:</b> When focus is in a text pane, switch focus between base and modified panes (stays on same line). When focus is elsewhere, navigate between UI elements.</li>
             <li><b>N:</b> Jump to next change region</li>
             <li><b>P:</b> Jump to previous change region</li>
             <li><b>C:</b> Center on the currently selected region</li>
@@ -87,25 +87,25 @@ class HelpDialog(QDialog):
         <ul>
             <li><b>Colorblind Friendly (Default):</b>
                 <ul>
-                    <li>Added lines/content: Sky blue background / sky blue text</li>
-                    <li>Deleted lines/content: Light orange background / dark orange text</li>
-                    <li>Modified content: Bright yellow text</li>
-                    <li>Line number backgrounds: Light blue (modified), light orange (base changes)</li>
+                    <li><span style="background-color: rgb(200, 220, 255); padding: 2px 6px;">Added lines/content: Sky blue background</span> / <span style="color: rgb(135, 206, 250);">sky blue text</span></li>
+                    <li><span style="background-color: rgb(255, 220, 180); padding: 2px 6px;">Deleted lines/content: Light orange background</span> / <span style="color: rgb(255, 140, 0);">dark orange text</span></li>
+                    <li><span style="background-color: rgb(255, 255, 100); padding: 2px 6px;">Modified content: Bright yellow text</span></li>
+                    <li>Line number backgrounds: <span style="background-color: rgb(200, 220, 255); padding: 2px 6px;">Light blue (modified)</span>, <span style="background-color: rgb(255, 220, 180); padding: 2px 6px;">light orange (base changes)</span></li>
                 </ul>
             </li>
             <li><b>Standard:</b>
                 <ul>
-                    <li>Added lines/content: Light green background / light green text</li>
-                    <li>Deleted lines/content: Light pink background / red text</li>
-                    <li>Modified content: Yellow text</li>
-                    <li>Line number backgrounds: Light green (modified), light pink (base changes)</li>
+                    <li><span style="background-color: rgb(220, 255, 220); padding: 2px 6px;">Added lines/content: Light green background</span> / <span style="color: lightgreen;">light green text</span></li>
+                    <li><span style="background-color: rgb(255, 220, 220); padding: 2px 6px;">Deleted lines/content: Light pink background</span> / <span style="color: red;">red text</span></li>
+                    <li><span style="background-color: yellow; padding: 2px 6px;">Modified content: Yellow text</span></li>
+                    <li>Line number backgrounds: <span style="background-color: rgb(220, 255, 220); padding: 2px 6px;">Light green (modified)</span>, <span style="background-color: rgb(255, 220, 220); padding: 2px 6px;">light pink (base changes)</span></li>
                 </ul>
             </li>
             <li><b>Both palettes:</b>
                 <ul>
-                    <li>Dark gray: Lines that don't exist in one version (placeholder lines)</li>
-                    <li>Magenta: Maximum line length indicator (vertical line)</li>
-                    <li>Orange: Unknown markers</li>
+                    <li><span style="background-color: darkgray; padding: 2px 6px;">Dark gray: Lines that don't exist in one version (placeholder lines)</span></li>
+                    <li><span style="background-color: rgb(255, 0, 255); padding: 2px 6px;">Magenta: Maximum line length indicator (vertical line)</span></li>
+                    <li><span style="background-color: orange; padding: 2px 6px;">Orange: Unknown markers</span></li>
                 </ul>
             </li>
         </ul>
@@ -133,11 +133,11 @@ class HelpDialog(QDialog):
             <li>Vertical bar shows overview of all changes in the file</li>
             <li><b>Color scheme depends on selected palette:</b>
                 <ul>
-                    <li><b>Colorblind Friendly:</b> Steel blue (insertions), dark orange (deletions), light orange (modifications)</li>
-                    <li><b>Standard:</b> Green (insertions), red (deletions), salmon (modifications)</li>
+                    <li><b>Colorblind Friendly:</b> <span style="background-color: rgb(70, 130, 180); padding: 2px 6px;">Insertions</span>, <span style="background-color: rgb(255, 140, 0); padding: 2px 6px;">Deletions</span>, <span style="background-color: rgb(255, 200, 120); padding: 2px 6px;">Modifications</span></li>
+                    <li><b>Standard:</b> <span style="background-color: green; padding: 2px 6px;">Insertions</span>, <span style="background-color: red; padding: 2px 6px;">Deletions</span>, <span style="background-color: salmon; padding: 2px 6px;">Modifications</span></li>
                 </ul>
             </li>
-            <li><b>Gray rectangle:</b> Current viewport position</li>
+            <li><span style="background-color: rgba(128, 128, 128, 0.4); padding: 2px 6px;">Gray rectangle: Current viewport position</span></li>
             <li><b>Click on diff map:</b> Jump to that location in the file</li>
             <li><b>Alt+H / Cmd+H:</b> Toggle diff map visibility</li>
             <li><b>Mouse wheel:</b> Scroll through the file</li>
@@ -155,7 +155,8 @@ class HelpDialog(QDialog):
             <li><b>Show Whitespace:</b> View → Show Whitespace to toggle highlighting of all whitespace characters</li>
             <li><b>Show Tabs:</b> View → Show Tabs to toggle highlighting of tab characters</li>
             <li><b>Show Trailing Whitespace:</b> View → Show Trailing Whitespace to toggle highlighting of whitespace at end of lines</li>
-            <li>When enabled, whitespace is highlighted in the configured color (magenta by default)</li>
+            <li><b>Colors (Colorblind Friendly):</b> <span style="background-color: rgb(210, 210, 240); padding: 2px 6px;">Spaces (light purple-blue)</span>, <span style="background-color: rgb(255, 200, 100); padding: 2px 6px;">Tabs (light orange)</span>, <span style="background-color: rgb(255, 200, 150); padding: 2px 6px;">Trailing (light orange)</span></li>
+            <li><b>Colors (Standard):</b> <span style="background-color: rgb(220, 220, 255); padding: 2px 6px;">Spaces (light blue)</span>, <span style="background-color: rgb(255, 180, 255); padding: 2px 6px;">Tabs (light magenta)</span>, <span style="background-color: rgb(255, 200, 200); padding: 2px 6px;">Trailing (light red)</span></li>
             <li>Toggle affects current tab immediately; other tabs update when viewed</li>
         </ul>
         
