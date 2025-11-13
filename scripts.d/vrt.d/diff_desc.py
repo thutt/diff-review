@@ -498,9 +498,17 @@ def split_run(run, split_idx):
 # The result will be a list of runs.
 #
 def amend_run_with_tab(line, m_run):
+    DEBUG = False
+
     assert(isinstance(line, Line))
     result = [ ]
     t_runs = compute_tab_runs(line, m_run)
+
+    if DEBUG and len(t_runs) > 0:
+        print("LINE: %s" % (line.line_))
+        print("RUN : %s" % (m_run))
+        for t in t_runs:
+            print("TABS: %s" % (t))
 
     orig_start  = m_run.start_
     orig_length = m_run.len_
@@ -520,6 +528,8 @@ def amend_run_with_tab(line, m_run):
                 n_run.start_ = n_run.start_ + t.len_
                 result       = result + [ t ]
                 m_run        = n_run
+                if m_run.len_ == 0: # Entire run has been replaced.
+                    m_run = None
             elif n_run is None:
                 # Split at end.
                 # Processing a single run, so this will be then end of the tabs.
@@ -545,5 +555,9 @@ def amend_run_with_tab(line, m_run):
         final_length += r.len_
 
     assert(final_length == orig_length)
+
+    if DEBUG and len(t_runs) > 0:
+        for r in result:
+            print("RES: %s" % (r))
 
     return result
