@@ -248,6 +248,17 @@ Return Code:
                    dest     = "arg_note")
 
     o = parser.add_argument_group("Output Options")
+    o.add_argument("--dump-ir",
+                   help     = ("Dump internal representation of diff.  "
+                               "Creates 'dr-base-<file>.text' and "
+                               "'dr-modi-<file>.text' "
+                               "in the specified directory."),
+                   action   = "store",
+                   default  = None,
+                   required = False,
+                   metavar  = "<path of directory to write output>",
+                   dest     = "arg_dump_ir")
+
     o.add_argument("--verbose",
                    help     = ("Turn on verbose diagnostic output"),
                    action   = "store_true",
@@ -325,6 +336,7 @@ def make_viewer(options, base, modi, note, commit_msg):
                                     show_line_numbers(options))
 
     desc = diffmgr.create_diff_descriptor(options.arg_verbose,
+                                          options.arg_dump_ir,
                                           base, modi)
     add_diff_to_viewer(desc, viewer)
 

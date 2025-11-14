@@ -432,7 +432,21 @@ class DiffViewer(QMainWindow):
                 if bg_color:
                     self.highlight_line(self.modified_text, i, bg_color)
                     self.modified_line_area.set_line_background(i, bg_color)
-                self.apply_runs(self.modified_text, i, modi_line)
+                
+                t0 = time.time()
+                self.apply_runs(self.modified_text, i, modi_line, run_type_counts)
+                time_apply_runs += time.time() - t0
+                count_apply_runs += 1
+        
+        chunk_time = time.time() - chunk_start
+        if False:
+            print(f"Chunk {start_line}-{end_line}: {chunk_time*1000:.1f}ms total, "
+                  f"highlight_line={time_highlight_line*1000:.1f}ms ({count_highlight_line} calls), "
+                  f"apply_runs={time_apply_runs*1000:.1f}ms ({count_apply_runs} calls)")
+            if run_type_counts:
+                print(f"  Run types: {run_type_counts}")
+                import sys
+                sys.stdout.flush()
         
         self.highlighting_next_line = end_line
         

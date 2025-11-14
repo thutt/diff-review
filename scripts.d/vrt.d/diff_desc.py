@@ -191,7 +191,7 @@ class RegionDesc(object):
 #  Describes lines that are present in the file.
 class LineInfoDesc(object):
     def __init__(self):
-        self.regions_           = [ ]     # List of Region
+        self.regions_           = [ ]     # List of RegionDesc
         self.lines_             = [ ]     # List of Line
         self.n_changed_regions_ = 0       # Not EQUAL RegionDesc.
 
@@ -251,7 +251,7 @@ class DiffDesc(object):
             last_idx = len(line.runs_) - 1 # Last run.
 
             assert(l_line > l_rline)
-            n_spaces = l_line - l_rline
+            n_spaces   = l_line - l_rline
             last       = line.runs_[last_idx]
             orig_len   = last.len_
             last.len_ -= n_spaces
@@ -259,7 +259,11 @@ class DiffDesc(object):
                                                    n_spaces)
 
             assert(orig_len == last.len_ + tws.len_)
-            line.runs_.append(tws)
+            if last.len_ == 0:
+                # The last run is completely replaced with TWS.
+                line.runs_[last_idx] = tws
+            else:
+                line.runs_.append(tws)
 
     def flush(self, idx, intraline, marks): # Flush a line.
         if self.verbose_:

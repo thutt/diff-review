@@ -1628,7 +1628,9 @@ class DiffViewerTabWidget(QMainWindow):
         
         # Reload diff
         try:
-            desc = diffmgr.create_diff_descriptor(False, viewer.base_file, viewer.modified_file)
+            desc = diffmgr.create_diff_descriptor(False, None,
+                                                  viewer.base_file,
+                                                  viewer.modified_file)
             
             for idx in range(len(desc.base_.lines_)):
                 base = desc.base_.lines_[idx]

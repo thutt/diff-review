@@ -5,7 +5,7 @@
 import datetime
 import difflib
 import diff_desc
-
+import dumpir
 
 def read_file(path):
     with open(path, "r") as fp:
@@ -27,10 +27,6 @@ def create_difflib(base, modi):
     return (difflib.SequenceMatcher(None, base_l, modi_l),
             base_l,
             modi_l)
-
-
-def line_fields(line):          # XXX remove
-    return (line[0:2], line[2:])
 
 
 def decode_opinfo(label, opc, base_l, b_beg, b_end, modi_l, m_beg, m_end):
@@ -73,11 +69,10 @@ def create_line_desc(opc, line):
     # will be invoked to add TAB and TRAILING_WS runs when the line is
     # cached.
     #
-    run = diff_desc.make_text_run(opc, r_beg, r_len)
-    run = diff_desc.amend_run_with_tab(l_desc, run)
-
-
-    l_desc.runs_ = run
+    if r_len > 0:
+        run = diff_desc.make_text_run(opc, r_beg, r_len)
+        run = diff_desc.amend_run_with_tab(l_desc, run)
+        l_desc.runs_ = run
     return l_desc
 
 
@@ -92,8 +87,8 @@ def add_equal_line_region(desc, base_l, modi_l):
         desc.cache_base(b_desc)
         desc.cache_modi(m_desc)
         desc.flush(0, False, None)
-        b_desc.uncolored_ = len(b_desc.runs_) == 1
-        m_desc.uncolored_ = len(m_desc.runs_) == 1
+        b_desc.uncolored_ = len(b_desc.runs_) in (0, 1)
+        m_desc.uncolored_ = len(m_desc.runs_) in (0, 1)
 
 def add_deleted_line_region(desc, base_l):
     for l_idx in range(0, len(base_l)):
@@ -160,9 +155,10 @@ def add_replaced_line_region(desc, base_l, modi_l):
                 assert((b_end - b_beg) == (m_end - m_beg)) # Equal run
                 b_run = diff_desc.TextRunNormal(b_beg, b_end - b_beg)
                 b_run = diff_desc.amend_run_with_tab(l_base, b_run)
+                l_base.runs_ += b_run
+
                 m_run = diff_desc.TextRunNormal(m_beg, m_end - m_beg)
                 m_run = diff_desc.amend_run_with_tab(l_modi, m_run)
-                l_base.runs_ += b_run
                 l_modi.runs_ += m_run
 
         desc.cache_base(l_base)
@@ -197,7 +193,7 @@ def add_replaced_line_region(desc, base_l, modi_l):
 
 
 
-def create_diff_descriptor(verbose, base, modi):
+def create_diff_descriptor(verbose, dump_ir, base, modi):
     if False:
         beg = datetime.datetime.now()
     desc  = diff_desc.DiffDesc(verbose)
@@ -236,4 +232,9 @@ def create_diff_descriptor(verbose, base, modi):
     if False:
         end = datetime.datetime.now()
         print("create_diff_descriptor: %s: %s" % (end - beg, base))
+
+    if dump_ir is not None:
+        dumpir.dump(dump_ir, base, modi, desc)
+
     return desc
+
