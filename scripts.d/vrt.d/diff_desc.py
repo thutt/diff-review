@@ -115,72 +115,6 @@ class Line(object):
     def set_line_number(self, line_num):
         self.line_num_ = line_num
 
-    def add_run_not_present_coverage(self):
-        run = TextRunNotPresent(0, len(self.line_))
-        self.runs_.append(run)
-
-    def add_run_unchanged(self):
-        run = TextRunNormal(0, len(self.line_))
-        self.runs_.append(run)
-
-    def add_run_added_line(self):
-        run = TextRunAdded(0, len(self.line_))
-        self.runs_.append(run)
-
-    def add_run_deleted_line(self):
-        run = TextRunDeleted(0, len(self.line_))
-        self.runs_.append(run)
-
-    def add_runs(self, run_info): # XXX diffmgr only
-        assert(run_info is not None)
-        assert(run_info[len(run_info) - 1] == '\n')
-
-        run_info = run_info.replace('\n', '')
-        assert(len(run_info) <= len(self.line_))
-
-        # Remove line ending of 'run_info' so residual run math
-        # works out below.
-
-        idx = 0
-        # This finds blocks of any consecutive character.  ' ' is
-        # used to indicate no change.
-        #
-        # The following character set is known to be used:
-        #    { '-', '^' }.
-        while idx < len(run_info):
-            ch   = run_info[idx]
-            run_same   = ch == ' '
-            run_delete = ch == '-'
-            run_change = ch == '^'
-            run_add    = ch == '+'
-            # else, unknown character
-
-            jdx = idx + 1
-            while jdx < len(run_info) and ch == run_info[jdx]:
-                jdx = jdx + 1
-
-            if run_same:
-                run = TextRunNormal(idx, jdx - idx)
-            elif run_delete:
-                run = TextRunDeleted(idx, jdx - idx)
-                pass
-            elif run_change:
-                run = TextRunIntraline(idx, jdx - idx)
-                pass
-            elif run_add:
-                run = TextRunAdded(idx, jdx - idx)
-            else:
-                run = TextRunUnknown(idx, jdx - idx)
-            self.runs_.append(run)
-            idx = jdx
-
-        if len(run_info) < len(self.line_):
-            # Fill out last part of line.
-            ril = len(run_info)
-            ll  = len(self.line_)
-            run = TextRunNormal(ril, ll - ril)
-            self.runs_.append(run)
-
     def kind(self):
         return "LINE"
 
@@ -188,7 +122,8 @@ class Line(object):
 class NotPresent(Line):         # Line doesn't exist in this file.
     def __init__(self):
         super().__init__("")
-        self.add_run_not_present_coverage()
+        run = TextRunNotPresent(0, len(self.line_))
+        self.runs_.append(run)
 
     def show_line_number(self):
         return False
