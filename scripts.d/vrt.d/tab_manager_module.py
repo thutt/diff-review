@@ -80,7 +80,7 @@ class DiffViewerTabWidget(QMainWindow):
     """Main window containing tabs of DiffViewer instances with file sidebar"""
     
     def __init__(self, display_lines: int, display_chars: int, show_diff_map: bool,
-                 show_line_numbers: bool, auto_reload: bool, ignore_ws: bool, 
+                 show_line_numbers: bool, auto_reload: bool,
                  ignore_tab: bool, ignore_trailing_ws: bool, ignore_intraline: bool):
         if QApplication.instance() is None:
             self._app = QApplication(sys.argv)
@@ -91,7 +91,7 @@ class DiffViewerTabWidget(QMainWindow):
         
         self.display_lines = display_lines
         self.display_chars = display_chars
-        self.ignore_ws = ignore_ws
+        self.ignore_ws = True
         self.ignore_tab = ignore_tab
         self.ignore_trailing_ws = ignore_trailing_ws
         self.ignore_intraline = ignore_intraline
@@ -235,7 +235,7 @@ class DiffViewerTabWidget(QMainWindow):
         # Whitespace visibility controls
         self.show_ws_action = QAction("Show Whitespace", self)
         self.show_ws_action.setCheckable(True)
-        self.show_ws_action.setChecked(not ignore_ws)
+        self.show_ws_action.setChecked(not self.ignore_ws)
         self.show_ws_action.triggered.connect(self.toggle_whitespace_visibility)
         view_menu.addAction(self.show_ws_action)
         

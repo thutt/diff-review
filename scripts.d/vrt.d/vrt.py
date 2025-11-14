@@ -141,14 +141,6 @@ Return Code:
                    required = False,
                    dest     = "arg_auto_reload")
 
-    o.add_argument("--ignore-whitespace",
-                   help     = ("When set, this causes the diff viewer to ignore "
-                               "changes to whitespace."),
-                   action   = "store_true",
-                   default  = False,
-                   required = False,
-                   dest     = "arg_ignore_whitespace")
-
     o.add_argument("--ignore-trailing-whitespace",
                    help     = ("When set, this causes the diff viewer to ignore "
                                "trailing whitespace."),
@@ -316,7 +308,6 @@ def generate(options, note):
                                                          show_diff_map(options),
                                                          show_line_numbers(options),
                                                          auto_reload_enabled(options),
-                                                         options.arg_ignore_whitespace,
                                                          options.arg_ignore_tab,
                                                          options.arg_ignore_trailing_whitespace,
                                                          options.arg_ignore_intraline)

@@ -152,7 +152,6 @@ class HelpDialog(QDialog):
         
         <h3>Whitespace Display</h3>
         <ul>
-            <li><b>Show Whitespace:</b> View → Show Whitespace to toggle highlighting of all whitespace characters</li>
             <li><b>Show Tabs:</b> View → Show Tabs to toggle highlighting of tab characters</li>
             <li><b>Show Trailing Whitespace:</b> View → Show Trailing Whitespace to toggle highlighting of whitespace at end of lines</li>
             <li><b>Colors (Colorblind Friendly):</b> <span style="background-color: rgb(210, 210, 240); padding: 2px 6px;">Spaces (light purple-blue)</span>, <span style="background-color: rgb(255, 200, 100); padding: 2px 6px;">Tabs (light orange)</span>, <span style="background-color: rgb(255, 200, 150); padding: 2px 6px;">Trailing (light orange)</span></li>
