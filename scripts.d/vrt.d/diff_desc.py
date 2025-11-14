@@ -50,24 +50,16 @@ class TextRunIntraline(TextRun):
         return "INTRALINE"
 
 
-class TextRunWhitespace(TextRun):
-    def __init__(self, start, n_chars):
-        super().__init__(4, start, n_chars)
-
-    def color(self):
-        return "WS"
-
-
 class TextRunTrailingWhitespace(TextRun):
     def __init__(self, start, n_chars):
-        super().__init__(5, start, n_chars)
+        super().__init__(4, start, n_chars)
 
     def color(self):
         return "TRAILINGWS"
 
 class TextRunTab(TextRun):
     def __init__(self, start, n_chars):
-        super().__init__(6, start, n_chars)
+        super().__init__(5, start, n_chars)
 
     def color(self):
         return "TAB"
@@ -75,7 +67,7 @@ class TextRunTab(TextRun):
 
 class TextRunNotPresent(TextRun):
     def __init__(self, start, n_chars):
-        super().__init__(7, start, n_chars)
+        super().__init__(6, start, n_chars)
 
     def color(self):
         return "NOTPRESENT"
@@ -83,7 +75,7 @@ class TextRunNotPresent(TextRun):
 
 class TextRunUnknown(TextRun):  # XXX Remove with diffmgr.
     def __init__(self, start, n_chars):
-        super().__init__(8, start, n_chars)
+        super().__init__(7, start, n_chars)
 
     def color(self):
         return "UNKNOWN"        # Unknown meta marker on '? ' command.
@@ -444,16 +436,14 @@ def make_text_run(kind, r_beg, r_len):
         run = TextRunDeleted(r_beg, r_len)
     elif kind == 3:             # TextRunIntraline
         run = TextRunIntraline(r_beg, r_len)
-    elif kind == 4:             # TextRunWhitespace
-        run = TextRunWhitespace(r_beg, r_len)
-    elif kind == 5:             # TextRunTrailingWhitespace
+    elif kind == 4:             # TextRunTrailingWhitespace
         run = TextRunTrailingWhitespace(r_beg, r_len)
-    elif kind == 6:             # TextRunTab
+    elif kind == 5:             # TextRunTab
         run = TextRunTab(r_beg, r_len)
-    elif kind == 7:             # TextRunNotPresentx
+    elif kind == 6:             # TextRunNotPresent
         run = TextRunNotPresentx(r_beg, r_len)
     else:                       # TextRunUnknown
-        assert(kind == 8)
+        assert(kind == 7)
         run = diff_desc.TextRunUnknown(r_beg, r_len)
 
     return run

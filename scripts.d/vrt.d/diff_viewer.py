@@ -509,13 +509,6 @@ class DiffViewer(QMainWindow):
                 else:
                     # Actively clear TAB formatting
                     color = QColor(0, 0, 0, 0)
-            elif color_name == 'WS':
-                # Only highlight if not ignoring whitespace
-                if not self.ignore_ws:
-                    color = palette.get_color('WS')
-                else:
-                    # Actively clear WS formatting
-                    color = QColor(0, 0, 0, 0)
             elif color_name == 'TAB':
                 # Only highlight if not ignoring tabs
                 if not self.ignore_tab:
