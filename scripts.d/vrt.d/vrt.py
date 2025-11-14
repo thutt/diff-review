@@ -106,20 +106,32 @@ Return Code:
                    required = False,
                    dest     = "arg_review_name")
 
+    o.add_argument("--dossier",
+                   help     = ("JSON file containing change information."),
+                   action   = "store",
+                   default  = None,
+                   required = False,
+                   metavar  = "<pathname>",
+                   dest     = "arg_dossier")
+
+
+    o = parser.add_argument_group("Display Geometry Options")
     o.add_argument("--display-n-lines",
-                   help     = ("Set number of lines of source to display."),
+                   help     = ("Set number of lines of source to show."),
                    action   = "store",
                    type     = int,
                    default  = 40,
                    required = False,
+                   metavar  = "<integer>",
                    dest     = "arg_display_n_lines")
 
     o.add_argument("--display-n-chars",
-                   help     = ("Set number of characters of source to display."),
+                   help     = ("Set number of characters of source to show."),
                    action   = "store",
                    type     = int,
                    default  = 80,
                    required = False,
+                   metavar  = "<integer>",
                    dest     = "arg_display_n_chars")
 
     o.add_argument("--max-line-length",
@@ -128,66 +140,89 @@ Return Code:
                    type     = int,
                    default  = 80,
                    required = False,
+                   metavar  = "<integer>",
                    dest     = "arg_max_line_length")
 
+
+    o = parser.add_argument_group("Automatic Reload Options")
     o.add_argument("--auto-reload",
-                   help     = ("Auto reload changed files into viewer.  "
-                               "See Help menu for details of auto-reload.  "
-                               "This faciliates self-review by not having to "
-                               "quit & reload the diff viewer when changes "
-                               "are made."),
+                   help     = ("Automatically  reload changed files "
+                               "into viewer."),
                    action   = "store_true",
                    default  = True,
                    required = False,
                    dest     = "arg_auto_reload")
 
-    o.add_argument("--ignore-trailing-whitespace",
-                   help     = ("When set, this causes the diff viewer to ignore "
-                               "trailing whitespace."),
+    o.add_argument("--no-auto-reload",
+                   help     = ("Do not automatically reload changed files "
+                               "into viewer."),
+                   action   = "store_false",
+                   required = False,
+                   dest     = "arg_auto_reload")
+
+
+    o = parser.add_argument_group("Diff Display Characteristics")
+    o.add_argument("--show-diff-map",
+                   help     = ("Show diff map between the two source "
+                               "panes on startup."),
                    action   = "store_true",
+                   default  = True,
+                   required = False,
+                   dest     = "arg_diff_map")
+
+    o.add_argument("--no-show-diff-map",
+                   help     = ("Do not show diff map between the two source "
+                               "panes on startup."),
+                   action   = "store_false",
+                   required = False,
+                   dest     = "arg_diff_map")
+
+    o.add_argument("--show-trailing-whitespace",
+                   help     = ("Show trailing whitespace found in "
+                               "the file."),
+                   action   = "store_false", # Internal semantic is 'ignore'.
                    default  = False,
                    required = False,
                    dest     = "arg_ignore_trailing_whitespace")
 
-    o.add_argument("--ignore-tab",
-                   help     = ("When set, this causes the diff viewer to ignore "
-                               "tabs."),
-                   action   = "store_true",
+    o.add_argument("--no-show-trailing-whitespace",
+                   help     = ("Do not show trailing whitespace found in "
+                               "the file."),
+                   action   = "store_true", # Internal semantic is 'ignore'.
+                   required = False,
+                   dest     = "arg_ignore_trailing_whitespace")
+
+    o.add_argument("--show-tab",
+                   help     = ("Display visually outstanding "
+                               "TAB characters."),
+                   action   = "store_false", # Internal semantic is 'ignore'.
                    default  = False,
                    required = False,
                    dest     = "arg_ignore_tab")
 
-    o.add_argument("--ignore-intraline",
-                   help     = ("When set, this causes the diff viewer to ignore "
-                               "intraline changes (character-level differences)."),
-                   action   = "store_true",
+    o.add_argument("--no-show-tab",
+                   help     = ("Do not display visually outstanding "
+                               "TAB characters."),
+                   action   = "store_true", # Internal semantic is 'ignore'.
+                   required = False,
+                   dest     = "arg_ignore_tab")
+
+    o.add_argument("--show-intraline",
+                   help     = ("Show intraline differences between "
+                               "lines in the different panes."),
+                   action   = "store_false", # Internal semantic is 'ignore'.
                    default  = False,
                    required = False,
                    dest     = "arg_ignore_intraline")
 
-    o.add_argument("--no-auto-reload",
-                   help     = ("Do not auto reload changed files into viewer.  "
-                               "See Help menu for details of auto-reload."),
-                   action   = "store_false",
+    o.add_argument("--no-show-intraline",
+                   help     = ("Do not show intraline differences between "
+                               "lines in the different panes."),
+                   action   = "store_true", # Internal semantic is 'ignore'.
                    required = False,
-                   dest     = "arg_auto_reload")
+                   dest     = "arg_ignore_intraline")
 
-    o.add_argument("--diff-map",
-                   help     = ("When selected, the diff map will be shown "
-                               "on startup."),
-                   action   = "store_true",
-                   default  = True,
-                   required = False,
-                   dest     = "arg_diff_map")
-
-    o.add_argument("--no-diff-map",
-                   help     = ("When selected, the diff map will be hidden "
-                               "on startup."),
-                   action   = "store_false",
-                   required = False,
-                   dest     = "arg_diff_map")
-
-    o.add_argument("--line-numbers",
+    o.add_argument("--show-line-numbers",
                    help     = ("When selected, the line numbers will be shown "
                                "on startup."),
                    action   = "store_true",
@@ -195,26 +230,21 @@ Return Code:
                    required = False,
                    dest     = "arg_line_numbers")
 
-    o.add_argument("--no-line-numbers",
+    o.add_argument("--no-show-line-numbers",
                    help     = ("When selected, the line numbers will be hidden "
                                "on startup."),
                    action   = "store_false",
                    required = False,
                    dest     = "arg_line_numbers")
 
-    o.add_argument("--dossier",
-                   help     = ("Json file containing change information"),
-                   action   = "store",
-                   default  = None,
-                   required = False,
-                   dest     = "arg_dossier")
-
     o = parser.add_argument_group("Note Taking Options")
     o.add_argument("--note-file",
-                   help     = ("Name of note file."),
+                   help     = ("Name of note file to which notes will "
+                               "be written."),
                    action   = "store",
                    default  = None,
                    required = False,
+                   metavar  = "<path of file to write>",
                    dest     = "arg_note")
 
     o = parser.add_argument_group("Output Options")
@@ -289,7 +319,6 @@ def show_line_numbers(options):
 
 
 def make_viewer(options, base, modi, note, commit_msg):
-
     viewer = diff_viewer.DiffViewer(base, modi, note, commit_msg,
                                     options.arg_max_line_length,
                                     show_diff_map(options),
