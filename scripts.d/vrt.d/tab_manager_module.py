@@ -15,7 +15,7 @@ from PyQt6.QtWidgets import (QApplication, QTabWidget, QMainWindow, QHBoxLayout,
                               QPlainTextEdit, QMenu, QMessageBox, QProgressDialog, QFileDialog)
 from PyQt6.QtCore import Qt, QFileSystemWatcher, QTimer
 from PyQt6.QtGui import (QAction, QFont, QKeySequence, QActionGroup, QFontMetrics, 
-                         QColor, QTextDocument)
+                         QColor, QTextDocument, QShortcut)
 
 from help_dialog import HelpDialog
 from search_dialogs import SearchDialog, SearchResultDialog
@@ -44,52 +44,34 @@ class FileButton(QPushButton):
     def _get_stylesheet(self):
         """Generate stylesheet based on open/active state"""
         if self.is_active:
-            # Currently selected tab - bright highlight with thick border
+            # Currently selected tab - thick border only
             return """
                 QPushButton {
                     text-align: left;
                     padding: 8px 8px 8px 20px;
                     border: none;
-                    background-color: #e0e0e0;
                     border-left: 6px solid #0066cc;
                     font-weight: bold;
-                    color: #000000;
-                }
-                QPushButton:hover {
-                    background-color: #d0d0d0;
-                    color: #000000;
                 }
             """
         elif self.is_open:
-            # Tab is open but not selected - subtle highlight
+            # Tab is open but not selected - normal border
             return """
                 QPushButton {
                     text-align: left;
                     padding: 8px 8px 8px 20px;
                     border: none;
-                    background-color: #f0f0f0;
                     border-left: 4px solid #0066cc;
-                    color: #000000;
-                }
-                QPushButton:hover {
-                    background-color: #e0e0e0;
-                    color: #000000;
                 }
             """
         else:
-            # Tab is closed - no highlight
+            # Tab is closed - no border
             return """
                 QPushButton {
                     text-align: left;
                     padding: 8px 8px 8px 20px;
                     border: none;
-                    background-color: #f8f8f8;
                     border-left: 4px solid transparent;
-                    color: #000000;
-                }
-                QPushButton:hover {
-                    background-color: #f0f0f0;
-                    color: #000000;
                 }
             """
 
@@ -98,7 +80,10 @@ class DiffViewerTabWidget(QMainWindow):
     """Main window containing tabs of DiffViewer instances with file sidebar"""
     
     def __init__(self, display_lines: int, display_chars: int, show_diff_map: bool,
-                 show_line_numbers: bool, auto_reload: bool):
+                 show_line_numbers: bool, auto_reload: bool,
+                 ignore_tab: bool, ignore_trailing_ws: bool,
+                 ignore_intraline: bool,
+                 intraline_percent : float):
         if QApplication.instance() is None:
             self._app = QApplication(sys.argv)
         else:
@@ -108,6 +93,11 @@ class DiffViewerTabWidget(QMainWindow):
         
         self.display_lines = display_lines
         self.display_chars = display_chars
+        self.ignore_ws = True
+        self.ignore_tab = ignore_tab
+        self.ignore_trailing_ws = ignore_trailing_ws
+        self.ignore_intraline = ignore_intraline
+        self._bulk_loading = False  # Suppress highlighting during "Open All Files"
         
         self.setWindowTitle("Diff Viewer")
         
@@ -163,7 +153,7 @@ class DiffViewerTabWidget(QMainWindow):
         self.open_all_button.clicked.connect(self.open_all_files)
         self.open_all_button.setStyleSheet("""
             QPushButton {
-                text-align: center;
+                text-align: left;
                 padding: 10px;
                 border: none;
                 background-color: #e8f4f8;
@@ -244,6 +234,33 @@ class DiffViewerTabWidget(QMainWindow):
         
         view_menu.addSeparator()
         
+        # Whitespace visibility controls
+        self.show_ws_action = QAction("Show Whitespace", self)
+        self.show_ws_action.setCheckable(True)
+        self.show_ws_action.setChecked(not self.ignore_ws)
+        self.show_ws_action.triggered.connect(self.toggle_whitespace_visibility)
+        view_menu.addAction(self.show_ws_action)
+        
+        self.show_tab_action = QAction("Show Tabs", self)
+        self.show_tab_action.setCheckable(True)
+        self.show_tab_action.setChecked(not ignore_tab)
+        self.show_tab_action.triggered.connect(self.toggle_tab_visibility)
+        view_menu.addAction(self.show_tab_action)
+        
+        self.show_trailing_ws_action = QAction("Show Trailing Whitespace", self)
+        self.show_trailing_ws_action.setCheckable(True)
+        self.show_trailing_ws_action.setChecked(not ignore_trailing_ws)
+        self.show_trailing_ws_action.triggered.connect(self.toggle_trailing_ws_visibility)
+        view_menu.addAction(self.show_trailing_ws_action)
+        
+        self.show_intraline_action = QAction("Show Intraline Changes", self)
+        self.show_intraline_action.setCheckable(True)
+        self.show_intraline_action.setChecked(not ignore_intraline)
+        self.show_intraline_action.triggered.connect(self.toggle_intraline_visibility)
+        view_menu.addAction(self.show_intraline_action)
+        
+        view_menu.addSeparator()
+        
         self.auto_reload_action = QAction("Auto-reload Files", self)
         self.auto_reload_action.setCheckable(True)
         self.auto_reload_action.setChecked(auto_reload)  # Set from parameter
@@ -286,6 +303,17 @@ class DiffViewerTabWidget(QMainWindow):
         total_width = (self.display_chars * char_width * 2) + (90 * 2) + 30 + 20 + 40 + 250
         # Height: lines + labels (40) + scrollbar (20) + status bar (30) + margins (20) + menubar (30)
         total_height = (self.display_lines * line_height) + 40 + 20 + 30 + 20 + 30
+        
+        # Tab navigation shortcuts (support both Ctrl and Meta for Mac compatibility)
+        next_tab_shortcut = QShortcut(QKeySequence("Ctrl+Tab"), self)
+        next_tab_shortcut.activated.connect(self.next_tab)
+        next_tab_shortcut_alt = QShortcut(QKeySequence("Meta+Tab"), self)
+        next_tab_shortcut_alt.activated.connect(self.next_tab)
+        
+        prev_tab_shortcut = QShortcut(QKeySequence("Ctrl+Shift+Tab"), self)
+        prev_tab_shortcut.activated.connect(self.prev_tab)
+        prev_tab_shortcut_alt = QShortcut(QKeySequence("Meta+Shift+Tab"), self)
+        prev_tab_shortcut_alt.activated.connect(self.prev_tab)
         
         self.resize(total_width, total_height)
     
@@ -585,50 +613,74 @@ class DiffViewerTabWidget(QMainWindow):
     
     def open_all_files(self):
         """Open all files in tabs, including commit message if present"""
-        # Calculate total items (files + commit message if present)
-        total_items = len(self.file_classes)
-        if self._commit_msg_file:
-            total_items += 1
+        # Build list of files that need to be opened
+        files_to_open = []
         
-        if total_items == 0:
+        # Check commit message
+        if self._commit_msg_file:
+            commit_msg_open = False
+            for i in range(self.tab_widget.count()):
+                widget = self.tab_widget.widget(i)
+                if hasattr(widget, 'is_commit_msg') and widget.is_commit_msg:
+                    commit_msg_open = True
+                    break
+            if not commit_msg_open:
+                files_to_open.append(('commit_msg', None))
+        
+        # Check which files aren't open yet
+        for file_class in self.file_classes:
+            if file_class not in self.file_to_tab_index:
+                files_to_open.append(('file', file_class))
+        
+        if len(files_to_open) == 0:
+            # All already open, just focus first tab
+            if self.tab_widget.count() > 0:
+                self.tab_widget.setCurrentIndex(0)
             return
         
+        # Enable bulk loading mode to suppress highlighting during load
+        self._bulk_loading = True
+        
         # Create progress dialog
-        progress = QProgressDialog("Loading files...", "Cancel", 0, total_items, self)
+        progress = QProgressDialog("Loading files...", "Cancel", 0, len(files_to_open), self)
         progress.setWindowTitle("Opening Files")
         progress.setWindowModality(Qt.WindowModality.WindowModal)
         progress.setMinimumDuration(500)  # Only show if takes more than 500ms
         
         current_index = 0
         
-        # Open commit message first if it exists
-        if self._commit_msg_file:
-            if not progress.wasCanceled():
-                progress.setValue(current_index)
-                progress.setLabelText("Loading Commit Message...")
-                QApplication.processEvents()  # Keep UI responsive
-                self.on_commit_msg_clicked()
-                current_index += 1
-        
-        # Open all file diffs
-        for file_class in self.file_classes:
+        # Open files that aren't already open
+        for item_type, item_data in files_to_open:
             if progress.wasCanceled():
                 break
             
             # Update progress
             progress.setValue(current_index)
-            progress.setLabelText(f"Loading {file_class.button_label()}...")
+            if item_type == 'commit_msg':
+                progress.setLabelText("Loading Commit Message...")
+            else:
+                progress.setLabelText(f"Loading {item_data.button_label()}...")
             QApplication.processEvents()  # Keep UI responsive
             
-            self.on_file_clicked(file_class)
+            if item_type == 'commit_msg':
+                self.on_commit_msg_clicked()
+            else:
+                self.on_file_clicked(item_data)
             current_index += 1
         
-        progress.setValue(total_items)
+        progress.setValue(len(files_to_open))
         progress.close()
+        
+        # Disable bulk loading mode
+        self._bulk_loading = False
         
         # Focus the first tab (commit message if present, otherwise first file)
         if self.tab_widget.count() > 0:
             self.tab_widget.setCurrentIndex(0)
+            # Now apply highlighting to the visible tab
+            viewer = self.get_viewer_at_index(0)
+            if viewer:
+                viewer.ensure_highlighting_applied()
     
     def on_file_clicked(self, file_class):
         """Handle file button click"""
@@ -707,6 +759,11 @@ class DiffViewerTabWidget(QMainWindow):
         # Switch to new tab
         self.tab_widget.setCurrentIndex(index)
         
+        # Apply highlighting immediately if not in bulk loading mode
+        # (on_tab_changed is suppressed during bulk load)
+        if not self._bulk_loading:
+            diff_viewer.ensure_highlighting_applied()
+        
         # Apply global view state to new viewer
         if self.diff_map_visible != diff_viewer.diff_map_visible:
             diff_viewer.toggle_diff_map()
@@ -716,6 +773,12 @@ class DiffViewerTabWidget(QMainWindow):
         # Apply global note file if set
         if self.global_note_file:
             diff_viewer.note_file = self.global_note_file
+        
+        # Apply global whitespace ignore settings
+        diff_viewer.ignore_ws = self.ignore_ws
+        diff_viewer.ignore_tab = self.ignore_tab
+        diff_viewer.ignore_trailing_ws = self.ignore_trailing_ws
+        diff_viewer.ignore_intraline = self.ignore_intraline
         
         # Set up file watching for this viewer
         self.setup_file_watcher(diff_viewer)
@@ -1144,6 +1207,18 @@ class DiffViewerTabWidget(QMainWindow):
         viewer = self.get_viewer_at_index(index)
         if viewer:
             viewer.init_scrollbars()
+            # Skip highlighting if we're in bulk loading mode
+            if not self._bulk_loading:
+                # Apply highlighting if this viewer hasn't been highlighted yet
+                viewer.ensure_highlighting_applied()
+            # Apply highlighting if this viewer needs an update
+            if viewer._needs_highlighting_update:
+                viewer.restart_highlighting()
+                viewer._needs_highlighting_update = False
+            # Refresh colors if this viewer needs a color update
+            if viewer._needs_color_refresh:
+                viewer.refresh_colors()
+                viewer._needs_color_refresh = False
     
     def update_button_states(self):
         """Update all button states based on open tabs and currently selected tab"""
@@ -1312,6 +1387,20 @@ class DiffViewerTabWidget(QMainWindow):
         if current_index >= 0:
             self.close_tab(current_index)
     
+    def next_tab(self):
+        """Navigate to next tab (left-to-right, wraps around)"""
+        if self.tab_widget.count() > 0:
+            current = self.tab_widget.currentIndex()
+            next_index = (current + 1) % self.tab_widget.count()
+            self.tab_widget.setCurrentIndex(next_index)
+    
+    def prev_tab(self):
+        """Navigate to previous tab (right-to-left, wraps around)"""
+        if self.tab_widget.count() > 0:
+            current = self.tab_widget.currentIndex()
+            prev_index = (current - 1) % self.tab_widget.count()
+            self.tab_widget.setCurrentIndex(prev_index)
+    
     def toggle_sidebar(self):
         """Toggle sidebar visibility"""
         if self.sidebar_visible:
@@ -1352,6 +1441,62 @@ class DiffViewerTabWidget(QMainWindow):
             for viewer in list(self.changed_files.keys()):
                 if viewer in self.changed_files and self.changed_files[viewer]:
                     self.reload_viewer(viewer)
+    
+    def toggle_whitespace_visibility(self):
+        """Toggle whitespace visibility in all viewers"""
+        self.ignore_ws = not self.show_ws_action.isChecked()
+        # Update current viewer immediately
+        viewer = self.get_current_viewer()
+        if viewer:
+            viewer.ignore_ws = self.ignore_ws
+            viewer.restart_highlighting()
+        # Mark all other viewers as needing update
+        for v in self.get_all_viewers():
+            if v != viewer:
+                v.ignore_ws = self.ignore_ws
+                v._needs_highlighting_update = True
+    
+    def toggle_tab_visibility(self):
+        """Toggle tab character visibility in all viewers"""
+        self.ignore_tab = not self.show_tab_action.isChecked()
+        # Update current viewer immediately
+        viewer = self.get_current_viewer()
+        if viewer:
+            viewer.ignore_tab = self.ignore_tab
+            viewer.restart_highlighting()
+        # Mark all other viewers as needing update
+        for v in self.get_all_viewers():
+            if v != viewer:
+                v.ignore_tab = self.ignore_tab
+                v._needs_highlighting_update = True
+    
+    def toggle_trailing_ws_visibility(self):
+        """Toggle trailing whitespace visibility in all viewers"""
+        self.ignore_trailing_ws = not self.show_trailing_ws_action.isChecked()
+        # Update current viewer immediately
+        viewer = self.get_current_viewer()
+        if viewer:
+            viewer.ignore_trailing_ws = self.ignore_trailing_ws
+            viewer.restart_highlighting()
+        # Mark all other viewers as needing update
+        for v in self.get_all_viewers():
+            if v != viewer:
+                v.ignore_trailing_ws = self.ignore_trailing_ws
+                v._needs_highlighting_update = True
+    
+    def toggle_intraline_visibility(self):
+        """Toggle intraline changes visibility in all viewers"""
+        self.ignore_intraline = not self.show_intraline_action.isChecked()
+        # Update current viewer immediately
+        viewer = self.get_current_viewer()
+        if viewer:
+            viewer.ignore_intraline = self.ignore_intraline
+            viewer.restart_highlighting()
+        # Mark all other viewers as needing update
+        for v in self.get_all_viewers():
+            if v != viewer:
+                v.ignore_intraline = self.ignore_intraline
+                v._needs_highlighting_update = True
     
     def setup_file_watcher(self, viewer):
         """Set up file system watching for a viewer's files"""
@@ -1464,7 +1609,7 @@ class DiffViewerTabWidget(QMainWindow):
     
     def reload_viewer(self, viewer):
         """Reload a viewer's diff data"""
-        import diffmgr
+        import diffmgrng as diffmgr
         
         # Save current scroll position
         v_scroll_pos = viewer.base_text.verticalScrollBar().value()
@@ -1485,14 +1630,19 @@ class DiffViewerTabWidget(QMainWindow):
         
         # Reload diff
         try:
-            desc = diffmgr.create_diff_descriptor(False, viewer.base_file, viewer.modified_file)
+            desc = diffmgr.create_diff_descriptor(False, None,
+                                                  viewer.base_file,
+                                                  viewer.modified_file)
             
-            for idx in range(len(desc.base_)):
-                base = desc.base_[idx]
-                modi = desc.modi_[idx]
+            for idx in range(len(desc.base_.lines_)):
+                base = desc.base_.lines_[idx]
+                modi = desc.modi_.lines_[idx]
                 viewer.add_line(base, modi)
             
             viewer.finalize()
+            
+            # Since this viewer is currently visible (being reloaded), apply highlighting now
+            viewer.ensure_highlighting_applied()
             
             # Restore scroll position
             viewer.base_text.verticalScrollBar().setValue(v_scroll_pos)
@@ -1541,15 +1691,19 @@ class DiffViewerTabWidget(QMainWindow):
     def show_help(self):
         """Show help dialog"""
         help_dialog = HelpDialog(self)
-        help_dialog.exec()
+        help_dialog.show()
     
     def switch_palette(self, palette_name):
         """Switch to a different color palette and refresh all viewers"""
         if color_palettes.set_current_palette(palette_name):
-            # Refresh all open diff viewers
-            viewers = self.get_all_viewers()
-            for viewer in viewers:
+            # Refresh current viewer immediately
+            viewer = self.get_current_viewer()
+            if viewer:
                 viewer.refresh_colors()
+            # Mark all other viewers as needing color refresh
+            for v in self.get_all_viewers():
+                if v != viewer:
+                    v._needs_color_refresh = True
     
     def keyPressEvent(self, event):
         """Handle key press events"""

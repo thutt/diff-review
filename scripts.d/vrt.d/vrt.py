@@ -11,7 +11,7 @@ import signal
 import sys
 import traceback
 
-import diffmgr
+import diffmgrng as diffmgr
 import diff_viewer
 import tab_manager_module
 
@@ -33,11 +33,11 @@ class FileButton (object):
         return self.modi_rel_path_
 
     def add_viewer(self, tab_widget):
-        base = os.path.join(self.root_path_, "base.d", self.base_rel_path_)
-        modi = os.path.join(self.root_path_, "modi.d", self.modi_rel_path_)
-        viewer  = make_viewer(self.options_, base, modi,
-                              self.options_.arg_note,
-                              self.options_.dossier_["commit_msg"])
+        base   = os.path.join(self.root_path_, "base.d", self.base_rel_path_)
+        modi   = os.path.join(self.root_path_, "modi.d", self.modi_rel_path_)
+        viewer = make_viewer(self.options_, base, modi,
+                             self.options_.arg_note,
+                             self.options_.dossier_["commit_msg"])
         tab_widget.add_viewer(viewer)
 
 
@@ -60,7 +60,7 @@ Return Code:
   0       : success
   non-zero: failure
 """)
-    formatter = argparse. RawTextHelpFormatter
+    formatter = argparse.RawTextHelpFormatter
     parser    = argparse.ArgumentParser(usage                 = None,
                                         formatter_class       = formatter,
                                         description           = description,
@@ -106,20 +106,48 @@ Return Code:
                    required = False,
                    dest     = "arg_review_name")
 
+    o.add_argument("--dossier",
+                   help     = ("JSON file containing change information."),
+                   action   = "store",
+                   default  = None,
+                   required = False,
+                   metavar  = "<pathname>",
+                   dest     = "arg_dossier")
+
+    o.add_argument("--intraline-percent",
+                   help     = ("Integer percentage of similarity of two lines, "
+                               "below which intraline diffs will not be "
+                               "enabled. A higher value will reduce "
+                               "incomprehensible intraline diff coloring.  A "
+                               "lower value will present the lines as deleted "
+                               "from the base file and added to the "
+                               "modified file.  Value supplied is clamped to "
+                               "the range [1, 100] (default: %(default)s)"),
+                   action   = "store",
+                   type     = int,
+                   default  = 60,
+                   metavar  = "<intraline percent>",
+                   required = False,
+                   dest     = "arg_intraline_percent")
+
+
+    o = parser.add_argument_group("Display Geometry Options")
     o.add_argument("--display-n-lines",
-                   help     = ("Set number of lines of source to display."),
+                   help     = ("Set number of lines of source to show."),
                    action   = "store",
                    type     = int,
                    default  = 40,
                    required = False,
+                   metavar  = "<integer>",
                    dest     = "arg_display_n_lines")
 
     o.add_argument("--display-n-chars",
-                   help     = ("Set number of characters of source to display."),
+                   help     = ("Set number of characters of source to show."),
                    action   = "store",
                    type     = int,
                    default  = 80,
                    required = False,
+                   metavar  = "<integer>",
                    dest     = "arg_display_n_chars")
 
     o.add_argument("--max-line-length",
@@ -128,42 +156,89 @@ Return Code:
                    type     = int,
                    default  = 80,
                    required = False,
+                   metavar  = "<integer>",
                    dest     = "arg_max_line_length")
 
+
+    o = parser.add_argument_group("Automatic Reload Options")
     o.add_argument("--auto-reload",
-                   help     = ("Auto reload changed files into viewer.  "
-                               "See Help menu for details of auto-reload.  "
-                               "This faciliates self-review by not having to "
-                               "quit & reload the diff viewer when changes "
-                               "are made."),
+                   help     = ("Automatically  reload changed files "
+                               "into viewer."),
                    action   = "store_true",
                    default  = True,
                    required = False,
                    dest     = "arg_auto_reload")
 
     o.add_argument("--no-auto-reload",
-                   help     = ("Do not auto reload changed files into viewer.  "
-                               "See Help menu for details of auto-reload."),
+                   help     = ("Do not automatically reload changed files "
+                               "into viewer."),
                    action   = "store_false",
                    required = False,
                    dest     = "arg_auto_reload")
 
-    o.add_argument("--diff-map",
-                   help     = ("When selected, the diff map will be shown "
-                               "on startup."),
+
+    o = parser.add_argument_group("Diff Display Characteristics")
+    o.add_argument("--show-diff-map",
+                   help     = ("Show diff map between the two source "
+                               "panes on startup."),
                    action   = "store_true",
                    default  = True,
                    required = False,
                    dest     = "arg_diff_map")
 
-    o.add_argument("--no-diff-map",
-                   help     = ("When selected, the diff map will be hidden "
-                               "on startup."),
+    o.add_argument("--no-show-diff-map",
+                   help     = ("Do not show diff map between the two source "
+                               "panes on startup."),
                    action   = "store_false",
                    required = False,
                    dest     = "arg_diff_map")
 
-    o.add_argument("--line-numbers",
+    o.add_argument("--show-trailing-whitespace",
+                   help     = ("Show trailing whitespace found in "
+                               "the file."),
+                   action   = "store_false", # Internal semantic is 'ignore'.
+                   default  = False,
+                   required = False,
+                   dest     = "arg_ignore_trailing_whitespace")
+
+    o.add_argument("--no-show-trailing-whitespace",
+                   help     = ("Do not show trailing whitespace found in "
+                               "the file."),
+                   action   = "store_true", # Internal semantic is 'ignore'.
+                   required = False,
+                   dest     = "arg_ignore_trailing_whitespace")
+
+    o.add_argument("--show-tab",
+                   help     = ("Display visually outstanding "
+                               "TAB characters."),
+                   action   = "store_false", # Internal semantic is 'ignore'.
+                   default  = False,
+                   required = False,
+                   dest     = "arg_ignore_tab")
+
+    o.add_argument("--no-show-tab",
+                   help     = ("Do not display visually outstanding "
+                               "TAB characters."),
+                   action   = "store_true", # Internal semantic is 'ignore'.
+                   required = False,
+                   dest     = "arg_ignore_tab")
+
+    o.add_argument("--show-intraline",
+                   help     = ("Show intraline differences between "
+                               "lines in the different panes."),
+                   action   = "store_false", # Internal semantic is 'ignore'.
+                   default  = False,
+                   required = False,
+                   dest     = "arg_ignore_intraline")
+
+    o.add_argument("--no-show-intraline",
+                   help     = ("Do not show intraline differences between "
+                               "lines in the different panes."),
+                   action   = "store_true", # Internal semantic is 'ignore'.
+                   required = False,
+                   dest     = "arg_ignore_intraline")
+
+    o.add_argument("--show-line-numbers",
                    help     = ("When selected, the line numbers will be shown "
                                "on startup."),
                    action   = "store_true",
@@ -171,29 +246,35 @@ Return Code:
                    required = False,
                    dest     = "arg_line_numbers")
 
-    o.add_argument("--no-line-numbers",
+    o.add_argument("--no-show-line-numbers",
                    help     = ("When selected, the line numbers will be hidden "
                                "on startup."),
                    action   = "store_false",
                    required = False,
                    dest     = "arg_line_numbers")
 
-    o.add_argument("--dossier",
-                   help     = ("Json file containing change information"),
-                   action   = "store",
-                   default  = None,
-                   required = False,
-                   dest     = "arg_dossier")
-
     o = parser.add_argument_group("Note Taking Options")
     o.add_argument("--note-file",
-                   help     = ("Name of note file."),
+                   help     = ("Name of note file to which notes will "
+                               "be written."),
                    action   = "store",
                    default  = None,
                    required = False,
+                   metavar  = "<path of file to write>",
                    dest     = "arg_note")
 
     o = parser.add_argument_group("Output Options")
+    o.add_argument("--dump-ir",
+                   help     = ("Dump internal representation of diff.  "
+                               "Creates 'dr-base-<file>.text' and "
+                               "'dr-modi-<file>.text' "
+                               "in the specified directory."),
+                   action   = "store",
+                   default  = None,
+                   required = False,
+                   metavar  = "<path of directory to write output>",
+                   dest     = "arg_dump_ir")
+
     o.add_argument("--verbose",
                    help     = ("Turn on verbose diagnostic output"),
                    action   = "store_true",
@@ -227,6 +308,12 @@ def process_command_line():
                                            default_review_name,
                                            "dossier.json")
 
+    options.arg_intraline_percent = max(1, min(options.arg_intraline_percent,
+                                               100))
+    assert(1 <= options.arg_intraline_percent and
+           options.arg_intraline_percent <= 100)
+    options.intraline_percent_ = float(options.arg_intraline_percent) / 100.0
+
     if options.arg_fqdn is not None:
         rsync_and_rerun(options)
     elif os.path.exists(options.arg_dossier):
@@ -239,15 +326,17 @@ def process_command_line():
 
 
 def add_diff_to_viewer(desc, viewer):
-    assert(len(desc.base_) == len(desc.modi_))
+    assert(len(desc.base_.lines_) == len(desc.modi_.lines_))
 
-    for idx in range(0, len(desc.base_)):
-        base = desc.base_[idx]
-        modi = desc.modi_[idx]
-        viewer.add_line(base, modi)  # Repeat for each line pair
+    # Set the changed region count from the diff descriptor
+    viewer.set_changed_region_count(desc.base_.n_changed_regions_)
 
-    viewer.finalize() 
-    viewer.apply_highlighting()
+    for idx in range(0, len(desc.base_.lines_)):
+        base = desc.base_.lines_[idx]
+        modi = desc.modi_.lines_[idx]
+        viewer.add_line(base, modi)
+
+    viewer.finalize()
 
 
 def show_diff_map(options):
@@ -263,13 +352,14 @@ def show_line_numbers(options):
 
 
 def make_viewer(options, base, modi, note, commit_msg):
-
     viewer = diff_viewer.DiffViewer(base, modi, note, commit_msg,
                                     options.arg_max_line_length,
                                     show_diff_map(options),
                                     show_line_numbers(options))
 
     desc = diffmgr.create_diff_descriptor(options.arg_verbose,
+                                          options.intraline_percent_,
+                                          options.arg_dump_ir,
                                           base, modi)
     add_diff_to_viewer(desc, viewer)
 
@@ -281,7 +371,11 @@ def generate(options, note):
                                                          options.arg_display_n_chars,
                                                          show_diff_map(options),
                                                          show_line_numbers(options),
-                                                         auto_reload_enabled(options))
+                                                         auto_reload_enabled(options),
+                                                         options.arg_ignore_tab,
+                                                         options.arg_ignore_trailing_whitespace,
+                                                         options.arg_ignore_intraline,
+                                                         options.intraline_percent_)
 
 
     if options.dossier_['commit_msg'] is not None:
@@ -293,7 +387,7 @@ def generate(options, note):
                                options.dossier_["root"],
                                f["base_rel_path"],
                                f["modi_rel_path"])
-        
+
         tab_widget.add_file(file_inst)
 
     tab_widget.run()

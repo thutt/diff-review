@@ -188,11 +188,11 @@ def find_executable(search_paths):
 def find_rsync():
     # Find an rsync in known locations, or fail.
     locations = [
-        "/opt/homebrew/bin/rsync", # Searched first;  avoid old Apple.
+        "/opt/homebrew/bin/rsync", # Searched first to avoid old Apple version.
         "/opt/local/bin/rsync",
         "/usr/bin/rsync",
         "/usr/local/bin/rsync",
-	"/usr/pkg/bin/rsync"
+        "/usr/pkg/bin/rsync"
     ]
 
     rsync = find_executable(locations)

@@ -55,10 +55,20 @@ class DiffViewer(QMainWindow):
         self.change_regions = []
         self.base_line_objects = []
         self.modified_line_objects = []
+        self.n_changed_regions = 0  # Count of non-EQUAL regions from diff descriptor
         
         self.current_region = 0
         self.current_region_highlight = None
         self._target_region = None
+        self.ignore_ws = False  # Will be set by tab manager
+        self.ignore_tab = False  # Will be set by tab manager
+        self.ignore_trailing_ws = False  # Will be set by tab manager
+        self.ignore_intraline = False  # Will be set by tab manager
+        self.highlighting_applied = False  # Deferred until tab becomes visible
+        self.highlighting_in_progress = False  # True during background highlighting
+        self.highlighting_next_line = 0  # Next line to highlight
+        self._needs_highlighting_update = False  # Set by tab_manager for deferred updates
+        self._needs_color_refresh = False  # Set by tab_manager for deferred color updates
         
         self.setup_gui()
     
@@ -151,9 +161,13 @@ class DiffViewer(QMainWindow):
         
         status_layout = QHBoxLayout()
         self.region_label = QLabel("Region: 0 of 0")
+        self.highlighting_label = QLabel("")
+        self.highlighting_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.notes_label = QLabel("Notes: 0")
         
         status_layout.addWidget(self.region_label)
+        status_layout.addStretch()
+        status_layout.addWidget(self.highlighting_label)
         status_layout.addStretch()
         status_layout.addWidget(self.notes_label)
         status_frame = QFrame()
@@ -184,6 +198,10 @@ class DiffViewer(QMainWindow):
         self.base_text.setFont(text_font)
         self.modified_text.setFont(text_font)
     
+    def set_changed_region_count(self, count):
+        """Set the number of changed regions from the diff descriptor"""
+        self.n_changed_regions = count
+    
     def add_line(self, base, modi):
         base_text = base.line_.rstrip('\n') if hasattr(base, 'line_') else ''
         modi_text = modi.line_.rstrip('\n') if hasattr(modi, 'line_') else ''
@@ -201,7 +219,8 @@ class DiffViewer(QMainWindow):
     def finalize(self):
         self.build_change_regions()
         self.populate_content()
-        self.apply_highlighting()
+        # NOTE: apply_highlighting() is deferred until tab becomes visible
+        # This is handled by ensure_highlighting_applied() called from on_tab_changed()
         self.update_status()
         QTimer.singleShot(100, self.init_scrollbars)
         
@@ -221,47 +240,54 @@ class DiffViewer(QMainWindow):
             self.highlight_current_region()
     
     def build_change_regions(self):
+        """Build change regions from line.region_ references (only non-EQUAL regions)"""
         self.change_regions = []
+        
+        import diff_desc
+        
         region_start = None
-        region_tag = None
+        region_kind = None
         
-        for i, (base_line, modi_line) in enumerate(zip(self.base_line_objects,
-                                                        self.modified_line_objects)):
-            base_present = base_line.show_line_number()
-            modi_present = modi_line.show_line_number()
-            
-            if base_present and modi_present:
-                is_changed = self.line_has_changes(base_line) or self.line_has_changes(modi_line)
-                current_tag = 'replace' if is_changed else None
-            elif base_present and not modi_present:
-                current_tag = 'delete'
-            elif not base_present and modi_present:
-                current_tag = 'insert'
-            else:
-                current_tag = None
-            
-            if current_tag is not None:
-                if region_start is None:
-                    region_start = i
-                    region_tag = current_tag
-                elif region_tag != current_tag:
-                    self.change_regions.append((region_tag, region_start, i, 0, 0, 0, 0))
-                    region_start = i
-                    region_tag = current_tag
-            else:
-                if region_start is not None:
-                    self.change_regions.append((region_tag, region_start, i, 0, 0, 0, 0))
-                    region_start = None
-                    region_tag = None
+        for i, base_line in enumerate(self.base_line_objects):
+            # Get the region from the line object
+            if hasattr(base_line, 'region_') and base_line.region_:
+                current_kind = base_line.region_.kind_
+                
+                # Only track non-EQUAL regions
+                if current_kind != diff_desc.RegionDesc.EQUAL:
+                    if region_start is None or region_kind != current_kind:
+                        # Start new region
+                        if region_start is not None:
+                            # Close previous region
+                            tag_name = {
+                                diff_desc.RegionDesc.DELETE: 'delete',
+                                diff_desc.RegionDesc.ADD: 'insert',
+                                diff_desc.RegionDesc.CHANGE: 'replace'
+                            }.get(region_kind, 'unknown')
+                            self.change_regions.append((tag_name, region_start, i, 0, 0, 0, 0))
+                        
+                        region_start = i
+                        region_kind = current_kind
+                else:
+                    # EQUAL region - close any open region
+                    if region_start is not None:
+                        tag_name = {
+                            diff_desc.RegionDesc.DELETE: 'delete',
+                            diff_desc.RegionDesc.ADD: 'insert',
+                            diff_desc.RegionDesc.CHANGE: 'replace'
+                        }.get(region_kind, 'unknown')
+                        self.change_regions.append((tag_name, region_start, i, 0, 0, 0, 0))
+                        region_start = None
+                        region_kind = None
         
+        # Close final region if open
         if region_start is not None:
-            self.change_regions.append((region_tag, region_start, 
-                                       len(self.base_line_objects), 0, 0, 0, 0))
-    
-    def line_has_changes(self, line_obj):
-        if not hasattr(line_obj, 'runs_'):
-            return False
-        return any(run.changed_ for run in line_obj.runs_)
+            tag_name = {
+                diff_desc.RegionDesc.DELETE: 'delete',
+                diff_desc.RegionDesc.ADD: 'insert',
+                diff_desc.RegionDesc.CHANGE: 'replace'
+            }.get(region_kind, 'unknown')
+            self.change_regions.append((tag_name, region_start, len(self.base_line_objects), 0, 0, 0, 0))
     
     def populate_content(self):
         self.base_line_area.set_line_numbers(self.base_line_nums)
@@ -270,35 +296,232 @@ class DiffViewer(QMainWindow):
         self.base_text.setPlainText('\n'.join(self.base_display))
         self.modified_text.setPlainText('\n'.join(self.modified_display))
         
-        self.diff_map.set_change_regions(self.change_regions, len(self.base_display))
+        # Store QTextBlock references in line objects for fast highlighting
+        for i, line_obj in enumerate(self.base_line_objects):
+            block = self.base_text.document().findBlockByNumber(i)
+            line_obj.text_block_ = block
+        
+        for i, line_obj in enumerate(self.modified_line_objects):
+            block = self.modified_text.document().findBlockByNumber(i)
+            line_obj.text_block_ = block
+        
+        # Defer diff_map update until highlighting starts
+        # self.diff_map.set_change_regions(self.change_regions, len(self.base_display))
     
     def apply_highlighting(self):
+        if False:  # Debug timing
+            import time
+            start_time = time.time()
+        
+        import diff_desc
+        palette = color_palettes.get_current_palette()
+        
         for i, (base_line, modi_line) in enumerate(zip(self.base_line_objects,
                                                         self.modified_line_objects)):
-            palette = color_palettes.get_current_palette()
             
+            # BASE SIDE
             if not base_line.show_line_number():
+                # Placeholder line
                 self.highlight_line(self.base_text, i, palette.get_color('placeholder'))
+            elif hasattr(base_line, 'uncolored_') and base_line.uncolored_:
+                # Line has no colors to apply - skip all highlighting
+                pass
             else:
-                # Apply full-line background if line has changes
-                if self.line_has_changes(base_line):
-                    self.highlight_line(self.base_text, i, palette.get_color('base_changed_bg'))
-                    self.base_line_area.set_line_background(i, palette.get_color('base_changed_bg'))
-                # Then apply character-level run colors on top
+                # Determine background color based on region type
+                bg_color = None
+                
+                if hasattr(base_line, 'region_') and base_line.region_:
+                    region_kind = base_line.region_.kind_
+                    
+                    if region_kind == diff_desc.RegionDesc.DELETE or \
+                       region_kind == diff_desc.RegionDesc.CHANGE:
+                        bg_color = palette.get_color('base_changed_bg')
+                    # EQUAL and ADD regions don't get background on base side
+                
+                if bg_color:
+                    self.highlight_line(self.base_text, i, bg_color)
+                    self.base_line_area.set_line_background(i, bg_color)
+                
+                # Always apply runs for colored lines
                 self.apply_runs(self.base_text, i, base_line)
             
+            # MODIFIED SIDE
             if not modi_line.show_line_number():
+                # Placeholder line
                 self.highlight_line(self.modified_text, i, palette.get_color('placeholder'))
+            elif hasattr(modi_line, 'uncolored_') and modi_line.uncolored_:
+                # Line has no colors to apply - skip all highlighting
+                pass
             else:
-                # Apply full-line background if line has changes
-                if self.line_has_changes(modi_line):
-                    self.highlight_line(self.modified_text, i, palette.get_color('modi_changed_bg'))
-                    self.modified_line_area.set_line_background(i, palette.get_color('modi_changed_bg'))
-                # Then apply character-level run colors on top
+                # Determine background color based on region type
+                bg_color = None
+                
+                if hasattr(modi_line, 'region_') and modi_line.region_:
+                    region_kind = modi_line.region_.kind_
+                    
+                    if region_kind == diff_desc.RegionDesc.ADD or \
+                       region_kind == diff_desc.RegionDesc.CHANGE:
+                        bg_color = palette.get_color('modi_changed_bg')
+                    # EQUAL and DELETE regions don't get background on modi side
+                
+                if bg_color:
+                    self.highlight_line(self.modified_text, i, bg_color)
+                    self.modified_line_area.set_line_background(i, bg_color)
+                
+                # Always apply runs for colored lines
                 self.apply_runs(self.modified_text, i, modi_line)
+        
+        if False:  # Debug timing
+            elapsed = time.time() - start_time
+            print(f"apply_highlighting: {elapsed:.3f} seconds ({len(self.base_line_objects)} lines)")
+            sys.stdout.flush()
     
-    def highlight_line(self, text_widget, line_num, color):
-        block = text_widget.document().findBlockByNumber(line_num)
+    def ensure_highlighting_applied(self):
+        """Start progressive highlighting if not yet done."""
+        if not self.highlighting_applied and not self.highlighting_in_progress:
+            self.start_progressive_highlighting()
+    
+    def start_progressive_highlighting(self):
+        """Start background highlighting in chunks."""
+        # Update diff_map now that we're rendering
+        self.diff_map.set_change_regions(self.change_regions, len(self.base_display))
+        
+        self.highlighting_in_progress = True
+        self.highlighting_next_line = 0
+        self.update_highlighting_status()
+        QTimer.singleShot(0, self.highlight_next_chunk)
+    
+    def highlight_next_chunk(self):
+        """Highlight next chunk of lines."""
+        if not self.highlighting_in_progress:
+            return
+        
+        import time
+        chunk_start = time.time()
+        
+        chunk_size = 500
+        start_line = self.highlighting_next_line
+        end_line = min(start_line + chunk_size, len(self.base_line_objects))
+        
+        import diff_desc
+        palette = color_palettes.get_current_palette()
+        
+        time_highlight_line = 0
+        time_apply_runs = 0
+        count_highlight_line = 0
+        count_apply_runs = 0
+        run_type_counts = {}
+        
+        for i in range(start_line, end_line):
+            base_line = self.base_line_objects[i]
+            modi_line = self.modified_line_objects[i]
+            
+            # BASE SIDE
+            if not base_line.show_line_number():
+                t0 = time.time()
+                self.highlight_line(self.base_text, i, palette.get_color('placeholder'), base_line)
+                time_highlight_line += time.time() - t0
+                count_highlight_line += 1
+            elif hasattr(base_line, 'uncolored_') and base_line.uncolored_:
+                pass
+            else:
+                bg_color = None
+                if hasattr(base_line, 'region_') and base_line.region_:
+                    region_kind = base_line.region_.kind_
+                    if region_kind == diff_desc.RegionDesc.DELETE or \
+                       region_kind == diff_desc.RegionDesc.CHANGE:
+                        bg_color = palette.get_color('base_changed_bg')
+                
+                if bg_color:
+                    t0 = time.time()
+                    self.highlight_line(self.base_text, i, bg_color, base_line)
+                    time_highlight_line += time.time() - t0
+                    count_highlight_line += 1
+                    self.base_line_area.set_line_background(i, bg_color)
+                
+                t0 = time.time()
+                self.apply_runs(self.base_text, i, base_line, run_type_counts)
+                time_apply_runs += time.time() - t0
+                count_apply_runs += 1
+            
+            # MODIFIED SIDE
+            if not modi_line.show_line_number():
+                t0 = time.time()
+                self.highlight_line(self.modified_text, i, palette.get_color('placeholder'), modi_line)
+                time_highlight_line += time.time() - t0
+                count_highlight_line += 1
+            elif hasattr(modi_line, 'uncolored_') and modi_line.uncolored_:
+                pass
+            else:
+                bg_color = None
+                if hasattr(modi_line, 'region_') and modi_line.region_:
+                    region_kind = modi_line.region_.kind_
+                    if region_kind == diff_desc.RegionDesc.ADD or \
+                       region_kind == diff_desc.RegionDesc.CHANGE:
+                        bg_color = palette.get_color('modi_changed_bg')
+                
+                if bg_color:
+                    t0 = time.time()
+                    self.highlight_line(self.modified_text, i, bg_color, modi_line)
+                    time_highlight_line += time.time() - t0
+                    count_highlight_line += 1
+                    self.modified_line_area.set_line_background(i, bg_color)
+                
+                t0 = time.time()
+                self.apply_runs(self.modified_text, i, modi_line, run_type_counts)
+                time_apply_runs += time.time() - t0
+                count_apply_runs += 1
+        
+        chunk_time = time.time() - chunk_start
+        if False:
+            print(f"Chunk {start_line}-{end_line}: {chunk_time*1000:.1f}ms total, "
+                  f"highlight_line={time_highlight_line*1000:.1f}ms ({count_highlight_line} calls), "
+                  f"apply_runs={time_apply_runs*1000:.1f}ms ({count_apply_runs} calls)")
+            if run_type_counts:
+                print(f"  Run types: {run_type_counts}")
+                import sys
+                sys.stdout.flush()
+        
+        self.highlighting_next_line = end_line
+        
+        if end_line >= len(self.base_line_objects):
+            # Done
+            self.highlighting_in_progress = False
+            self.highlighting_applied = True
+            self.clear_highlighting_status()
+        else:
+            # Continue
+            self.update_highlighting_status()
+            QTimer.singleShot(0, self.highlight_next_chunk)
+    
+    def update_highlighting_status(self):
+        """Update status bar with highlighting progress."""
+        if not self.highlighting_in_progress:
+            return
+        total = len(self.base_line_objects)
+        current = self.highlighting_next_line
+        percent = int((current / total) * 100) if total > 0 else 0
+        self.highlighting_label.setText(f"  Highlighting: {percent}% ({current}/{total} lines)")
+    
+    def clear_highlighting_status(self):
+        """Clear highlighting status message."""
+        self.highlighting_label.setText("")
+    
+    def restart_highlighting(self):
+        """Cancel current highlighting and restart from beginning."""
+        self.highlighting_in_progress = False
+        self.highlighting_applied = False
+        self.highlighting_next_line = 0
+        self.start_progressive_highlighting()
+
+    
+    def highlight_line(self, text_widget, line_num, color, line_obj=None):
+        # Use cached QTextBlock if available
+        if line_obj and hasattr(line_obj, 'text_block_'):
+            block = line_obj.text_block_
+        else:
+            block = text_widget.document().findBlockByNumber(line_num)
+        
         if not block.isValid():
             return
         
@@ -309,11 +532,17 @@ class DiffViewer(QMainWindow):
         block_fmt.setBackground(color)
         cursor.setBlockFormat(block_fmt)
     
-    def apply_runs(self, text_widget, line_idx, line_obj):
+    def apply_runs(self, text_widget, line_idx, line_obj, run_type_counts=None):
         if not hasattr(line_obj, 'runs_'):
             return
         
-        block = text_widget.document().findBlockByNumber(line_idx)
+        # Use cached QTextBlock reference from line object
+        if hasattr(line_obj, 'text_block_'):
+            block = line_obj.text_block_
+        else:
+            # Fallback if block wasn't cached
+            block = text_widget.document().findBlockByNumber(line_idx)
+        
         if not block.isValid():
             return
         
@@ -325,6 +554,15 @@ class DiffViewer(QMainWindow):
         
         for run in line_obj.runs_:
             color_name = run.color()
+            
+            # Count run types if requested
+            if run_type_counts is not None:
+                run_type_counts[color_name] = run_type_counts.get(color_name, 0) + 1
+            
+            # Skip NORMAL runs - they have no formatting
+            if color_name == 'NORMAL':
+                continue
+            
             color = None
             palette = color_palettes.get_current_palette()
             
@@ -333,7 +571,26 @@ class DiffViewer(QMainWindow):
             elif color_name == 'DELETE':
                 color = palette.get_color('delete_run')
             elif color_name == 'INTRALINE':
-                color = palette.get_color('intraline_run')
+                # Only highlight if not ignoring intraline changes
+                if not self.ignore_intraline:
+                    color = palette.get_color('intraline_run')
+                else:
+                    # Actively clear INTRALINE formatting
+                    color = QColor(0, 0, 0, 0)
+            elif color_name == 'TAB':
+                # Only highlight if not ignoring tabs
+                if not self.ignore_tab:
+                    color = palette.get_color('TAB')
+                else:
+                    # Actively clear TAB formatting
+                    color = QColor(0, 0, 0, 0)
+            elif color_name == 'TRAILINGWS':
+                # Only highlight if not ignoring trailing whitespace
+                if not self.ignore_trailing_ws:
+                    color = palette.get_color('TRAILINGWS')
+                else:
+                    # Actively clear TRAILINGWS formatting
+                    color = QColor(0, 0, 0, 0)
             
             if color:
                 line_text = block.text()
@@ -667,7 +924,7 @@ class DiffViewer(QMainWindow):
         self.modified_text.set_region_highlight(start, end)
     
     def update_status(self):
-        total = len(self.change_regions)
+        total = self.n_changed_regions
         current = self.current_region + 1 if total > 0 else 0
         self.region_label.setText(f"Region: {current} of {total}")
         self.notes_label.setText(f"Notes: {self.note_count}")
@@ -689,6 +946,13 @@ class DiffViewer(QMainWindow):
             self.base_line_area.show()
             self.modified_line_area.show()
             self.line_numbers_visible = True
+    
+    def showEvent(self, event):
+        """Override to ensure highlighting is applied when window becomes visible"""
+        super().showEvent(event)
+        # This is a safety net in case the tab becomes visible through a path
+        # other than on_tab_changed (e.g., first show, or restoration from minimize)
+        self.ensure_highlighting_applied()
     
     def keyPressEvent(self, event):
         key = event.key()
