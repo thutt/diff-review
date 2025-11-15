@@ -69,7 +69,7 @@ class LineNumberArea(QWidget):
                 break
             
             block_geom = self.text_widget.blockBoundingGeometry(current_block)
-            y_pos = int(block_geom.translated(self.text_widget.contentOffset()).top())
+            y_pos = int(block_geom.translated(self.text_widget.contentOffset()).top()) + 1
             
             if y_pos > viewport_height:
                 break
