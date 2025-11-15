@@ -309,9 +309,8 @@ class DiffViewer(QMainWindow):
         # self.diff_map.set_change_regions(self.change_regions, len(self.base_display))
     
     def apply_highlighting(self):
-        if False:  # Debug timing
-            import time
-            start_time = time.time()
+        import time
+        start_time = time.time()
         
         import diff_desc
         palette = color_palettes.get_current_palette()
@@ -325,6 +324,7 @@ class DiffViewer(QMainWindow):
                 self.highlight_line(self.base_text, i, palette.get_color('placeholder'))
             elif hasattr(base_line, 'uncolored_') and base_line.uncolored_:
                 # Line has no colors to apply - skip all highlighting
+                print("base uncolored")
                 pass
             else:
                 # Determine background color based on region type
@@ -351,6 +351,7 @@ class DiffViewer(QMainWindow):
                 self.highlight_line(self.modified_text, i, palette.get_color('placeholder'))
             elif hasattr(modi_line, 'uncolored_') and modi_line.uncolored_:
                 # Line has no colors to apply - skip all highlighting
+                print("modi uncolored")
                 pass
             else:
                 # Determine background color based on region type
@@ -371,10 +372,9 @@ class DiffViewer(QMainWindow):
                 # Always apply runs for colored lines
                 self.apply_runs(self.modified_text, i, modi_line)
         
-        if False:  # Debug timing
-            elapsed = time.time() - start_time
-            print(f"apply_highlighting: {elapsed:.3f} seconds ({len(self.base_line_objects)} lines)")
-            sys.stdout.flush()
+        elapsed = time.time() - start_time
+        print(f"apply_highlighting: {elapsed:.3f} seconds ({len(self.base_line_objects)} lines)")
+        sys.stdout.flush()
     
     def ensure_highlighting_applied(self):
         """Start progressive highlighting if not yet done."""
@@ -473,14 +473,13 @@ class DiffViewer(QMainWindow):
                 count_apply_runs += 1
         
         chunk_time = time.time() - chunk_start
-        if False:
-            print(f"Chunk {start_line}-{end_line}: {chunk_time*1000:.1f}ms total, "
-                  f"highlight_line={time_highlight_line*1000:.1f}ms ({count_highlight_line} calls), "
-                  f"apply_runs={time_apply_runs*1000:.1f}ms ({count_apply_runs} calls)")
-            if run_type_counts:
-                print(f"  Run types: {run_type_counts}")
-                import sys
-                sys.stdout.flush()
+        print(f"Chunk {start_line}-{end_line}: {chunk_time*1000:.1f}ms total, "
+              f"highlight_line={time_highlight_line*1000:.1f}ms ({count_highlight_line} calls), "
+              f"apply_runs={time_apply_runs*1000:.1f}ms ({count_apply_runs} calls)")
+        if run_type_counts:
+            print(f"  Run types: {run_type_counts}")
+            import sys
+            sys.stdout.flush()
         
         self.highlighting_next_line = end_line
         
