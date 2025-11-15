@@ -81,7 +81,9 @@ class DiffViewerTabWidget(QMainWindow):
     
     def __init__(self, display_lines: int, display_chars: int, show_diff_map: bool,
                  show_line_numbers: bool, auto_reload: bool,
-                 ignore_tab: bool, ignore_trailing_ws: bool, ignore_intraline: bool):
+                 ignore_tab: bool, ignore_trailing_ws: bool,
+                 ignore_intraline: bool,
+                 intraline_percent : float):
         if QApplication.instance() is None:
             self._app = QApplication(sys.argv)
         else:

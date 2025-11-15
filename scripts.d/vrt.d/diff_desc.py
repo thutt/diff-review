@@ -207,11 +207,12 @@ class LineInfoDesc(object):
         line.add_parent_region(self.regions_[idx])
 
 class DiffDesc(object):
-    def __init__(self, verbose):
-        self.verbose_  = verbose
-        self.cl_       = CurrentLine()
-        self.base_     = LineInfoDesc()    # Lines in base file.
-        self.modi_     = LineInfoDesc()    # Lines in modi file.
+    def __init__(self, verbose, intraline_percent):
+        self.verbose_           = verbose
+        self.intraline_percent_ = intraline_percent
+        self.cl_                = CurrentLine()
+        self.base_              = LineInfoDesc()    # Lines in base file.
+        self.modi_              = LineInfoDesc()    # Lines in modi file.
 
     def add_base_region(self, kind, r_beg, r_len):
         self.base_.add_region(kind, r_beg, r_len)

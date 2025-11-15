@@ -65,10 +65,6 @@ def create_line_desc(opc, line):
     r_end  = len(line)
     r_len  = r_end - r_beg
 
-    # Make a single run that covers the whole line.  finalize_runs()
-    # will be invoked to add TAB and TRAILING_WS runs when the line is
-    # cached.
-    #
     if r_len > 0:
         run = diff_desc.make_text_run(opc, r_beg, r_len)
         run = diff_desc.amend_run_with_tab(l_desc, run)
@@ -106,7 +102,7 @@ def add_inserted_line_region(desc, modi_l):
         desc.flush(0, False, None)
 
 
-def add_replaced_line_region(desc, base_l, modi_l):
+def add_replaced_line_region(desc, base_l, modi_l, intraline_threshold):
     len_base  = len(base_l)
     len_modi  = len(modi_l)
     l_changed = min(len_base, len_modi) # Lines changed in both files.
@@ -121,46 +117,55 @@ def add_replaced_line_region(desc, base_l, modi_l):
     for k in range(0, l_changed):
         l_base  = diff_desc.Line(base_l[k])
         l_modi  = diff_desc.Line(modi_l[k])
-
         matcher = difflib.SequenceMatcher(None, base_l[k], modi_l[k])
-        for opinfo in matcher.get_opcodes():
-            opc   = opinfo[0]  # inv: ('replace', 'delete', 'insert', 'equal').
-            b_beg = opinfo[1]  # base begin index.
-            b_end = opinfo[2]  # base end index.
-            m_beg = opinfo[3]  # modi begin index.
-            m_end = opinfo[4]  # modi end index.
+        match_ratio = matcher.ratio()
+        if match_ratio < intraline_threshold:
+            # Don't end up with crazy 'technicolor vomit' diffs when
+            # the threshold to display intraline diffs is not met.
+            # Instead, replacing the lines with delete and add
+            # operations.
+            b_run = diff_desc.TextRunDeleted(0, len(l_base.line_))
+            b_run = diff_desc.amend_run_with_tab(l_base, b_run)
+            m_run = diff_desc.TextRunAdded(0, len(l_modi.line_))
+            m_run = diff_desc.amend_run_with_tab(l_modi, m_run)
+            l_base.runs_ += b_run
+            l_modi.runs_ += m_run
+        else:
+            for opinfo in matcher.get_opcodes():
+                opc   = opinfo[0]  # inv: ('replace', 'delete', 'insert', 'equal').
+                b_beg = opinfo[1]  # base begin index.
+                b_end = opinfo[2]  # base end index.
+                m_beg = opinfo[3]  # modi begin index.
+                m_end = opinfo[4]  # modi end index.
 
-            # The runs that are created here can be split by
-            # finalize_runs() when the line is cached.
-            #
-            if opc == "replace":
-                # Intraline change.
-                b_run = diff_desc.TextRunIntraline(b_beg, b_end - b_beg)
-                b_run = diff_desc.amend_run_with_tab(l_base, b_run)
-                m_run = diff_desc.TextRunIntraline(m_beg, m_end - m_beg)
-                m_run = diff_desc.amend_run_with_tab(l_modi, m_run)
-                l_base.runs_ += b_run
-                l_modi.runs_ += m_run
-            elif opc == "delete":
-                assert((m_end - m_beg) == 0) # Characters deleted.
-                b_run = diff_desc.TextRunDeleted(b_beg, b_end - b_beg)
-                b_run = diff_desc.amend_run_with_tab(l_base, b_run)
-                l_base.runs_ += b_run
-            elif opc == "insert":
-                assert((b_end - b_beg) == 0) # Characters added.
-                m_run = diff_desc.TextRunAdded(m_beg, m_end - m_beg)
-                m_run = diff_desc.amend_run_with_tab(l_modi, m_run)
-                l_modi.runs_ += m_run
-            elif opc == "equal":
-                assert((b_end - b_beg) == (m_end - m_beg)) # Equal run
-                b_run = diff_desc.TextRunNormal(b_beg, b_end - b_beg)
-                b_run = diff_desc.amend_run_with_tab(l_base, b_run)
-                l_base.runs_ += b_run
+                if opc == "replace":
+                    # Intraline change.
+                    b_run = diff_desc.TextRunIntraline(b_beg, b_end - b_beg)
+                    b_run = diff_desc.amend_run_with_tab(l_base, b_run)
+                    m_run = diff_desc.TextRunIntraline(m_beg, m_end - m_beg)
+                    m_run = diff_desc.amend_run_with_tab(l_modi, m_run)
+                    l_base.runs_ += b_run
+                    l_modi.runs_ += m_run
+                elif opc == "delete":
+                    assert((m_end - m_beg) == 0) # Characters deleted.
+                    b_run = diff_desc.TextRunDeleted(b_beg, b_end - b_beg)
+                    b_run = diff_desc.amend_run_with_tab(l_base, b_run)
+                    l_base.runs_ += b_run
+                elif opc == "insert":
+                    assert((b_end - b_beg) == 0) # Characters added.
+                    m_run = diff_desc.TextRunAdded(m_beg, m_end - m_beg)
+                    m_run = diff_desc.amend_run_with_tab(l_modi, m_run)
+                    l_modi.runs_ += m_run
+                elif opc == "equal":
+                    assert((b_end - b_beg) == (m_end - m_beg)) # Equal run
+                    b_run = diff_desc.TextRunNormal(b_beg, b_end - b_beg)
+                    b_run = diff_desc.amend_run_with_tab(l_base, b_run)
+                    l_base.runs_ += b_run
 
-                m_run = diff_desc.TextRunNormal(m_beg, m_end - m_beg)
-                m_run = diff_desc.amend_run_with_tab(l_modi, m_run)
-                l_modi.runs_ += m_run
-
+                    m_run = diff_desc.TextRunNormal(m_beg, m_end - m_beg)
+                    m_run = diff_desc.amend_run_with_tab(l_modi, m_run)
+                    l_modi.runs_ += m_run
+        
         desc.cache_base(l_base)
         desc.cache_modi(l_modi)
         desc.flush(0, False, None)
@@ -193,10 +198,10 @@ def add_replaced_line_region(desc, base_l, modi_l):
 
 
 
-def create_diff_descriptor(verbose, dump_ir, base, modi):
+def create_diff_descriptor(verbose, intraline_percent, dump_ir, base, modi):
     if False:
         beg = datetime.datetime.now()
-    desc  = diff_desc.DiffDesc(verbose)
+    desc  = diff_desc.DiffDesc(verbose, intraline_percent)
     marks = ""
 
     # Turn diffs create_difflib() generator into useful structure.
@@ -227,7 +232,8 @@ def create_diff_descriptor(verbose, dump_ir, base, modi):
             assert(opc == "replace")
             add_replaced_line_region(desc,
                                      base_l[b_beg:b_end],
-                                     modi_l[m_beg:m_end])
+                                     modi_l[m_beg:m_end],
+                                     intraline_percent)
 
     if False:
         end = datetime.datetime.now()

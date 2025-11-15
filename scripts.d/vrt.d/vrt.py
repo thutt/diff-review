@@ -60,7 +60,7 @@ Return Code:
   0       : success
   non-zero: failure
 """)
-    formatter = argparse. RawTextHelpFormatter
+    formatter = argparse.RawTextHelpFormatter
     parser    = argparse.ArgumentParser(usage                 = None,
                                         formatter_class       = formatter,
                                         description           = description,
@@ -113,6 +113,22 @@ Return Code:
                    required = False,
                    metavar  = "<pathname>",
                    dest     = "arg_dossier")
+
+    o.add_argument("--intraline-percent",
+                   help     = ("Integer percentage of similarity of two lines, "
+                               "below which intraline diffs will not be "
+                               "enabled. A higher value will reduce "
+                               "incomprehensible intraline diff coloring.  A "
+                               "lower value will present the lines as deleted "
+                               "from the base file and added to the "
+                               "modified file.  Value supplied is clamped to "
+                               "the range [1, 100] (default: %(default)s)"),
+                   action   = "store",
+                   type     = int,
+                   default  = 60,
+                   metavar  = "<intraline percent>",
+                   required = False,
+                   dest     = "arg_intraline_percent")
 
 
     o = parser.add_argument_group("Display Geometry Options")
@@ -292,6 +308,12 @@ def process_command_line():
                                            default_review_name,
                                            "dossier.json")
 
+    options.arg_intraline_percent = max(1, min(options.arg_intraline_percent,
+                                               100))
+    assert(1 <= options.arg_intraline_percent and
+           options.arg_intraline_percent <= 100)
+    options.intraline_percent_ = float(options.arg_intraline_percent) / 100.0
+
     if options.arg_fqdn is not None:
         rsync_and_rerun(options)
     elif os.path.exists(options.arg_dossier):
@@ -336,6 +358,7 @@ def make_viewer(options, base, modi, note, commit_msg):
                                     show_line_numbers(options))
 
     desc = diffmgr.create_diff_descriptor(options.arg_verbose,
+                                          options.intraline_percent_,
                                           options.arg_dump_ir,
                                           base, modi)
     add_diff_to_viewer(desc, viewer)
@@ -351,7 +374,8 @@ def generate(options, note):
                                                          auto_reload_enabled(options),
                                                          options.arg_ignore_tab,
                                                          options.arg_ignore_trailing_whitespace,
-                                                         options.arg_ignore_intraline)
+                                                         options.arg_ignore_intraline,
+                                                         options.intraline_percent_)
 
 
     if options.dossier_['commit_msg'] is not None:
