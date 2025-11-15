@@ -88,7 +88,7 @@ def add_equal_line_region(desc, base_l, modi_l):
 
 def add_deleted_line_region(desc, base_l):
     for l_idx in range(0, len(base_l)):
-        l_desc = create_line_desc(2, base_l[l_idx])
+        l_desc = create_line_desc(0, base_l[l_idx]) # TextRunNormal
         desc.cache_base(l_desc)
         desc.cache_modi(diff_desc.NotPresentDelete())
         desc.flush(0, False, None)
@@ -96,7 +96,7 @@ def add_deleted_line_region(desc, base_l):
 
 def add_inserted_line_region(desc, modi_l):
     for l_idx in range(0, len(modi_l)):
-        l_desc = create_line_desc(1, modi_l[l_idx])
+        l_desc = create_line_desc(0, modi_l[l_idx]) # TextRunNormal
         desc.cache_base(diff_desc.NotPresentAdd())
         desc.cache_modi(l_desc)
         desc.flush(0, False, None)
@@ -122,12 +122,15 @@ def add_replaced_line_region(desc, base_l, modi_l, intraline_threshold):
         if match_ratio < intraline_threshold:
             # Don't end up with crazy 'technicolor vomit' diffs when
             # the threshold to display intraline diffs is not met.
-            # Instead, replacing the lines with delete and add
-            # operations.
-            b_run = diff_desc.TextRunDeleted(0, len(l_base.line_))
+            # Instead, the lines are in a change block, with a
+            # particular background.  Set them to normal text, and let
+            # the background color do the work.
+            b_run = diff_desc.TextRunNormal(0, len(l_base.line_))
             b_run = diff_desc.amend_run_with_tab(l_base, b_run)
-            m_run = diff_desc.TextRunAdded(0, len(l_modi.line_))
+
+            m_run = diff_desc.TextRunNormal(0, len(l_modi.line_))
             m_run = diff_desc.amend_run_with_tab(l_modi, m_run)
+
             l_base.runs_ += b_run
             l_modi.runs_ += m_run
         else:
@@ -175,19 +178,18 @@ def add_replaced_line_region(desc, base_l, modi_l, intraline_threshold):
         assert(l_changed <= len_modi)
         for k in range(l_changed, len_modi):
             l_modi = diff_desc.Line(modi_l[k])
-            m_run  = diff_desc.TextRunAdded(0, len(modi_l[k]))
+            m_run  = diff_desc.TextRunNormal(0, len(modi_l[k]))
             m_run  = diff_desc.amend_run_with_tab(l_modi, m_run)
             l_modi.runs_ += m_run
             desc.cache_base(diff_desc.NotPresentAdd())
             desc.cache_modi(l_modi)
             desc.flush(0, False, None)
-
     elif len_base > len_modi:
         # These are all line deletions from the modified file.
         assert(l_changed <= len_base)
         for k in range(l_changed, len_base):
             l_base = diff_desc.Line(base_l[k])
-            b_run  = diff_desc.TextRunDeleted(0, len(base_l[k]))
+            b_run  = diff_desc.TextRunNormal(0, len(base_l[k]))
             b_run  = diff_desc.amend_run_with_tab(l_base, b_run)
             l_base.runs_ += b_run
             desc.cache_modi(diff_desc.NotPresentDelete())
