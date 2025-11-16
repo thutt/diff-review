@@ -4,10 +4,14 @@
 #
 import datetime
 import difflib
+
 import diff_desc
 import dumpir
+import fetchurl
 
 def read_file(path):
+    print("---- opening <%s>" % (path))
+
     with open(path, "r") as fp:
         # Convert all line endings to a single '\n'.
         lines = fp.read()
@@ -21,9 +25,36 @@ def read_file(path):
     return result
 
 
+def fetch_url(url):
+    print("---- opening <%s>" % (url))
+    desc = fetchurl.FetchDesc(url)
+    desc.fetch()
+    if desc.http_code_ is None:
+        assert(False)   # Network error.
+    else:
+        if desc.http_code_ == 200:
+            lines = desc.body_
+        else:
+            print("---- failure: http rc: %d" %(desc.http_code_))
+            assert(False)
+
+    lines = lines.replace("\r\n", "\n") # Convert Windows files to Linux.
+    lines = lines.replace("\r", "\n")   # Convert Mac files to Linux.
+
+    result = lines.splitlines()
+    # The returned list strings will NOT have '\n' at the end.
+    # Blank lines will be zero length.
+    return result
+
+
 def create_difflib(base, modi):
-    base_l = read_file(base)
-    modi_l = read_file(modi)
+    if base.startswith("http://"):
+        assert(modi.startswith("http://"))
+        base_l = fetch_url(base)
+        modi_l = fetch_url(modi)
+    else:
+        base_l = read_file(base)
+        modi_l = read_file(modi)
     return (difflib.SequenceMatcher(None, base_l, modi_l),
             base_l,
             modi_l)

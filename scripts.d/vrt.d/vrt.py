@@ -13,6 +13,7 @@ import traceback
 
 import diffmgrng as diffmgr
 import diff_viewer
+import fetchurl
 import tab_manager_module
 
 home                = os.getenv("HOME", os.path.expanduser("~"))
@@ -33,8 +34,14 @@ class FileButton (object):
         return self.modi_rel_path_
 
     def add_viewer(self, tab_widget):
-        base   = os.path.join(self.root_path_, "base.d", self.base_rel_path_)
-        modi   = os.path.join(self.root_path_, "modi.d", self.modi_rel_path_)
+        url = self.options_.arg_dossier_url
+        if url is not None:
+            root_path = url
+        else:
+            root_path = self.root_path_
+
+        base   = os.path.join(root_path, "base.d", self.base_rel_path_)
+        modi   = os.path.join(root_path, "modi.d", self.modi_rel_path_)
         viewer = make_viewer(self.options_, base, modi,
                              self.options_.arg_note,
                              self.options_.dossier_["commit_msg"])
@@ -106,13 +113,23 @@ Return Code:
                    required = False,
                    dest     = "arg_review_name")
 
-    o.add_argument("--dossier",
-                   help     = ("JSON file containing change information."),
-                   action   = "store",
-                   default  = None,
-                   required = False,
-                   metavar  = "<pathname>",
-                   dest     = "arg_dossier")
+
+    d_group = parser.add_mutually_exclusive_group()
+    d_group.add_argument("--dossier",
+                         help     = ("JSON file containing change information."),
+                         action   = "store",
+                         default  = None,
+                         required = False,
+                         metavar  = "<pathname>",
+                         dest     = "arg_dossier")
+
+    d_group.add_argument("--url",
+                         help     = ("URL from which dossier & diffs can be retrived."),
+                         action   = "store",
+                         default  = None,
+                         required = False,
+                         metavar  = "<URL>",
+                         dest     = "arg_dossier_url")
 
     o.add_argument("--intraline-percent",
                    help     = ("Integer percentage of similarity of two lines, "
@@ -303,19 +320,27 @@ def process_command_line():
     parser  = configure_parser()
     options = parser.parse_args()
 
-    if options.arg_dossier is None:
-        options.arg_dossier = os.path.join(default_review_dir,
-                                           default_review_name,
-                                           "dossier.json")
+    options.diffs_root_dir = os.path.join(default_review_dir,
+                                          default_review_name)
+    if options.arg_dossier_url is not None:
+        pass                    # XXX Anything to do?
     else:
-        # Older versions of 'dr' would output the full dossier
-        # pathname, while newer versions do not (to make http
-        # integration easier).  Remain backwards compatible with older
-        # versions by not adding the dossier name if it's already
-        # present on the command line.
-        if not options.arg_dossier.endswith("dossier.json"):
-            options.arg_dossier = os.path.join(options.arg_dossier,
+        # Check for '--dossier', or use default dossier.
+        if options.arg_dossier is None:
+            options.arg_dossier = os.path.join(options.diffs_root_dir,
                                                "dossier.json")
+        else:
+            # Older versions of 'dr' would output the full dossier
+            # pathname, while newer versions do not (to make http
+            # integration easier).  Remain backwards compatible with
+            # older versions by not adding the dossier name if it's
+            # already present on the command line.
+            if not options.arg_dossier.endswith("dossier.json"):
+                options.diffs_root_dir = options.arg_dossier
+                options.arg_dossier = os.path.join(options.diffs_root_dir,
+                                                   "dossier.json")
+            else:
+                options.diffs_root_dir = os.path.dirname(options.arg_dossier)
 
     options.arg_intraline_percent = max(1, min(options.arg_intraline_percent,
                                                100))
@@ -325,11 +350,30 @@ def process_command_line():
 
     if options.arg_fqdn is not None:
         rsync_and_rerun(options)
+    elif options.arg_dossier_url is not None:
+        print("---- diffs root: <%s>" % (options.diffs_root_dir))
+        desc = fetchurl.FetchDesc(os.path.join(options.arg_dossier_url,
+                                               "dossier.json"))
+        print("+++++ ", desc.__dict__)
+        desc.fetch()
+        if desc.http_code_ is None:
+            assert(False)   # Network error.
+        else:
+            if desc.http_code_ == 200:
+                options.dossier_ = json.loads(desc.body_)
+                print(json.dumps(options.dossier_, indent = 2))
+                pass        # Success
+            else:
+                print("---- failure: http rc: %d" %(desc.http_code_))
+                assert(False)
+
     elif os.path.exists(options.arg_dossier):
         with open(options.arg_dossier, "r") as fp:
             options.dossier_ = json.load(fp)
     else:
         fatal("dossier '%s' does not exist." % (options.arg_dossier))
+
+    # inv: options.dossier_ is now a valid json dictionary.
 
     return options
 
