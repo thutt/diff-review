@@ -13,7 +13,6 @@ import traceback
 
 import diffmgrng as diffmgr
 import diff_viewer
-import fetchurl
 import tab_manager_module
 
 home                = os.getenv("HOME", os.path.expanduser("~"))
@@ -351,21 +350,21 @@ def process_command_line():
     if options.arg_fqdn is not None:
         rsync_and_rerun(options)
     elif options.arg_dossier_url is not None:
-        print("---- diffs root: <%s>" % (options.diffs_root_dir))
+        # Import fetchurl locally to avoid 'requests' module unless
+        # '--url' is used.
+        import fetchurl
         desc = fetchurl.FetchDesc(os.path.join(options.arg_dossier_url,
                                                "dossier.json"))
-        print("+++++ ", desc.__dict__)
         desc.fetch()
         if desc.http_code_ is None:
-            assert(False)   # Network error.
+            fatal("HTTP connection could not be made; "
+                  "cannot retrieve change's dossier.")
         else:
             if desc.http_code_ == 200:
                 options.dossier_ = json.loads(desc.body_)
-                print(json.dumps(options.dossier_, indent = 2))
-                pass        # Success
             else:
-                print("---- failure: http rc: %d" %(desc.http_code_))
-                assert(False)
+                fatal("Cannot retrieve change's dossier; "
+                      "HTTP error: %s. " % (desc.http_code_))
 
     elif os.path.exists(options.arg_dossier):
         with open(options.arg_dossier, "r") as fp:

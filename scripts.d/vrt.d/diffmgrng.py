@@ -4,13 +4,26 @@
 #
 import datetime
 import difflib
+import os
 
 import diff_desc
 import dumpir
-import fetchurl
 
 def read_file(path):
-    print("---- opening <%s>" % (path))
+    if not os.path.exists(path):
+        # The file in the review directory does not exist.  Fill
+        # contents with message.
+        return [
+            "The following text was produced by view-review-tabs",
+            "in response to an error condition while loading this file",
+            "from disk.",
+            "",
+            "This file was not present on disk:",
+            "",
+            "   %s" % (path),
+            "",
+            "Regenerate the diffs to restore the file."
+        ]
 
     with open(path, "r") as fp:
         # Convert all line endings to a single '\n'.
@@ -25,18 +38,37 @@ def read_file(path):
     return result
 
 
-def fetch_url(url):
-    print("---- opening <%s>" % (url))
+def fetch_url_contents(url):
+    # Import fetchurl locally to avoid 'requests' module unless
+    # '--url' is used.
+    import fetchurl
     desc = fetchurl.FetchDesc(url)
     desc.fetch()
     if desc.http_code_ is None:
-        assert(False)   # Network error.
+        return [
+            "An unidentified network error occurred during the download of",
+            "",
+            "  %s" % (url),
+            "",
+            "No HTTP code was produced, so this is most likely to be",
+            "a network infrastructure error, or the web server is down.",
+            "",
+            "The file contents could not be retrieved."
+        ]
     else:
         if desc.http_code_ == 200:
             lines = desc.body_
         else:
-            print("---- failure: http rc: %d" %(desc.http_code_))
-            assert(False)
+            return [
+                "Fetching the following URL",
+                "",
+                "  %s" % (url),
+                "",
+                "produced this HTML response code: %s" % (desc.http_code_),
+                "",
+                "The file contents could not be retrieved."
+            ]
+
 
     lines = lines.replace("\r\n", "\n") # Convert Windows files to Linux.
     lines = lines.replace("\r", "\n")   # Convert Mac files to Linux.
@@ -50,8 +82,8 @@ def fetch_url(url):
 def create_difflib(base, modi):
     if base.startswith("http://"):
         assert(modi.startswith("http://"))
-        base_l = fetch_url(base)
-        modi_l = fetch_url(modi)
+        base_l = fetch_url_contents(base)
+        modi_l = fetch_url_contents(modi)
     else:
         base_l = read_file(base)
         modi_l = read_file(modi)
@@ -199,7 +231,7 @@ def add_replaced_line_region(desc, base_l, modi_l, intraline_threshold):
                     m_run = diff_desc.TextRunNormal(m_beg, m_end - m_beg)
                     m_run = diff_desc.amend_run_with_tab(l_modi, m_run)
                     l_modi.runs_ += m_run
-        
+
         desc.cache_base(l_base)
         desc.cache_modi(l_modi)
         desc.flush(0, False, None)
@@ -276,4 +308,3 @@ def create_diff_descriptor(verbose, intraline_percent, dump_ir, base, modi):
         dumpir.dump(dump_ir, base, modi, desc)
 
     return desc
-
