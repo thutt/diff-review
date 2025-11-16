@@ -55,9 +55,10 @@ def report(options, changed_info, elapsed_time):
         if options.arg_fqdn is not None:
             fqdn = "--fqdn '%s' " % (options.arg_fqdn)
 
+        dossier_dir = os.path.dirname(dossier)
         print("\n"
               "Changes:  %s" % (changed_info))
-        print("Viewer :  vrt %s--dossier '%s'" % (fqdn, dossier))
+        print("Viewer :  vrt %s--dossier '%s'" % (fqdn, dossier_dir))
         print("Viewer :  vr -R '%s' -r '%s'" %
               (options.arg_review_dir, options.arg_review_name))
         print("Elapsed:  %s" % (elapsed_time))

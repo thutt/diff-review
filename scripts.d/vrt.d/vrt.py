@@ -307,6 +307,15 @@ def process_command_line():
         options.arg_dossier = os.path.join(default_review_dir,
                                            default_review_name,
                                            "dossier.json")
+    else:
+        # Older versions of 'dr' would output the full dossier
+        # pathname, while newer versions do not (to make http
+        # integration easier).  Remain backwards compatible with older
+        # versions by not adding the dossier name if it's already
+        # present on the command line.
+        if not options.arg_dossier.endswith("dossier.json"):
+            options.arg_dossier = os.path.join(options.arg_dossier,
+                                               "dossier.json")
 
     options.arg_intraline_percent = max(1, min(options.arg_intraline_percent,
                                                100))
