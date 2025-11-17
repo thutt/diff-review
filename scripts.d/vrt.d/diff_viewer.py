@@ -60,6 +60,7 @@ class DiffViewer(QMainWindow):
         self.current_region = 0
         self.current_region_highlight = None
         self._target_region = None
+        self.ignore_ws = False  # Will be set by tab manager
         self.ignore_tab = False  # Will be set by tab manager
         self.ignore_trailing_ws = False  # Will be set by tab manager
         self.ignore_intraline = False  # Will be set by tab manager
@@ -320,7 +321,6 @@ class DiffViewer(QMainWindow):
                 self.highlight_line(self.base_text, i, palette.get_color('placeholder'))
             elif hasattr(base_line, 'uncolored_') and base_line.uncolored_:
                 # Line has no colors to apply - skip all highlighting
-                print("base uncolored")
                 pass
             else:
                 # Determine background color based on region type
@@ -347,7 +347,6 @@ class DiffViewer(QMainWindow):
                 self.highlight_line(self.modified_text, i, palette.get_color('placeholder'))
             elif hasattr(modi_line, 'uncolored_') and modi_line.uncolored_:
                 # Line has no colors to apply - skip all highlighting
-                print("modi uncolored")
                 pass
             else:
                 # Determine background color based on region type
@@ -367,7 +366,7 @@ class DiffViewer(QMainWindow):
                 
                 # Always apply runs for colored lines
                 self.apply_runs(self.modified_text, i, modi_line)
-    
+        
     def ensure_highlighting_applied(self):
         """Start progressive highlighting if not yet done."""
         if not self.highlighting_applied and not self.highlighting_in_progress:
@@ -487,7 +486,7 @@ class DiffViewer(QMainWindow):
         block_fmt.setBackground(color)
         cursor.setBlockFormat(block_fmt)
     
-    def apply_runs(self, text_widget, line_idx, line_obj, run_type_counts=None):
+    def apply_runs(self, text_widget, line_idx, line_obj):
         if not hasattr(line_obj, 'runs_'):
             return
         
@@ -509,10 +508,6 @@ class DiffViewer(QMainWindow):
         
         for run in line_obj.runs_:
             color_name = run.color()
-            
-            # Count run types if requested
-            if run_type_counts is not None:
-                run_type_counts[color_name] = run_type_counts.get(color_name, 0) + 1
             
             # Skip NORMAL runs - they have no formatting
             if color_name == 'NORMAL':
