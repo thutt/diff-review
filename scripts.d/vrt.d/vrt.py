@@ -384,7 +384,8 @@ def generate(options, note):
                                                          options.arg_ignore_tab,
                                                          options.arg_ignore_trailing_whitespace,
                                                          options.arg_ignore_intraline,
-                                                         options.intraline_percent_)
+                                                         options.intraline_percent_,
+                                                         options.arg_dump_ir)
 
 
     if options.dossier_['commit_msg'] is not None:

@@ -79,11 +79,17 @@ class FileButton(QPushButton):
 class DiffViewerTabWidget(QMainWindow):
     """Main window containing tabs of DiffViewer instances with file sidebar"""
     
-    def __init__(self, display_lines: int, display_chars: int, show_diff_map: bool,
-                 show_line_numbers: bool, auto_reload: bool,
-                 ignore_tab: bool, ignore_trailing_ws: bool,
+    def __init__(self,
+                 display_lines: int,
+                 display_chars: int,
+                 show_diff_map: bool,
+                 show_line_numbers: bool,
+                 auto_reload: bool,
+                 ignore_tab: bool,
+                 ignore_trailing_ws: bool,
                  ignore_intraline: bool,
-                 intraline_percent : float):
+                 intraline_percent : float,
+                 dump_ir           : bool):
         if QApplication.instance() is None:
             self._app = QApplication(sys.argv)
         else:
@@ -93,10 +99,11 @@ class DiffViewerTabWidget(QMainWindow):
         
         self.display_lines = display_lines
         self.display_chars = display_chars
-        self.ignore_ws = True
         self.ignore_tab = ignore_tab
         self.ignore_trailing_ws = ignore_trailing_ws
         self.ignore_intraline = ignore_intraline
+        self.dump_ir = dump_ir
+        self.intraline_percent = intraline_percent
         self._bulk_loading = False  # Suppress highlighting during "Open All Files"
         
         self.setWindowTitle("Diff Viewer")
@@ -233,13 +240,6 @@ class DiffViewerTabWidget(QMainWindow):
         view_menu.addAction(toggle_line_numbers_action)
         
         view_menu.addSeparator()
-        
-        # Whitespace visibility controls
-        self.show_ws_action = QAction("Show Whitespace", self)
-        self.show_ws_action.setCheckable(True)
-        self.show_ws_action.setChecked(not self.ignore_ws)
-        self.show_ws_action.triggered.connect(self.toggle_whitespace_visibility)
-        view_menu.addAction(self.show_ws_action)
         
         self.show_tab_action = QAction("Show Tabs", self)
         self.show_tab_action.setCheckable(True)
@@ -775,7 +775,6 @@ class DiffViewerTabWidget(QMainWindow):
             diff_viewer.note_file = self.global_note_file
         
         # Apply global whitespace ignore settings
-        diff_viewer.ignore_ws = self.ignore_ws
         diff_viewer.ignore_tab = self.ignore_tab
         diff_viewer.ignore_trailing_ws = self.ignore_trailing_ws
         diff_viewer.ignore_intraline = self.ignore_intraline
@@ -1442,20 +1441,6 @@ class DiffViewerTabWidget(QMainWindow):
                 if viewer in self.changed_files and self.changed_files[viewer]:
                     self.reload_viewer(viewer)
     
-    def toggle_whitespace_visibility(self):
-        """Toggle whitespace visibility in all viewers"""
-        self.ignore_ws = not self.show_ws_action.isChecked()
-        # Update current viewer immediately
-        viewer = self.get_current_viewer()
-        if viewer:
-            viewer.ignore_ws = self.ignore_ws
-            viewer.restart_highlighting()
-        # Mark all other viewers as needing update
-        for v in self.get_all_viewers():
-            if v != viewer:
-                v.ignore_ws = self.ignore_ws
-                v._needs_highlighting_update = True
-    
     def toggle_tab_visibility(self):
         """Toggle tab character visibility in all viewers"""
         self.ignore_tab = not self.show_tab_action.isChecked()
@@ -1630,7 +1615,9 @@ class DiffViewerTabWidget(QMainWindow):
         
         # Reload diff
         try:
-            desc = diffmgr.create_diff_descriptor(False, None,
+            desc = diffmgr.create_diff_descriptor(False,
+                                                  self.intraline_percent,
+                                                  self.dump_ir,
                                                   viewer.base_file,
                                                   viewer.modified_file)
             
