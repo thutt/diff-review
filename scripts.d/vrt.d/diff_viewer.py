@@ -60,7 +60,6 @@ class DiffViewer(QMainWindow):
         self.current_region = 0
         self.current_region_highlight = None
         self._target_region = None
-        self.ignore_ws = False  # Will be set by tab manager
         self.ignore_tab = False  # Will be set by tab manager
         self.ignore_trailing_ws = False  # Will be set by tab manager
         self.ignore_intraline = False  # Will be set by tab manager
@@ -309,10 +308,6 @@ class DiffViewer(QMainWindow):
         # self.diff_map.set_change_regions(self.change_regions, len(self.base_display))
     
     def apply_highlighting(self):
-        if False:  # Debug timing
-            import time
-            start_time = time.time()
-        
         import diff_desc
         palette = color_palettes.get_current_palette()
         
@@ -325,6 +320,7 @@ class DiffViewer(QMainWindow):
                 self.highlight_line(self.base_text, i, palette.get_color('placeholder'))
             elif hasattr(base_line, 'uncolored_') and base_line.uncolored_:
                 # Line has no colors to apply - skip all highlighting
+                print("base uncolored")
                 pass
             else:
                 # Determine background color based on region type
@@ -351,6 +347,7 @@ class DiffViewer(QMainWindow):
                 self.highlight_line(self.modified_text, i, palette.get_color('placeholder'))
             elif hasattr(modi_line, 'uncolored_') and modi_line.uncolored_:
                 # Line has no colors to apply - skip all highlighting
+                print("modi uncolored")
                 pass
             else:
                 # Determine background color based on region type
@@ -370,11 +367,6 @@ class DiffViewer(QMainWindow):
                 
                 # Always apply runs for colored lines
                 self.apply_runs(self.modified_text, i, modi_line)
-        
-        if False:  # Debug timing
-            elapsed = time.time() - start_time
-            print(f"apply_highlighting: {elapsed:.3f} seconds ({len(self.base_line_objects)} lines)")
-            sys.stdout.flush()
     
     def ensure_highlighting_applied(self):
         """Start progressive highlighting if not yet done."""
@@ -396,9 +388,6 @@ class DiffViewer(QMainWindow):
         if not self.highlighting_in_progress:
             return
         
-        import time
-        chunk_start = time.time()
-        
         chunk_size = 500
         start_line = self.highlighting_next_line
         end_line = min(start_line + chunk_size, len(self.base_line_objects))
@@ -406,22 +395,13 @@ class DiffViewer(QMainWindow):
         import diff_desc
         palette = color_palettes.get_current_palette()
         
-        time_highlight_line = 0
-        time_apply_runs = 0
-        count_highlight_line = 0
-        count_apply_runs = 0
-        run_type_counts = {}
-        
         for i in range(start_line, end_line):
             base_line = self.base_line_objects[i]
             modi_line = self.modified_line_objects[i]
             
             # BASE SIDE
             if not base_line.show_line_number():
-                t0 = time.time()
                 self.highlight_line(self.base_text, i, palette.get_color('placeholder'), base_line)
-                time_highlight_line += time.time() - t0
-                count_highlight_line += 1
             elif hasattr(base_line, 'uncolored_') and base_line.uncolored_:
                 pass
             else:
@@ -433,23 +413,14 @@ class DiffViewer(QMainWindow):
                         bg_color = palette.get_color('base_changed_bg')
                 
                 if bg_color:
-                    t0 = time.time()
                     self.highlight_line(self.base_text, i, bg_color, base_line)
-                    time_highlight_line += time.time() - t0
-                    count_highlight_line += 1
                     self.base_line_area.set_line_background(i, bg_color)
                 
-                t0 = time.time()
-                self.apply_runs(self.base_text, i, base_line, run_type_counts)
-                time_apply_runs += time.time() - t0
-                count_apply_runs += 1
+                self.apply_runs(self.base_text, i, base_line)
             
             # MODIFIED SIDE
             if not modi_line.show_line_number():
-                t0 = time.time()
                 self.highlight_line(self.modified_text, i, palette.get_color('placeholder'), modi_line)
-                time_highlight_line += time.time() - t0
-                count_highlight_line += 1
             elif hasattr(modi_line, 'uncolored_') and modi_line.uncolored_:
                 pass
             else:
@@ -461,26 +432,10 @@ class DiffViewer(QMainWindow):
                         bg_color = palette.get_color('modi_changed_bg')
                 
                 if bg_color:
-                    t0 = time.time()
                     self.highlight_line(self.modified_text, i, bg_color, modi_line)
-                    time_highlight_line += time.time() - t0
-                    count_highlight_line += 1
                     self.modified_line_area.set_line_background(i, bg_color)
                 
-                t0 = time.time()
-                self.apply_runs(self.modified_text, i, modi_line, run_type_counts)
-                time_apply_runs += time.time() - t0
-                count_apply_runs += 1
-        
-        chunk_time = time.time() - chunk_start
-        if False:
-            print(f"Chunk {start_line}-{end_line}: {chunk_time*1000:.1f}ms total, "
-                  f"highlight_line={time_highlight_line*1000:.1f}ms ({count_highlight_line} calls), "
-                  f"apply_runs={time_apply_runs*1000:.1f}ms ({count_apply_runs} calls)")
-            if run_type_counts:
-                print(f"  Run types: {run_type_counts}")
-                import sys
-                sys.stdout.flush()
+                self.apply_runs(self.modified_text, i, modi_line)
         
         self.highlighting_next_line = end_line
         
