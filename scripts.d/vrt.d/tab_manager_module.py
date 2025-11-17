@@ -1604,6 +1604,11 @@ class DiffViewerTabWidget(QMainWindow):
         viewer.base_line_area.line_backgrounds.clear()
         viewer.modified_line_area.line_backgrounds.clear()
         
+        # Reset highlighting state
+        viewer.highlighting_applied = False
+        viewer.highlighting_in_progress = False
+        viewer.highlighting_next_line = 0
+        
         # Clear existing data
         viewer.base_display = []
         viewer.modified_display = []
