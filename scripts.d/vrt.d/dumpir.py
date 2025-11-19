@@ -6,6 +6,39 @@ import os
 
 import diff_desc
 
+def dump_runs(fp, label : str, runs : diff_desc.TextRun, line_len : int):
+    total_len  = 0
+    last_start = 0
+    last_len   = 0
+    run        = [ ]
+
+    for r in runs:
+        errors = set()
+        start_ = r.start_
+        len_   = r.len_
+
+        total_len += len_
+
+        if len_ == 0:
+            errors.add("len")
+
+        if line_len >= 0 and start_ != last_start + last_len:
+            errors.add("start")
+
+        last_start = start_
+        last_len   = len_
+
+        if len(errors) == 0:
+            run.append("%s" % (r))
+        else:
+            run.append("%s <err>: %s" % (r, errors))
+
+    if total_len == line_len or line_len < 0:
+        fp.write("  %s: %s\n" % (label, "  ".join(run)))
+    else:
+        fp.write("  %s: %s  <err>: total len\n" % (label, "  ".join(run)))
+
+
 def dumplines(pathname, info):
     with open(pathname, "w") as fp:
         fp.write("Regions:\n")
@@ -27,34 +60,13 @@ def dumplines(pathname, info):
             else:
                 fp.write("  rgn: none\n")
 
-            run = [ ]
+            dump_runs(fp, "add  ", l.runs_added_, -1)
+            dump_runs(fp, "del  ", l.runs_deleted_, -1)
+            dump_runs(fp, "intra", l.runs_intraline_, -1)
+            dump_runs(fp, "tws  ", l.runs_tws_, -1)
+            dump_runs(fp, "tab  ", l.runs_tabs_, -1)
+            fp.write("\n")
 
-            total_len  = 0
-            last_start = 0
-            last_len   = 0
-            for r in l.runs_:
-                errors = set()
-                start_ = r.start_
-                len_   = r.len_
-
-                total_len += len_
-
-                if len_ == 0:
-                    errors.add("len")
-
-                if start_ != last_start + last_len:
-                    errors.add("start")
-                last_start = start_
-                last_len   = len_
-                if len(errors) == 0:
-                    run.append("%s" % (r))
-                else:
-                    run.append("%s <err>: %s" % (r, errors))
-
-            if total_len == line_len:
-                fp.write("  run: %s\n\n" % ("  ".join(run)))
-            else:
-                fp.write("  run: %s  <err>: total len\n\n" % ("  ".join(run)))
 
 def dump(rootdir, base, modi, desc):
     assert(rootdir is not None)
