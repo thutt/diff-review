@@ -57,38 +57,33 @@ def decode_opinfo(label, opc, base_l, b_beg, b_end, modi_l, m_beg, m_end):
             print("  modi: %s" % (l))
 
 
-def create_line_desc(opc, line):
-    assert(isinstance(line, str))
-
-    l_desc = diff_desc.Line(line)
-    r_beg  = 0
-    r_end  = len(line)
-    r_len  = r_end - r_beg
-
-    if r_len > 0:
-        run = diff_desc.make_text_run(opc, r_beg, r_len)
-        run = diff_desc.amend_run_with_tab(l_desc, run)
-        l_desc.runs_ = run
-    return l_desc
-
-
 def add_equal_line_region(desc, base_l, modi_l):
     assert(len(base_l) == len(modi_l))
 
     for l_idx in range(0, len(base_l)):
         # Cannot use same descriptor for equal lines because line
         # number will be incremented wrong.
-        b_desc = create_line_desc(0, base_l[l_idx])
-        m_desc = create_line_desc(0, base_l[l_idx])
+        b_desc = diff_desc.Line(base_l[l_idx])
+        m_desc = diff_desc.Line(modi_l[l_idx])
+
+        b_desc.runs_tabs_ += diff_desc.find_tab_runs(b_desc,
+                                                     0, len(b_desc.line_))
+        m_desc.runs_tabs_ += diff_desc.find_tab_runs(m_desc,
+                                                     0, len(m_desc.line_))
+        b_desc.runs_tws_  += diff_desc.find_trailing_whitespace(b_desc)
+        m_desc.runs_tws_  += diff_desc.find_trailing_whitespace(m_desc)
+
         desc.cache_base(b_desc)
         desc.cache_modi(m_desc)
         desc.flush(0, False, None)
-        b_desc.uncolored_ = len(b_desc.runs_) in (0, 1)
-        m_desc.uncolored_ = len(m_desc.runs_) in (0, 1)
 
 def add_deleted_line_region(desc, base_l):
     for l_idx in range(0, len(base_l)):
-        l_desc = create_line_desc(0, base_l[l_idx]) # TextRunNormal
+        l_desc             = diff_desc.Line(base_l[l_idx])
+        l_desc.runs_tabs_ += diff_desc.find_tab_runs(l_desc,
+                                                     0, len(l_desc.line_))
+        l_desc.runs_tws_  += diff_desc.find_trailing_whitespace(l_desc)
+
         desc.cache_base(l_desc)
         desc.cache_modi(diff_desc.NotPresentDelete())
         desc.flush(0, False, None)
@@ -96,7 +91,10 @@ def add_deleted_line_region(desc, base_l):
 
 def add_inserted_line_region(desc, modi_l):
     for l_idx in range(0, len(modi_l)):
-        l_desc = create_line_desc(0, modi_l[l_idx]) # TextRunNormal
+        l_desc = diff_desc.Line(modi_l[l_idx])
+        l_desc.runs_tabs_ += diff_desc.find_tab_runs(l_desc,
+                                                     0, len(l_desc.line_))
+        l_desc.runs_tws_  += diff_desc.find_trailing_whitespace(l_desc)
         desc.cache_base(diff_desc.NotPresentAdd())
         desc.cache_modi(l_desc)
         desc.flush(0, False, None)
@@ -125,14 +123,13 @@ def add_replaced_line_region(desc, base_l, modi_l, intraline_threshold):
             # Instead, the lines are in a change block, with a
             # particular background.  Set them to normal text, and let
             # the background color do the work.
-            b_run = diff_desc.TextRunNormal(0, len(l_base.line_))
-            b_run = diff_desc.amend_run_with_tab(l_base, b_run)
+            l_base.runs_tabs_ += diff_desc.find_tab_runs(l_base, 0,
+                                                         len(l_base.line_))
+            l_base.runs_tws_  += diff_desc.find_trailing_whitespace(l_base)
 
-            m_run = diff_desc.TextRunNormal(0, len(l_modi.line_))
-            m_run = diff_desc.amend_run_with_tab(l_modi, m_run)
-
-            l_base.runs_ += b_run
-            l_modi.runs_ += m_run
+            l_modi.runs_tabs_ += diff_desc.find_tab_runs(l_modi, 0,
+                                                         len(l_modi.line_))
+            l_modi.runs_tws_  += diff_desc.find_trailing_whitespace(l_modi)
         else:
             for opinfo in matcher.get_opcodes():
                 opc   = opinfo[0]  # inv: ('replace', 'delete', 'insert', 'equal').
@@ -143,31 +140,47 @@ def add_replaced_line_region(desc, base_l, modi_l, intraline_threshold):
 
                 if opc == "replace":
                     # Intraline change.
-                    b_run = diff_desc.TextRunIntraline(b_beg, b_end - b_beg)
-                    b_run = diff_desc.amend_run_with_tab(l_base, b_run)
-                    m_run = diff_desc.TextRunIntraline(m_beg, m_end - m_beg)
-                    m_run = diff_desc.amend_run_with_tab(l_modi, m_run)
-                    l_base.runs_ += b_run
-                    l_modi.runs_ += m_run
+                    l_base.runs_intraline_ += [
+                        diff_desc.TextRunIntraline(b_beg,
+                                                   b_end - b_beg)
+                    ]
+                    l_base.runs_tabs_ += diff_desc.find_tab_runs(l_base, b_beg,
+                                                                 b_end - b_beg)
+                    l_base.runs_tws_  += diff_desc.find_trailing_whitespace(l_base)
+
+                    l_modi.runs_intraline_ += [
+                        diff_desc.TextRunIntraline(m_beg,
+                                                   m_end - m_beg)
+                    ]
+                    l_modi.runs_tabs_ += diff_desc.find_tab_runs(l_modi, m_beg,
+                                                                 m_end - m_beg)
+                    l_modi.runs_tws_  += diff_desc.find_trailing_whitespace(l_modi)
                 elif opc == "delete":
                     assert((m_end - m_beg) == 0) # Characters deleted.
-                    b_run = diff_desc.TextRunDeleted(b_beg, b_end - b_beg)
-                    b_run = diff_desc.amend_run_with_tab(l_base, b_run)
-                    l_base.runs_ += b_run
+                    r_len = b_end - b_beg
+                    l_base.runs_deleted_ += [ 
+                        diff_desc.TextRunDeleted(b_beg, r_len)
+                    ]
+                    l_base.runs_tabs_ += diff_desc.find_tab_runs(l_base,
+                                                                 b_beg, r_len)
+                    l_base.runs_tws_  += diff_desc.find_trailing_whitespace(l_base)
                 elif opc == "insert":
                     assert((b_end - b_beg) == 0) # Characters added.
-                    m_run = diff_desc.TextRunAdded(m_beg, m_end - m_beg)
-                    m_run = diff_desc.amend_run_with_tab(l_modi, m_run)
-                    l_modi.runs_ += m_run
+                    l_modi.runs_added_ += [
+                        diff_desc.TextRunAdded(m_beg, m_end - m_beg)
+                    ]
+                    l_modi.runs_tabs_ += diff_desc.find_tab_runs(l_modi, m_beg,
+                                                                 m_end - m_beg)
+                    l_modi.runs_tws_  += diff_desc.find_trailing_whitespace(l_modi)
                 elif opc == "equal":
                     assert((b_end - b_beg) == (m_end - m_beg)) # Equal run
-                    b_run = diff_desc.TextRunNormal(b_beg, b_end - b_beg)
-                    b_run = diff_desc.amend_run_with_tab(l_base, b_run)
-                    l_base.runs_ += b_run
+                    l_base.runs_tabs_ += diff_desc.find_tab_runs(l_base, b_beg,
+                                                                 b_end - b_beg)
+                    l_base.runs_tws_  += diff_desc.find_trailing_whitespace(l_base)
 
-                    m_run = diff_desc.TextRunNormal(m_beg, m_end - m_beg)
-                    m_run = diff_desc.amend_run_with_tab(l_modi, m_run)
-                    l_modi.runs_ += m_run
+                    l_modi.runs_tabs_ += diff_desc.find_tab_runs(l_modi, m_beg,
+                                                                 m_end - m_beg)
+                    l_modi.runs_tws_  += diff_desc.find_trailing_whitespace(l_modi)
         
         desc.cache_base(l_base)
         desc.cache_modi(l_modi)
@@ -177,10 +190,10 @@ def add_replaced_line_region(desc, base_l, modi_l, intraline_threshold):
         # These are all line insertions in the modified file.
         assert(l_changed <= len_modi)
         for k in range(l_changed, len_modi):
-            l_modi = diff_desc.Line(modi_l[k])
-            m_run  = diff_desc.TextRunNormal(0, len(modi_l[k]))
-            m_run  = diff_desc.amend_run_with_tab(l_modi, m_run)
-            l_modi.runs_ += m_run
+            l_modi             = diff_desc.Line(modi_l[k])
+            l_modi.runs_tabs_ += diff_desc.find_tab_runs(l_modi,
+                                                         0, len(modi_l[k]))
+            l_modi.runs_tws_  += diff_desc.find_trailing_whitespace(l_modi)
             desc.cache_base(diff_desc.NotPresentAdd())
             desc.cache_modi(l_modi)
             desc.flush(0, False, None)
@@ -189,11 +202,11 @@ def add_replaced_line_region(desc, base_l, modi_l, intraline_threshold):
         assert(l_changed <= len_base)
         for k in range(l_changed, len_base):
             l_base = diff_desc.Line(base_l[k])
-            b_run  = diff_desc.TextRunNormal(0, len(base_l[k]))
-            b_run  = diff_desc.amend_run_with_tab(l_base, b_run)
-            l_base.runs_ += b_run
-            desc.cache_modi(diff_desc.NotPresentDelete())
+            l_base.runs_tabs_ += diff_desc.find_tab_runs(l_base,
+                                                         0, len(base_l[k]))
+            l_base.runs_tws_  += diff_desc.find_trailing_whitespace(l_base)
             desc.cache_base(l_base)
+            desc.cache_modi(diff_desc.NotPresentDelete())
             desc.flush(0, False, None)
     else:
         pass                    # NOP; no residual lines.
