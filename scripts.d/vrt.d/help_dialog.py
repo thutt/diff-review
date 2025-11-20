@@ -45,6 +45,7 @@ class HelpDialog(QDialog):
             <li><b>File List:</b> Click any file to open it in a new tab (or switch to existing tab)</li>
             <li><b>Open All Files:</b> Button at top opens all files at once</li>
             <li><b>Blue Mark:</b> Indicates which files have open tabs</li>
+            <li><b>Orange Mark:</b> Indicates file has changed on disk (with auto-reload enabled, reloads automatically)</li>
             <li><b>Ctrl+B / Cmd+B:</b> Toggle sidebar visibility</li>
             <li><b>Resizable:</b> Drag the divider to resize the sidebar</li>
         </ul>
@@ -61,7 +62,11 @@ class HelpDialog(QDialog):
         
         <h3>Navigation</h3>
         <ul>
-            <li><b>Arrow Keys:</b> Navigate up/down/left/right</li>
+            <li><b>Arrow Keys:</b> Navigate up/down/left/right (both panels scroll together)</li>
+            <li><b>PageUp/PageDown:</b> Scroll up/down by ~10 lines (both panels scroll together)</li>
+            <li><b>Space:</b> Page down (both panels scroll together)</li>
+            <li><b>Shift+Space:</b> Page up (both panels scroll together)</li>
+            <li><b>Home/End:</b> Jump to start/end of file</li>
             <li><b>Tab:</b> When focus is in a text pane, switch focus between base and modified panes (stays on same line). When focus is elsewhere, navigate between UI elements.</li>
             <li><b>N:</b> Jump to next change region</li>
             <li><b>P:</b> Jump to previous change region</li>
@@ -129,19 +134,23 @@ class HelpDialog(QDialog):
         <h3>Search Functionality</h3>
         <ul>
             <li><b>Ctrl+S:</b> Open search dialog to search across base, modified, and commit message files</li>
-            <li><b>Right-click Ã¢â€ â€™ Search:</b> Search for currently selected text</li>
-            <li>Use checkboxes in search dialog to choose which sources to search (Base/Modi/Desc)</li>
-            <li>Toggle case sensitivity in search dialog</li>
-            <li>Double-click search results to jump to that location</li>
+            <li><b>Right-click &rarr; Search:</b> Search for currently selected text</li>
+            <li><b>Case Sensitive:</b> Toggle case sensitivity in search dialog</li>
+            <li><b>Regular Expression:</b> Enable regex pattern matching in search</li>
+            <li><b>Search All Tabs:</b> When enabled, searches across all open tabs instead of just the current one</li>
+            <li><b>Two-tier Highlighting:</b> All matches shown in subtle yellow, current match in bright yellow</li>
+            <li><b>Navigation:</b> Use Previous/Next buttons or double-click results to jump to matches</li>
+            <li><b>Live Results:</b> Search results dialog stays open for easy navigation between matches</li>
         </ul>
         
         <h3>Note Taking</h3>
         <ul>
             <li><b>Double-click:</b> Quick note - adds the clicked line to your notes file</li>
-            <li><b>Right-click Ã¢â€ â€™ Take Note:</b> Add selected text to notes file</li>
+            <li><b>Right-click &rarr; Take Note:</b> Add selected text to notes file</li>
             <li><b>Ctrl+N / Cmd+N:</b> Take note of selected text (works in commit message view too)</li>
-            <li><b>Yellow background:</b> Lines where notes have been taken are highlighted</li>
-            <li>All notes are appended to the notes file specified at startup</li>
+            <li><b>Yellow background:</b> Lines where notes have been taken are highlighted permanently</li>
+            <li><b>File → Open Note:</b> Set or change the notes file for the current session</li>
+            <li>All notes are appended to the notes file (created if it does not exist)</li>
         </ul>
         
         <h3>Diff Map</h3>
@@ -170,8 +179,8 @@ class HelpDialog(QDialog):
         
         <h3>Whitespace Display</h3>
         <ul>
-            <li><b>Show Tabs:</b> View â†’ Show Tabs to toggle highlighting of tab characters</li>
-            <li><b>Show Trailing Whitespace:</b> View â†’ Show Trailing Whitespace to toggle highlighting of whitespace at end of lines</li>
+            <li><b>Show Tabs:</b> View &rarr; Show Tabs to toggle highlighting of tab characters</li>
+            <li><b>Show Trailing Whitespace:</b> View &rarr; Show Trailing Whitespace to toggle highlighting of whitespace at end of lines</li>
             <li><b>Colors (Colorblind Friendly):</b> <span style="background-color: rgb(210, 210, 240); padding: 2px 6px;">Spaces (light purple-blue)</span>, <span style="background-color: rgb(255, 200, 100); padding: 2px 6px;">Tabs (light orange)</span>, <span style="background-color: rgb(255, 200, 150); padding: 2px 6px;">Trailing (light orange)</span></li>
             <li><b>Colors (Standard):</b> <span style="background-color: rgb(220, 220, 255); padding: 2px 6px;">Spaces (light blue)</span>, <span style="background-color: rgb(255, 180, 255); padding: 2px 6px;">Tabs (light magenta)</span>, <span style="background-color: rgb(255, 200, 200); padding: 2px 6px;">Trailing (light red)</span></li>
             <li><b>Colors (Dark Mode palettes):</b> Similar colors adjusted for dark backgrounds</li>
@@ -185,7 +194,7 @@ class HelpDialog(QDialog):
             <li><b>Auto-reload (default ON):</b> Automatically reloads files 500ms after they stop changing</li>
             <li><b>Manual reload:</b> Press F5 to reload current file at any time</li>
             <li><b>Preserves position:</b> Scroll position is maintained after reload</li>
-            <li><b>Toggle preference:</b> View Ã¢â€ â€™ Auto-reload Files to turn automatic reloading on/off</li>
+            <li><b>Toggle preference:</b> View &rarr; Auto-reload Files to turn automatic reloading on/off</li>
             <li><b>Status notification:</b> Brief "File reloaded" message appears in status bar</li>
             <li><b>When OFF:</b> Files are still monitored, sidebar shows change indicator, but reload only happens with F5</li>
         </ul>
