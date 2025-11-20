@@ -418,7 +418,6 @@ def make_viewer(options, base, modi, note, commit_msg):
     return viewer
 
 def generate(options, note):
-    application = PyQt6.QtWidgets.QApplication(sys.argv)
     tab_widget  = tab_manager_module.DiffViewerTabWidget(options.arg_display_n_lines,
                                                          options.arg_display_n_chars,
                                                          show_diff_map(options),
@@ -450,6 +449,7 @@ def generate(options, note):
 
 def main():
     try:
+        application = PyQt6.QtWidgets.QApplication(sys.argv)
         options = process_command_line()
         return generate(options, options.arg_note)
 

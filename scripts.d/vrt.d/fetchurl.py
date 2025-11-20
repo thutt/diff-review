@@ -7,6 +7,10 @@ from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
                               QLineEdit, QPushButton, QMessageBox)
 from PyQt6.QtCore import Qt
 
+# Module-level credential cache - persists for the session
+_cached_username = None
+_cached_password = None
+
 
 class BasicAuthDialog(QDialog):
     """Dialog for securely prompting for HTTP Basic Auth credentials"""
@@ -79,34 +83,53 @@ class FetchDesc(object):
         self.http_code_     = None
         self.require_auth_  = require_auth
         self.parent_widget_ = parent_widget
-        self.username_      = None
-        self.password_      = None
+
+    def _get_cached_credentials(self):
+        """Get cached credentials if available"""
+        global _cached_username, _cached_password
+        if _cached_username and _cached_password:
+            return (_cached_username, _cached_password)
+        return None
+
+    def _cache_credentials(self, username, password):
+        """Cache credentials for the session"""
+        global _cached_username, _cached_password
+        _cached_username = username
+        _cached_password = password
 
     def _prompt_for_credentials(self):
         """Prompt user for credentials using PyQt6 dialog"""
         dialog = BasicAuthDialog(self.url_, self.parent_widget_)
         if dialog.exec() == QDialog.DialogCode.Accepted:
-            self.username_ = dialog.username
-            self.password_ = dialog.password
-            return True
-        return False
+            username = dialog.username
+            password = dialog.password
+            # Cache the credentials for future requests
+            self._cache_credentials(username, password)
+            return (username, password)
+        return None
 
     def fetch(self):
         """
         Fetch content from URL, prompting for auth if needed
         
+        Uses cached credentials if available. Only prompts once per session.
         If require_auth is True, prompts before first attempt.
         If require_auth is False, attempts fetch, and prompts only on 401.
         """
         auth = None
         
-        # If auth is required upfront, prompt now
-        if self.require_auth_:
-            if not self._prompt_for_credentials():
+        # Try to use cached credentials first
+        cached = self._get_cached_credentials()
+        if cached:
+            auth = HTTPBasicAuth(*cached)
+        elif self.require_auth_:
+            # No cached credentials and auth is required
+            creds = self._prompt_for_credentials()
+            if not creds:
                 self.body_      = None
                 self.http_code_ = None
                 return
-            auth = HTTPBasicAuth(self.username_, self.password_)
+            auth = HTTPBasicAuth(*creds)
         
         # Make the request
         try:
@@ -118,8 +141,9 @@ class FetchDesc(object):
 
         # If we get 401 and haven't prompted yet, prompt and retry
         if response.status_code == 401 and not self.require_auth_:
-            if self._prompt_for_credentials():
-                auth = HTTPBasicAuth(self.username_, self.password_)
+            creds = self._prompt_for_credentials()
+            if creds:
+                auth = HTTPBasicAuth(*creds)
                 try:
                     response = requests.get(self.url_, auth=auth)
                 except requests.RequestException as e:
