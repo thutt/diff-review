@@ -9,13 +9,14 @@ Help dialog for diff_review
 This module contains the help dialog that displays user documentation.
 """
 from PyQt6.QtWidgets import QDialog, QVBoxLayout, QTextEdit, QPushButton
+from PyQt6.QtCore import Qt
 
 
 class HelpDialog(QDialog):
     """Dialog that displays help documentation for the diff viewer"""
     
     def __init__(self, parent=None):
-        super().__init__(parent)
+        super().__init__(parent, Qt.WindowType.Window)
         self.setWindowTitle("Diff Viewer - How to Use")
         self.setMinimumSize(700, 600)
         
@@ -134,7 +135,7 @@ class HelpDialog(QDialog):
         <h3>Search Functionality</h3>
         <ul>
             <li><b>Ctrl+S:</b> Open search dialog to search across base, modified, and commit message files</li>
-            <li><b>Right-click &rarr; Search:</b> Search for currently selected text</li>
+            <li><b>Right-click → Search:</b> Search for currently selected text</li>
             <li><b>Case Sensitive:</b> Toggle case sensitivity in search dialog</li>
             <li><b>Regular Expression:</b> Enable regex pattern matching in search</li>
             <li><b>Search All Tabs:</b> When enabled, searches across all open tabs instead of just the current one</li>
@@ -146,10 +147,10 @@ class HelpDialog(QDialog):
         <h3>Note Taking</h3>
         <ul>
             <li><b>Double-click:</b> Quick note - adds the clicked line to your notes file</li>
-            <li><b>Right-click &rarr; Take Note:</b> Add selected text to notes file</li>
+            <li><b>Right-click → Take Note:</b> Add selected text to notes file</li>
             <li><b>Ctrl+N / Cmd+N:</b> Take note of selected text (works in commit message view too)</li>
             <li><b>Yellow background:</b> Lines where notes have been taken are highlighted permanently</li>
-            <li><b>File &rarr; Open Note:</b> Set or change the notes file for the current session</li>
+            <li><b>File → Open Note:</b> Set or change the notes file for the current session</li>
             <li>All notes are appended to the notes file (created if it does not exist)</li>
         </ul>
         
