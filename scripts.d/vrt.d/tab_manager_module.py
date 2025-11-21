@@ -222,38 +222,47 @@ class DiffViewerTabWidget(QMainWindow):
         # View menu
         view_menu = menubar.addMenu("View")
         
-        toggle_sidebar_action = QAction("Toggle Sidebar", self)
-        toggle_sidebar_action.setShortcuts([QKeySequence("Ctrl+B"), QKeySequence("Meta+B")])
-        toggle_sidebar_action.triggered.connect(self.toggle_sidebar)
-        view_menu.addAction(toggle_sidebar_action)
+        self.show_sidebar_action = QAction("Show Sidebar", self)
+        self.show_sidebar_action.setShortcuts([QKeySequence("Ctrl+B"), QKeySequence("Meta+B")])
+        self.show_sidebar_action.setCheckable(True)
+        self.show_sidebar_action.setChecked(True)  # Sidebar starts visible
+        self.show_sidebar_action.triggered.connect(self.toggle_sidebar)
+        view_menu.addAction(self.show_sidebar_action)
         
         view_menu.addSeparator()
         
-        toggle_diff_map_action = QAction("Toggle Diff Map", self)
-        toggle_diff_map_action.setShortcuts([QKeySequence("Alt+H"), QKeySequence("Meta+H")])
-        toggle_diff_map_action.triggered.connect(self.toggle_diff_map)
-        view_menu.addAction(toggle_diff_map_action)
+        self.show_diff_map_action = QAction("Show Diff Map", self)
+        self.show_diff_map_action.setShortcuts([QKeySequence("Alt+H"), QKeySequence("Meta+H")])
+        self.show_diff_map_action.setCheckable(True)
+        self.show_diff_map_action.setChecked(show_diff_map)
+        self.show_diff_map_action.triggered.connect(self.toggle_diff_map)
+        view_menu.addAction(self.show_diff_map_action)
         
-        toggle_line_numbers_action = QAction("Toggle Line Numbers", self)
-        toggle_line_numbers_action.setShortcuts([QKeySequence("Alt+L"), QKeySequence("Meta+L")])
-        toggle_line_numbers_action.triggered.connect(self.toggle_line_numbers)
-        view_menu.addAction(toggle_line_numbers_action)
+        self.show_line_numbers_action = QAction("Show Line Numbers", self)
+        self.show_line_numbers_action.setShortcuts([QKeySequence("Alt+L"), QKeySequence("Meta+L")])
+        self.show_line_numbers_action.setCheckable(True)
+        self.show_line_numbers_action.setChecked(show_line_numbers)
+        self.show_line_numbers_action.triggered.connect(self.toggle_line_numbers)
+        view_menu.addAction(self.show_line_numbers_action)
         
         view_menu.addSeparator()
         
         self.show_tab_action = QAction("Show Tabs", self)
+        self.show_tab_action.setShortcuts([QKeySequence("Alt+T"), QKeySequence("Meta+T")])
         self.show_tab_action.setCheckable(True)
         self.show_tab_action.setChecked(not ignore_tab)
         self.show_tab_action.triggered.connect(self.toggle_tab_visibility)
         view_menu.addAction(self.show_tab_action)
         
         self.show_trailing_ws_action = QAction("Show Trailing Whitespace", self)
+        self.show_trailing_ws_action.setShortcuts([QKeySequence("Alt+W"), QKeySequence("Meta+W")])
         self.show_trailing_ws_action.setCheckable(True)
         self.show_trailing_ws_action.setChecked(not ignore_trailing_ws)
         self.show_trailing_ws_action.triggered.connect(self.toggle_trailing_ws_visibility)
         view_menu.addAction(self.show_trailing_ws_action)
         
         self.show_intraline_action = QAction("Show Intraline Changes", self)
+        self.show_intraline_action.setShortcuts([QKeySequence("Alt+I"), QKeySequence("Meta+I")])
         self.show_intraline_action.setCheckable(True)
         self.show_intraline_action.setChecked(not ignore_intraline)
         self.show_intraline_action.triggered.connect(self.toggle_intraline_visibility)
@@ -262,6 +271,7 @@ class DiffViewerTabWidget(QMainWindow):
         view_menu.addSeparator()
         
         self.auto_reload_action = QAction("Auto-reload Files", self)
+        self.auto_reload_action.setShortcuts([QKeySequence("Alt+R"), QKeySequence("Meta+R")])
         self.auto_reload_action.setCheckable(True)
         self.auto_reload_action.setChecked(auto_reload)  # Set from parameter
         self.auto_reload_action.triggered.connect(self.toggle_auto_reload)
@@ -1409,6 +1419,9 @@ class DiffViewerTabWidget(QMainWindow):
             self.sidebar_widget.show()
             self.sidebar_visible = True
         
+        # Update checkbox state
+        self.show_sidebar_action.setChecked(self.sidebar_visible)
+        
         # Update scrollbars in current viewer after sidebar toggle
         current_viewer = self.get_current_viewer()
         if current_viewer:
@@ -1422,6 +1435,9 @@ class DiffViewerTabWidget(QMainWindow):
         for viewer in viewers:
             if viewer.diff_map_visible != self.diff_map_visible:
                 viewer.toggle_diff_map()
+        
+        # Update checkbox state
+        self.show_diff_map_action.setChecked(self.diff_map_visible)
     
     def toggle_line_numbers(self):
         """Toggle line numbers in all viewers"""
@@ -1430,6 +1446,9 @@ class DiffViewerTabWidget(QMainWindow):
         for viewer in viewers:
             if viewer.line_numbers_visible != self.line_numbers_visible:
                 viewer.toggle_line_numbers()
+        
+        # Update checkbox state
+        self.show_line_numbers_action.setChecked(self.line_numbers_visible)
     
     def toggle_auto_reload(self):
         """Toggle auto-reload preference"""
