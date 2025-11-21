@@ -69,7 +69,7 @@ class LineNumberArea(QWidget):
                 break
             
             block_geom = self.text_widget.blockBoundingGeometry(current_block)
-            y_pos = int(block_geom.translated(self.text_widget.contentOffset()).top())
+            y_pos = int(block_geom.translated(self.text_widget.contentOffset()).top()) + 1
             
             if y_pos > viewport_height:
                 break
@@ -283,7 +283,7 @@ class SyncedPlainTextEdit(QPlainTextEdit):
             
             is_nav_key = key in (Qt.Key.Key_Up, Qt.Key.Key_Down, Qt.Key.Key_PageUp, 
                                  Qt.Key.Key_PageDown, Qt.Key.Key_Home, Qt.Key.Key_End,
-                                 Qt.Key.Key_Left, Qt.Key.Key_Right)
+                                 Qt.Key.Key_Left, Qt.Key.Key_Right, Qt.Key.Key_Space)
             
             is_parent_command = key in (Qt.Key.Key_N, Qt.Key.Key_P, Qt.Key.Key_C,
                                        Qt.Key.Key_T, Qt.Key.Key_B, Qt.Key.Key_Escape)
@@ -318,6 +318,12 @@ class SyncedPlainTextEdit(QPlainTextEdit):
                     cursor.movePosition(QTextCursor.MoveOperation.Up, move_mode, 10)
                 elif key == Qt.Key.Key_PageDown:
                     cursor.movePosition(QTextCursor.MoveOperation.Down, move_mode, 10)
+                elif key == Qt.Key.Key_Space:
+                    # Space = page down, Shift+Space = page up
+                    if shift_pressed:
+                        cursor.movePosition(QTextCursor.MoveOperation.Up, QTextCursor.MoveMode.MoveAnchor, 10)
+                    else:
+                        cursor.movePosition(QTextCursor.MoveOperation.Down, QTextCursor.MoveMode.MoveAnchor, 10)
                 elif key == Qt.Key.Key_Home:
                     cursor.movePosition(QTextCursor.MoveOperation.Start, move_mode)
                 elif key == Qt.Key.Key_End:

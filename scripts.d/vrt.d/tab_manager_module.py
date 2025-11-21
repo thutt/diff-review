@@ -79,11 +79,17 @@ class FileButton(QPushButton):
 class DiffViewerTabWidget(QMainWindow):
     """Main window containing tabs of DiffViewer instances with file sidebar"""
     
-    def __init__(self, display_lines: int, display_chars: int, show_diff_map: bool,
-                 show_line_numbers: bool, auto_reload: bool,
-                 ignore_tab: bool, ignore_trailing_ws: bool,
+    def __init__(self,
+                 display_lines: int,
+                 display_chars: int,
+                 show_diff_map: bool,
+                 show_line_numbers: bool,
+                 auto_reload: bool,
+                 ignore_tab: bool,
+                 ignore_trailing_ws: bool,
                  ignore_intraline: bool,
-                 intraline_percent : float):
+                 intraline_percent : float,
+                 dump_ir           : bool):
         if QApplication.instance() is None:
             self._app = QApplication(sys.argv)
         else:
@@ -93,10 +99,11 @@ class DiffViewerTabWidget(QMainWindow):
         
         self.display_lines = display_lines
         self.display_chars = display_chars
-        self.ignore_ws = True
         self.ignore_tab = ignore_tab
         self.ignore_trailing_ws = ignore_trailing_ws
         self.ignore_intraline = ignore_intraline
+        self.dump_ir = dump_ir
+        self.intraline_percent = intraline_percent
         self._bulk_loading = False  # Suppress highlighting during "Open All Files"
         
         self.setWindowTitle("Diff Viewer")
@@ -215,45 +222,47 @@ class DiffViewerTabWidget(QMainWindow):
         # View menu
         view_menu = menubar.addMenu("View")
         
-        toggle_sidebar_action = QAction("Toggle Sidebar", self)
-        toggle_sidebar_action.setShortcuts([QKeySequence("Ctrl+B"), QKeySequence("Meta+B")])
-        toggle_sidebar_action.triggered.connect(self.toggle_sidebar)
-        view_menu.addAction(toggle_sidebar_action)
+        self.show_sidebar_action = QAction("Show Sidebar", self)
+        self.show_sidebar_action.setShortcuts([QKeySequence("Ctrl+B"), QKeySequence("Meta+B")])
+        self.show_sidebar_action.setCheckable(True)
+        self.show_sidebar_action.setChecked(True)  # Sidebar starts visible
+        self.show_sidebar_action.triggered.connect(self.toggle_sidebar)
+        view_menu.addAction(self.show_sidebar_action)
         
         view_menu.addSeparator()
         
-        toggle_diff_map_action = QAction("Toggle Diff Map", self)
-        toggle_diff_map_action.setShortcuts([QKeySequence("Alt+H"), QKeySequence("Meta+H")])
-        toggle_diff_map_action.triggered.connect(self.toggle_diff_map)
-        view_menu.addAction(toggle_diff_map_action)
+        self.show_diff_map_action = QAction("Show Diff Map", self)
+        self.show_diff_map_action.setShortcuts([QKeySequence("Alt+H"), QKeySequence("Meta+H")])
+        self.show_diff_map_action.setCheckable(True)
+        self.show_diff_map_action.setChecked(show_diff_map)
+        self.show_diff_map_action.triggered.connect(self.toggle_diff_map)
+        view_menu.addAction(self.show_diff_map_action)
         
-        toggle_line_numbers_action = QAction("Toggle Line Numbers", self)
-        toggle_line_numbers_action.setShortcuts([QKeySequence("Alt+L"), QKeySequence("Meta+L")])
-        toggle_line_numbers_action.triggered.connect(self.toggle_line_numbers)
-        view_menu.addAction(toggle_line_numbers_action)
+        self.show_line_numbers_action = QAction("Show Line Numbers", self)
+        self.show_line_numbers_action.setShortcuts([QKeySequence("Alt+L"), QKeySequence("Meta+L")])
+        self.show_line_numbers_action.setCheckable(True)
+        self.show_line_numbers_action.setChecked(show_line_numbers)
+        self.show_line_numbers_action.triggered.connect(self.toggle_line_numbers)
+        view_menu.addAction(self.show_line_numbers_action)
         
         view_menu.addSeparator()
-        
-        # Whitespace visibility controls
-        self.show_ws_action = QAction("Show Whitespace", self)
-        self.show_ws_action.setCheckable(True)
-        self.show_ws_action.setChecked(not self.ignore_ws)
-        self.show_ws_action.triggered.connect(self.toggle_whitespace_visibility)
-        view_menu.addAction(self.show_ws_action)
         
         self.show_tab_action = QAction("Show Tabs", self)
+        self.show_tab_action.setShortcuts([QKeySequence("Alt+T"), QKeySequence("Meta+T")])
         self.show_tab_action.setCheckable(True)
         self.show_tab_action.setChecked(not ignore_tab)
         self.show_tab_action.triggered.connect(self.toggle_tab_visibility)
         view_menu.addAction(self.show_tab_action)
         
         self.show_trailing_ws_action = QAction("Show Trailing Whitespace", self)
+        self.show_trailing_ws_action.setShortcuts([QKeySequence("Alt+W"), QKeySequence("Meta+W")])
         self.show_trailing_ws_action.setCheckable(True)
         self.show_trailing_ws_action.setChecked(not ignore_trailing_ws)
         self.show_trailing_ws_action.triggered.connect(self.toggle_trailing_ws_visibility)
         view_menu.addAction(self.show_trailing_ws_action)
         
         self.show_intraline_action = QAction("Show Intraline Changes", self)
+        self.show_intraline_action.setShortcuts([QKeySequence("Alt+I"), QKeySequence("Meta+I")])
         self.show_intraline_action.setCheckable(True)
         self.show_intraline_action.setChecked(not ignore_intraline)
         self.show_intraline_action.triggered.connect(self.toggle_intraline_visibility)
@@ -262,6 +271,7 @@ class DiffViewerTabWidget(QMainWindow):
         view_menu.addSeparator()
         
         self.auto_reload_action = QAction("Auto-reload Files", self)
+        self.auto_reload_action.setShortcuts([QKeySequence("Alt+R"), QKeySequence("Meta+R")])
         self.auto_reload_action.setCheckable(True)
         self.auto_reload_action.setChecked(auto_reload)  # Set from parameter
         self.auto_reload_action.triggered.connect(self.toggle_auto_reload)
@@ -775,7 +785,6 @@ class DiffViewerTabWidget(QMainWindow):
             diff_viewer.note_file = self.global_note_file
         
         # Apply global whitespace ignore settings
-        diff_viewer.ignore_ws = self.ignore_ws
         diff_viewer.ignore_tab = self.ignore_tab
         diff_viewer.ignore_trailing_ws = self.ignore_trailing_ws
         diff_viewer.ignore_intraline = self.ignore_intraline
@@ -1410,6 +1419,9 @@ class DiffViewerTabWidget(QMainWindow):
             self.sidebar_widget.show()
             self.sidebar_visible = True
         
+        # Update checkbox state
+        self.show_sidebar_action.setChecked(self.sidebar_visible)
+        
         # Update scrollbars in current viewer after sidebar toggle
         current_viewer = self.get_current_viewer()
         if current_viewer:
@@ -1423,6 +1435,9 @@ class DiffViewerTabWidget(QMainWindow):
         for viewer in viewers:
             if viewer.diff_map_visible != self.diff_map_visible:
                 viewer.toggle_diff_map()
+        
+        # Update checkbox state
+        self.show_diff_map_action.setChecked(self.diff_map_visible)
     
     def toggle_line_numbers(self):
         """Toggle line numbers in all viewers"""
@@ -1431,6 +1446,9 @@ class DiffViewerTabWidget(QMainWindow):
         for viewer in viewers:
             if viewer.line_numbers_visible != self.line_numbers_visible:
                 viewer.toggle_line_numbers()
+        
+        # Update checkbox state
+        self.show_line_numbers_action.setChecked(self.line_numbers_visible)
     
     def toggle_auto_reload(self):
         """Toggle auto-reload preference"""
@@ -1441,20 +1459,6 @@ class DiffViewerTabWidget(QMainWindow):
             for viewer in list(self.changed_files.keys()):
                 if viewer in self.changed_files and self.changed_files[viewer]:
                     self.reload_viewer(viewer)
-    
-    def toggle_whitespace_visibility(self):
-        """Toggle whitespace visibility in all viewers"""
-        self.ignore_ws = not self.show_ws_action.isChecked()
-        # Update current viewer immediately
-        viewer = self.get_current_viewer()
-        if viewer:
-            viewer.ignore_ws = self.ignore_ws
-            viewer.restart_highlighting()
-        # Mark all other viewers as needing update
-        for v in self.get_all_viewers():
-            if v != viewer:
-                v.ignore_ws = self.ignore_ws
-                v._needs_highlighting_update = True
     
     def toggle_tab_visibility(self):
         """Toggle tab character visibility in all viewers"""
@@ -1619,6 +1623,11 @@ class DiffViewerTabWidget(QMainWindow):
         viewer.base_line_area.line_backgrounds.clear()
         viewer.modified_line_area.line_backgrounds.clear()
         
+        # Reset highlighting state
+        viewer.highlighting_applied = False
+        viewer.highlighting_in_progress = False
+        viewer.highlighting_next_line = 0
+        
         # Clear existing data
         viewer.base_display = []
         viewer.modified_display = []
@@ -1630,7 +1639,9 @@ class DiffViewerTabWidget(QMainWindow):
         
         # Reload diff
         try:
-            desc = diffmgr.create_diff_descriptor(False, None,
+            desc = diffmgr.create_diff_descriptor(False,
+                                                  self.intraline_percent,
+                                                  self.dump_ir,
                                                   viewer.base_file,
                                                   viewer.modified_file)
             

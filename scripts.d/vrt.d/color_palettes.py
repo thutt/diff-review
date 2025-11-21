@@ -11,7 +11,26 @@ Each palette defines colors for various diff elements including added, deleted,
 changed lines, and UI indicators.
 """
 
+import platform
+import subprocess
 from PyQt6.QtGui import QColor
+
+
+def is_macos_dark_mode():
+    """Detect if macOS is in dark mode"""
+    if platform.system() != 'Darwin':
+        return False
+    
+    try:
+        result = subprocess.run(
+            ['defaults', 'read', '-g', 'AppleInterfaceStyle'],
+            capture_output=True,
+            text=True,
+            timeout=1
+        )
+        return result.returncode == 0 and 'Dark' in result.stdout
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        return False
 
 
 class ColorPalette:
@@ -116,15 +135,97 @@ COLORBLIND_PALETTE = ColorPalette('Colorblind Friendly', {
 })
 
 
+# Dark mode standard palette - red/green for dark backgrounds
+DARK_MODE_STANDARD_PALETTE = ColorPalette('Dark Mode Standard', {
+    # Line backgrounds - subdued but visible on dark
+    'placeholder': QColor(60, 60, 60),
+    'base_changed_bg': QColor(80, 40, 40),         # Dark red/brown
+    'modi_changed_bg': QColor(40, 80, 40),         # Dark green
+    
+    # Run colors (for text highlighting)
+    'add_run': QColor(100, 200, 100),              # Bright green
+    'delete_run': QColor(255, 100, 100),           # Bright red
+    'intraline_run': QColor(100, 100, 0),          # Dark yellow - readable with white text
+    'normal_run': None,
+    'unknown_run': QColor(255, 165, 0),            # Orange
+    'notpresent_run': None,
+    
+    # Whitespace visualization
+    'TAB': QColor(180, 100, 180),                  # Medium magenta
+    'TRAILINGWS': QColor(180, 80, 80),             # Medium red
+    
+    # Search highlighting
+    'search_highlight_all': QColor(100, 100, 50),      # Dark yellow for all matches
+    'search_highlight_current': QColor(200, 200, 0),   # Bright yellow for current
+    
+    # Line length indicator
+    'max_line_length': QColor(200, 0, 200),        # Bright magenta
+    
+    # UI elements
+    'noted_line_bg': QColor(80, 80, 40, 100),      # Dark yellow
+    'focused_border_active': QColor(100, 150, 255), # Bright blue
+    'focused_border_inactive': QColor(100, 100, 100), # Medium gray
+    'region_highlight': QColor(100, 100, 255, 128), # Blue with transparency
+    
+    # Diff map colors
+    'diffmap_insert': QColor(50, 150, 50),         # Medium green
+    'diffmap_delete': QColor(200, 50, 50),         # Medium red
+    'diffmap_replace': QColor(200, 120, 60),       # Orange
+    'diffmap_viewport': QColor(150, 150, 150, 100),
+})
+
+
+# Dark mode colorblind palette - blue/orange for dark backgrounds
+DARK_MODE_COLORBLIND_PALETTE = ColorPalette('Dark Mode Colorblind', {
+    # Line backgrounds - subdued but visible on dark
+    'placeholder': QColor(60, 60, 60),
+    'base_changed_bg': QColor(80, 60, 40),         # Dark orange/brown
+    'modi_changed_bg': QColor(40, 60, 80),         # Dark blue
+    
+    # Run colors (for text highlighting)
+    'add_run': QColor(120, 180, 255),              # Bright sky blue
+    'delete_run': QColor(255, 160, 80),            # Bright orange
+    'intraline_run': QColor(100, 100, 0),          # Dark yellow - readable with white text
+    'normal_run': None,
+    'unknown_run': QColor(255, 165, 0),            # Orange
+    'notpresent_run': None,
+    
+    # Whitespace visualization
+    'TAB': QColor(200, 150, 100),                  # Light orange/yellow
+    'TRAILINGWS': QColor(200, 140, 100),           # Light orange
+    
+    # Search highlighting
+    'search_highlight_all': QColor(100, 80, 100),      # Dark magenta for all matches
+    'search_highlight_current': QColor(200, 100, 200), # Bright magenta for current
+    
+    # Line length indicator
+    'max_line_length': QColor(200, 0, 200),        # Bright magenta
+    
+    # UI elements
+    'noted_line_bg': QColor(80, 80, 40, 100),      # Dark yellow
+    'focused_border_active': QColor(100, 150, 255), # Bright blue
+    'focused_border_inactive': QColor(100, 100, 100), # Medium gray
+    'region_highlight': QColor(100, 100, 255, 128), # Blue with transparency
+    
+    # Diff map colors
+    'diffmap_insert': QColor(70, 130, 200),        # Medium steel blue
+    'diffmap_delete': QColor(255, 140, 60),        # Medium orange
+    'diffmap_replace': QColor(220, 160, 100),      # Light orange
+    'diffmap_viewport': QColor(150, 150, 150, 100),
+})
+
+
 # Dictionary of all available palettes
 PALETTES = {
     'Standard': STANDARD_PALETTE,
     'Colorblind Friendly': COLORBLIND_PALETTE,
+    'Dark Mode Standard': DARK_MODE_STANDARD_PALETTE,
+    'Dark Mode Colorblind': DARK_MODE_COLORBLIND_PALETTE,
 }
 
 
-# Default palette
-_current_palette = COLORBLIND_PALETTE
+# Default palette - auto-select based on system theme
+_current_palette = DARK_MODE_COLORBLIND_PALETTE if is_macos_dark_mode() else COLORBLIND_PALETTE
 
 
 def get_current_palette():
