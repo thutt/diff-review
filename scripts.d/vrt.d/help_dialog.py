@@ -149,7 +149,7 @@ class HelpDialog(QDialog):
             <li><b>Right-click &rarr; Take Note:</b> Add selected text to notes file</li>
             <li><b>Ctrl+N / Cmd+N:</b> Take note of selected text (works in commit message view too)</li>
             <li><b>Yellow background:</b> Lines where notes have been taken are highlighted permanently</li>
-            <li><b>File → Open Note:</b> Set or change the notes file for the current session</li>
+            <li><b>File &rarr; Open Note:</b> Set or change the notes file for the current session</li>
             <li>All notes are appended to the notes file (created if it does not exist)</li>
         </ul>
         
@@ -170,6 +170,18 @@ class HelpDialog(QDialog):
             <li><b>Mouse wheel:</b> Scroll through the file</li>
         </ul>
         
+        <h3>View Options</h3>
+        <p>All View menu options are accessible via keyboard shortcuts and show their current state with checkmarks:</p>
+        <ul>
+            <li><b>Alt+B / Cmd+B:</b> Toggle Sidebar visibility</li>
+            <li><b>Alt+H / Cmd+H:</b> Toggle Diff Map visibility</li>
+            <li><b>Alt+L / Cmd+L:</b> Toggle Line Numbers visibility</li>
+            <li><b>Alt+T / Cmd+T:</b> Toggle Tab character highlighting</li>
+            <li><b>Alt+W / Cmd+W:</b> Toggle Trailing Whitespace highlighting</li>
+            <li><b>Alt+I / Cmd+I:</b> Toggle Intraline Changes highlighting</li>
+            <li><b>Alt+R / Cmd+R:</b> Toggle Auto-reload Files on/off</li>
+        </ul>
+        
         <h3>Line Numbers</h3>
         <ul>
             <li>Shows original line numbers from each file</li>
@@ -179,8 +191,9 @@ class HelpDialog(QDialog):
         
         <h3>Whitespace Display</h3>
         <ul>
-            <li><b>Show Tabs:</b> View &rarr; Show Tabs to toggle highlighting of tab characters</li>
-            <li><b>Show Trailing Whitespace:</b> View &rarr; Show Trailing Whitespace to toggle highlighting of whitespace at end of lines</li>
+            <li><b>Alt+T / Cmd+T:</b> Toggle highlighting of tab characters</li>
+            <li><b>Alt+W / Cmd+W:</b> Toggle highlighting of trailing whitespace at end of lines</li>
+            <li><b>Alt+I / Cmd+I:</b> Toggle highlighting of intraline changes (character-level diffs)</li>
             <li><b>Colors (Colorblind Friendly):</b> <span style="background-color: rgb(210, 210, 240); padding: 2px 6px;">Spaces (light purple-blue)</span>, <span style="background-color: rgb(255, 200, 100); padding: 2px 6px;">Tabs (light orange)</span>, <span style="background-color: rgb(255, 200, 150); padding: 2px 6px;">Trailing (light orange)</span></li>
             <li><b>Colors (Standard):</b> <span style="background-color: rgb(220, 220, 255); padding: 2px 6px;">Spaces (light blue)</span>, <span style="background-color: rgb(255, 180, 255); padding: 2px 6px;">Tabs (light magenta)</span>, <span style="background-color: rgb(255, 200, 200); padding: 2px 6px;">Trailing (light red)</span></li>
             <li><b>Colors (Dark Mode palettes):</b> Similar colors adjusted for dark backgrounds</li>
@@ -189,12 +202,12 @@ class HelpDialog(QDialog):
         
         <h3>Auto-reload Files</h3>
         <ul>
+            <li><b>Alt+R / Cmd+R:</b> Toggle auto-reload on/off</li>
+            <li><b>F5:</b> Manually reload current file at any time</li>
             <li><b>Automatic monitoring:</b> Watches source files for changes on disk</li>
             <li><b>Visual indicator:</b> Sidebar button changes to change-indicator color when files are modified</li>
             <li><b>Auto-reload (default ON):</b> Automatically reloads files 500ms after they stop changing</li>
-            <li><b>Manual reload:</b> Press F5 to reload current file at any time</li>
             <li><b>Preserves position:</b> Scroll position is maintained after reload</li>
-            <li><b>Toggle preference:</b> View &rarr; Auto-reload Files to turn automatic reloading on/off</li>
             <li><b>Status notification:</b> Brief "File reloaded" message appears in status bar</li>
             <li><b>When OFF:</b> Files are still monitored, sidebar shows change indicator, but reload only happens with F5</li>
         </ul>
