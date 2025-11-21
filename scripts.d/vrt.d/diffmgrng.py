@@ -74,19 +74,25 @@ def fetch_url_contents(url):
     lines = lines.replace("\r", "\n")   # Convert Mac files to Linux.
 
     result = lines.splitlines()
-    # The returned list strings will NOT have '\n' at the end.
+    # The returned list of strings will NOT have '\n' at the end.
     # Blank lines will be zero length.
     return result
 
 
+def is_url(path):
+    return (path.startswith("http://") or
+            path.startswith("https://"))
+
+
 def create_difflib(base, modi):
-    if base.startswith("http://"):
-        assert(modi.startswith("http://"))
+    if is_url(base):
+        assert(is_url(modi))
         base_l = fetch_url_contents(base)
         modi_l = fetch_url_contents(modi)
     else:
         base_l = read_file(base)
         modi_l = read_file(modi)
+
     return (difflib.SequenceMatcher(None, base_l, modi_l),
             base_l,
             modi_l)

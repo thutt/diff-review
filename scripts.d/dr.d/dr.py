@@ -28,6 +28,12 @@ def process_command_line():
     else:
         drutil.fatal("Uhandled SCM instantiation.")
 
+    if options.arg_url_port is None:
+        # Set the URL port to the default only if it wasn't set on command line.
+        options.arg_url_port = "80";
+        if options.arg_url_https:
+            options.arg_url_port = "443";
+
     drutil.mktree(options.review_dir)
     drutil.mktree(options.review_base_dir)
     drutil.mktree(options.review_modi_dir)
@@ -51,18 +57,32 @@ def report(options, changed_info, elapsed_time):
         dossier = os.path.join(options.arg_review_dir,
                                options.arg_review_name,
                                "dossier.json")
+        if options.arg_url_review_directory is not None:
+            url_dossier_dir = os.path.join(options.arg_url_review_directory,
+                                           options.arg_review_name)
+        else:
+            url_dossier_dir = os.path.dirname(dossier)
+
+        if not url_dossier_dir.startswith('/'):
+            # Add separator after url-port, only if not already
+            # present.
+            url_dossier_dir = "/" + url_dossier_dir
+
         fqdn = ""
         if options.arg_fqdn is not None:
             fqdn = "--fqdn '%s' " % (options.arg_fqdn)
 
-        dossier_dir = os.path.dirname(dossier)
+        if options.arg_url_https:
+            protocol = "https"
+        else:
+            protocol = "http"
+
         print("\n"
               "Changes:  %s" % (changed_info))
-        print("Viewer :  vrt %s--dossier '%s'" % (fqdn, dossier_dir))
-        print("Viewer :  vrt --url http://%s:%s%s" %
-              (options.arg_url_server,
-               options.arg_url_port,
-               os.path.dirname(dossier)))
+        print("Viewer :  vrt %s--dossier '%s'" % (fqdn, dossier))
+        print("Viewer :  vrt --url %s://%s:%s%s" %
+              (protocol, options.arg_url_server,
+               options.arg_url_port, url_dossier_dir))
         print("Viewer :  vr -R '%s' -r '%s'" %
               (options.arg_review_dir, options.arg_review_name))
         print("Elapsed:  %s" % (elapsed_time))

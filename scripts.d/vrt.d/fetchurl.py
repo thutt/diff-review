@@ -11,6 +11,56 @@ from PyQt6.QtCore import Qt
 _cached_username = None
 _cached_password = None
 
+# Module-level flag for certificate verification
+_verify_ssl = True  # Start with verification enabled
+
+
+class SSLVerificationDialog(QDialog):
+    """Dialog to ask user whether to accept unverified SSL certificate"""
+    
+    def __init__(self, url, error_msg, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("SSL Certificate Verification Failed")
+        self.setModal(True)
+        self.accept_unverified = False
+        
+        layout = QVBoxLayout(self)
+        
+        # Warning icon and message
+        warning_label = QLabel(
+            f"WARNING: SSL Certificate verification failed for:\n{url}\n\n"
+            f"Error: {error_msg}\n\n"
+            "This could indicate:\n"
+            "  * A self-signed certificate\n"
+            "  * An expired certificate\n"
+            "  * A man-in-the-middle attack\n\n"
+            "Do you want to proceed without verification?\n"
+            "(Not recommended for untrusted networks)"
+        )
+        warning_label.setWordWrap(True)
+        layout.addWidget(warning_label)
+        
+        # Buttons
+        button_layout = QHBoxLayout()
+        
+        accept_button = QPushButton("Accept and Continue (Insecure)")
+        accept_button.clicked.connect(self.on_accept)
+        
+        cancel_button = QPushButton("Cancel")
+        cancel_button.clicked.connect(self.reject)
+        cancel_button.setDefault(True)  # Make cancel the default
+        
+        button_layout.addWidget(accept_button)
+        button_layout.addWidget(cancel_button)
+        layout.addLayout(button_layout)
+        
+        self.setMinimumWidth(500)
+    
+    def on_accept(self):
+        """User chose to accept unverified certificate"""
+        self.accept_unverified = True
+        self.accept()
+
 
 class BasicAuthDialog(QDialog):
     """Dialog for securely prompting for HTTP Basic Auth credentials"""
@@ -113,9 +163,12 @@ class FetchDesc(object):
         Fetch content from URL, prompting for auth if needed
         
         Uses cached credentials if available. Only prompts once per session.
+        Tries with SSL verification first, prompts user if verification fails.
         If require_auth is True, prompts before first attempt.
         If require_auth is False, attempts fetch, and prompts only on 401.
         """
+        global _verify_ssl
+        
         auth = None
         
         # Try to use cached credentials first
@@ -131,9 +184,37 @@ class FetchDesc(object):
                 return
             auth = HTTPBasicAuth(*creds)
         
-        # Make the request
+        # Make the request with current SSL verification setting
         try:
-            response = requests.get(self.url_, auth=auth)
+            response = requests.get(self.url_, auth=auth, verify=_verify_ssl)
+        except requests.exceptions.SSLError as ssl_err:
+            # SSL verification failed - ask user what to do
+            if _verify_ssl:  # Only prompt if we haven't already disabled verification
+                dialog = SSLVerificationDialog(self.url_, str(ssl_err), self.parent_widget_)
+                if dialog.exec() == QDialog.DialogCode.Accepted and dialog.accept_unverified:
+                    # User chose to accept unverified certificate
+                    _verify_ssl = False
+                    # Suppress warnings for the rest of the session
+                    import warnings
+                    import urllib3
+                    warnings.filterwarnings('ignore', message='.*Unverified HTTPS.*')
+                    # Retry without verification
+                    try:
+                        response = requests.get(self.url_, auth=auth, verify=False)
+                    except requests.RequestException as e:
+                        self.body_      = None
+                        self.http_code_ = None
+                        return
+                else:
+                    # User cancelled
+                    self.body_      = None
+                    self.http_code_ = None
+                    return
+            else:
+                # SSL verification already disabled, but still got SSL error
+                self.body_      = None
+                self.http_code_ = None
+                return
         except requests.RequestException as e:
             self.body_      = None  # None --> Nothing fetched.
             self.http_code_ = None  # None --> Network error.
@@ -145,7 +226,7 @@ class FetchDesc(object):
             if creds:
                 auth = HTTPBasicAuth(*creds)
                 try:
-                    response = requests.get(self.url_, auth=auth)
+                    response = requests.get(self.url_, auth=auth, verify=_verify_ssl)
                 except requests.RequestException as e:
                     self.body_      = None
                     self.http_code_ = None

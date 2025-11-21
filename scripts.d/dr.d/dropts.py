@@ -107,12 +107,28 @@ Return Code:
     o.add_argument("--url-port",
                    help     = ("Port that should be embedded in the "
                                "URL displayed for the '--url' option."
+                               "If --url-https is specified, port 443 is used."
                                "[default: %(default)s]"),
                    action   = "store",
-                   default  = "80",
+                   default  = None,
                    metavar  = "<HTTP protocol port number>",
                    required = False,
                    dest     = "arg_url_port")
+
+    o.add_argument("--url-R", "--url-review-directory",
+                   help     = ("Specifies root directory that will be output in "
+                               "'--url' option.  It must be the path from the "
+                               "actual server root to the directory where the "
+                               "diffs are written.  If the server root "
+                               "directory is '/home', and the reviews are at "
+                               "/home/${USER}/review, this argument should be "
+                               "provided '${USER}'.  If not provided, the "
+                               "value of '-R' will be used"),
+                   action   = "store",
+                   default  = None,
+                   metavar  = "<Web server review directory>",
+                   required = False,
+                   dest     = "arg_url_review_directory")
 
     o.add_argument("--url-server",
                    help     = ("FQDN of the host that serves as the webserver "
@@ -193,6 +209,22 @@ Return Code:
                    required = False,
                    choices  = [ "no", "all" ],
                    dest     = "arg_git_untracked")
+
+
+    d_group = parser.add_mutually_exclusive_group()
+    d_group.add_argument("--url-https",
+                         help     = ("Sets Web-based diffs protocol to HTTPS "
+                                     "(default)."),
+                         action   = "store_true",
+                         default  = True,
+                         required = False,
+                         dest     = "arg_url_https")
+
+    d_group.add_argument("--no-url-https",
+                         help     = ("Sets Web-based diffs protocol to HTTP."),
+                         action   = "store_false",
+                         required = False,
+                         dest     = "arg_url_https")
 
 
     parser.add_argument("tail",
