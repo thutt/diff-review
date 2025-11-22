@@ -8,6 +8,7 @@ Tab manager for diff_review
 This module contains the tab widget that manages multiple DiffViewer instances
 with a sidebar for file selection.
 """
+import os
 import sys
 from PyQt6.QtWidgets import (QApplication, QTabWidget, QMainWindow, QHBoxLayout, 
                               QVBoxLayout, QWidget, QPushButton, QScrollArea, QSplitter,
@@ -331,11 +332,9 @@ class DiffViewerTabWidget(QMainWindow):
         Args:
             commit_msg_file: Path to the commit message file
         """
-        # Check if file exists
-        try:
-            with open(commit_msg_file, 'r') as f:
-                f.read()
-        except Exception:
+        # Check if file exists and is readable
+        if (not os.path.isfile(commit_msg_file) or
+            not os.access(commit_msg_file, os.R_OK)):
             return  # File doesn't exist or can't be read, don't add
         
         self._commit_msg_file = commit_msg_file
