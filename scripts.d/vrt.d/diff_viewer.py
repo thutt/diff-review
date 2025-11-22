@@ -20,7 +20,6 @@ from PyQt6.QtGui import (QColor, QFont, QTextCursor, QAction, QFontMetrics,
 from utils import extract_display_path
 from search_dialogs import SearchDialog, SearchResultDialog
 from ui_components import LineNumberArea, DiffMapWidget, SyncedPlainTextEdit
-from commit_msg_dialog import CommitMsgDialog
 import color_palettes
 
 

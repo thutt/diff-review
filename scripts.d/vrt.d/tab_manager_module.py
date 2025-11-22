@@ -18,7 +18,6 @@ from PyQt6.QtGui import (QAction, QFont, QKeySequence, QActionGroup, QFontMetric
 
 from help_dialog import HelpDialog
 from search_dialogs import SearchDialog, SearchResultDialog
-from commit_msg_dialog import CommitMsgDialog
 import color_palettes
 
 
@@ -115,7 +114,6 @@ class DiffViewerTabWidget(QMainWindow):
         self.sidebar_visible = True
         self._commit_msg_file = None  # Track commit message file (internal)
         self.commit_msg_button = None  # Track commit message button
-        self.commit_msg_dialog = None  # Track commit message dialog
         self.search_result_dialogs = []  # Track search result dialogs
         
         # Global view state for all tabs
@@ -1158,18 +1156,6 @@ class DiffViewerTabWidget(QMainWindow):
         
         saved_cursor.setPosition(current_pos)
         text_widget.setTextCursor(saved_cursor)
-    
-    def show_commit_msg_dialog(self, commit_msg_file, viewer):
-        """Show the commit message dialog for a viewer"""
-        # Check if dialog already exists and is visible
-        if self.commit_msg_dialog and self.commit_msg_dialog.isVisible():
-            self.commit_msg_dialog.raise_()
-            self.commit_msg_dialog.activateWindow()
-            return
-        
-        # Create new dialog
-        self.commit_msg_dialog = CommitMsgDialog(commit_msg_file, viewer, self)
-        self.commit_msg_dialog.show()
     
     # Methods to support SearchResultDialog (which expects a viewer-like interface)
     @property
