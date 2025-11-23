@@ -24,8 +24,12 @@ import color_palettes
 
 
 class DiffViewer(QMainWindow):
-    def __init__(self, base_file: str, modified_file: str, note_file: str, 
-                 commit_msg_file: str, max_line_length: int, show_diff_map: bool,
+    def __init__(self,
+                 base_file: str,
+                 modified_file: str,
+                 note_file: str,
+                 max_line_length: int,
+                 show_diff_map: bool,
                  show_line_numbers: bool):
         if QApplication.instance() is None:
             self._app = QApplication(sys.argv)
@@ -37,7 +41,6 @@ class DiffViewer(QMainWindow):
         self.base_file = base_file
         self.modified_file = modified_file
         self.note_file = note_file
-        self.commit_msg_file = commit_msg_file
         self.max_line_length = max_line_length
         self.show_diff_map = show_diff_map
         self.show_line_numbers = show_line_numbers

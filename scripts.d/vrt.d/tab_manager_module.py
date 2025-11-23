@@ -113,7 +113,7 @@ class DiffViewerTabWidget(QMainWindow):
         self.file_to_tab_index = {}  # Maps file_class to tab index
         self.current_file_class = None  # Track which file is being added
         self.sidebar_visible = True
-        self._commit_msg_file = None  # Track commit message file (internal)
+        self.commit_msg_rel_path_ = None  # Track commit message file (internal)
         self.commit_msg_button = None  # Track commit message button
         self.search_result_dialogs = []  # Track search result dialogs
         
@@ -325,19 +325,19 @@ class DiffViewerTabWidget(QMainWindow):
         
         self.resize(total_width, total_height)
     
-    def add_commit_msg(self, commit_msg_file):
+    def add_commit_msg(self, commit_msg_rel_path):
         """
         Add commit message to the sidebar as the first item.
         
         Args:
-            commit_msg_file: Path to the commit message file
+            commit_msg_rel_path: Path to the commit message file
         """
         # Check if file exists and is readable
-        if (not os.path.isfile(commit_msg_file) or
-            not os.access(commit_msg_file, os.R_OK)):
+        if (not os.path.isfile(commit_msg_rel_path) or
+            not os.access(commit_msg_rel_path, os.R_OK)):
             return  # File doesn't exist or can't be read, don't add
         
-        self._commit_msg_file = commit_msg_file
+        self.commit_msg_rel_path_ = commit_msg_rel_path
         
         # Create a special button for commit message
         self.commit_msg_button = QPushButton("Commit Message")
@@ -377,7 +377,7 @@ class DiffViewerTabWidget(QMainWindow):
     def create_commit_msg_tab(self):
         """Create a tab displaying the commit message"""
         try:
-            with open(self._commit_msg_file, 'r') as f:
+            with open(self.commit_msg_rel_path_, 'r') as f:
                 commit_msg_text = f.read()
         except Exception as e:
             QMessageBox.warning(self, 'Error Reading Commit Message',
@@ -422,14 +422,7 @@ class DiffViewerTabWidget(QMainWindow):
         viewer = self.get_current_viewer()
         current_widget = self.tab_widget.currentWidget()
         
-        # Determine if we have a commit message
-        has_commit_msg = False
-        if viewer and viewer.commit_msg_file:
-            has_commit_msg = True
-        elif hasattr(current_widget, 'is_commit_msg') and current_widget.is_commit_msg:
-            has_commit_msg = True
-        
-        dialog = SearchDialog(self, has_commit_msg=has_commit_msg)
+        dialog = SearchDialog(self)
         if dialog.exec() == dialog.DialogCode.Accepted and dialog.search_text:
             # Pass self (tab widget) as parent so search results can navigate properly
             results_dialog = SearchResultDialog(
@@ -438,7 +431,6 @@ class DiffViewerTabWidget(QMainWindow):
                 case_sensitive=dialog.case_sensitive,
                 search_base=dialog.search_base,
                 search_modi=dialog.search_modi,
-                search_commit_msg=dialog.search_commit_msg,
                 search_all_tabs=dialog.search_all_tabs,
                 use_regex=dialog.use_regex
             )
@@ -462,7 +454,6 @@ class DiffViewerTabWidget(QMainWindow):
         
         dialog = SearchResultDialog(search_text, self, case_sensitive=False,
                                    search_base=True, search_modi=True,
-                                   search_commit_msg=True,
                                    search_all_tabs=search_all_tabs)
         # Store reference to prevent garbage collection
         self.search_result_dialogs.append(dialog)
@@ -623,7 +614,7 @@ class DiffViewerTabWidget(QMainWindow):
         files_to_open = []
         
         # Check commit message
-        if self._commit_msg_file:
+        if self.commit_msg_rel_path_:
             commit_msg_open = False
             for i in range(self.tab_widget.count()):
                 widget = self.tab_widget.widget(i)

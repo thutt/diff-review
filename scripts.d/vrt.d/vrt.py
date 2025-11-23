@@ -36,8 +36,7 @@ class FileButton (object):
         base   = os.path.join(self.root_path_, "base.d", self.base_rel_path_)
         modi   = os.path.join(self.root_path_, "modi.d", self.modi_rel_path_)
         viewer = make_viewer(self.options_, base, modi,
-                             self.options_.arg_note,
-                             self.options_.dossier_["commit_msg"])
+                             self.options_.arg_note)
         tab_widget.add_viewer(viewer)
 
 
@@ -360,8 +359,8 @@ def show_line_numbers(options):
     return options.arg_line_numbers
 
 
-def make_viewer(options, base, modi, note, commit_msg):
-    viewer = diff_viewer.DiffViewer(base, modi, note, commit_msg,
+def make_viewer(options, base, modi, note):
+    viewer = diff_viewer.DiffViewer(base, modi, note,
                                     options.arg_max_line_length,
                                     show_diff_map(options),
                                     show_line_numbers(options))
