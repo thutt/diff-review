@@ -13,6 +13,7 @@ import traceback
 
 import diffmgrng as diffmgr
 import diff_viewer
+import file_local
 import tab_manager_module
 
 home                = os.getenv("HOME", os.path.expanduser("~"))
@@ -42,8 +43,7 @@ class FileButton (object):
         base   = os.path.join(root_path, "base.d", self.base_rel_path_)
         modi   = os.path.join(root_path, "modi.d", self.modi_rel_path_)
         viewer = make_viewer(self.options_, base, modi,
-                             self.options_.arg_note,
-                             self.options_.dossier_["commit_msg"])
+                             self.options_.arg_note)
         tab_widget.add_viewer(viewer)
 
 
@@ -319,6 +319,12 @@ def process_command_line():
     parser  = configure_parser()
     options = parser.parse_args()
 
+    # afr: abstract file reader
+    review_dir = os.path.join(options.arg_review_dir, options.arg_review_name)
+    afr = file_local.LocalFileAccess(review_dir)
+    if options.arg_dossier is None:
+        options.arg_dossier = os.path.join(review_dir, "dossier.json")
+
     options.diffs_root_dir = os.path.join(default_review_dir,
                                           default_review_name)
     if options.arg_dossier_url is not None:
@@ -367,8 +373,10 @@ def process_command_line():
                       "HTTP error: %s. " % (desc.http_code_))
 
     elif os.path.exists(options.arg_dossier):
-        with open(options.arg_dossier, "r") as fp:
-            options.dossier_ = json.load(fp)
+        dossier = afr.read(options.arg_dossier)
+        options.dossier_ = json.loads(dossier)
+        # The abstract file instance's root must come from the repository.
+        options.afr_ = file_local.LocalFileAccess(options.dossier_["root"])
     else:
         fatal("dossier '%s' does not exist." % (options.arg_dossier))
 
@@ -403,13 +411,14 @@ def show_line_numbers(options):
     return options.arg_line_numbers
 
 
-def make_viewer(options, base, modi, note, commit_msg):
-    viewer = diff_viewer.DiffViewer(base, modi, note, commit_msg,
+def make_viewer(options, base, modi, note):
+    viewer = diff_viewer.DiffViewer(base, modi, note,
                                     options.arg_max_line_length,
                                     show_diff_map(options),
                                     show_line_numbers(options))
 
-    desc = diffmgr.create_diff_descriptor(options.arg_verbose,
+    desc = diffmgr.create_diff_descriptor(options.afr_,
+                                          options.arg_verbose,
                                           options.intraline_percent_,
                                           options.arg_dump_ir,
                                           base, modi)
@@ -418,7 +427,8 @@ def make_viewer(options, base, modi, note, commit_msg):
     return viewer
 
 def generate(options, note):
-    tab_widget  = tab_manager_module.DiffViewerTabWidget(options.arg_display_n_lines,
+    tab_widget  = tab_manager_module.DiffViewerTabWidget(options.afr_,
+                                                         options.arg_display_n_lines,
                                                          options.arg_display_n_chars,
                                                          show_diff_map(options),
                                                          show_line_numbers(options),
@@ -430,10 +440,10 @@ def generate(options, note):
                                                          options.arg_dump_ir)
 
 
-    if options.dossier_['commit_msg'] is not None:
-        tab_widget.add_commit_msg(options.dossier_['commit_msg'])
+    if options.dossier_["commit_msg"] is not None:
+        tab_widget.add_commit_msg(options.dossier_["commit_msg"])
 
-    for f in options.dossier_['files']:
+    for f in options.dossier_["files"]:
         file_inst = FileButton(options,
                                f["action"],
                                options.dossier_["root"],

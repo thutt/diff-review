@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # Copyright (c) 2025  Logic Magicians Software (Taylor Hutt).
 # All Rights Reserved.
 # Licensed under Gnu GPL V3.
@@ -21,13 +20,16 @@ from PyQt6.QtGui import (QColor, QFont, QTextCursor, QAction, QFontMetrics,
 from utils import extract_display_path
 from search_dialogs import SearchDialog, SearchResultDialog
 from ui_components import LineNumberArea, DiffMapWidget, SyncedPlainTextEdit
-from commit_msg_dialog import CommitMsgDialog
 import color_palettes
 
 
 class DiffViewer(QMainWindow):
-    def __init__(self, base_file: str, modified_file: str, note_file: str, 
-                 commit_msg_file: str, max_line_length: int, show_diff_map: bool,
+    def __init__(self,
+                 base_file: str,
+                 modified_file: str,
+                 note_file: str,
+                 max_line_length: int,
+                 show_diff_map: bool,
                  show_line_numbers: bool):
         if QApplication.instance() is None:
             self._app = QApplication(sys.argv)
@@ -39,7 +41,6 @@ class DiffViewer(QMainWindow):
         self.base_file = base_file
         self.modified_file = modified_file
         self.note_file = note_file
-        self.commit_msg_file = commit_msg_file
         self.max_line_length = max_line_length
         self.show_diff_map = show_diff_map
         self.show_line_numbers = show_line_numbers
@@ -680,16 +681,6 @@ class DiffViewer(QMainWindow):
         self.mark_noted_line(side, line_nums[line_idx])
         self.note_count += 1
         self.update_status()
-    
-    def get_commit_msg_lines(self):
-        if not self.commit_msg_file:
-            return []
-        
-        try:
-            with open(self.commit_msg_file, 'r') as f:
-                return f.read().split('\n')
-        except Exception:
-            return []
     
     def take_note(self, side):
         if not self.note_file:

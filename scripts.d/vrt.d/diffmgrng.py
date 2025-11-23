@@ -9,29 +9,8 @@ import os
 import diff_desc
 import dumpir
 
-def read_file(path):
-    if not os.path.exists(path):
-        # The file in the review directory does not exist.  Fill
-        # contents with message.
-        return [
-            "The following text was produced by view-review-tabs",
-            "in response to an error condition while loading this file",
-            "from disk.",
-            "",
-            "This file was not present on disk:",
-            "",
-            "   %s" % (path),
-            "",
-            "Regenerate the diffs to restore the file."
-        ]
-
-    with open(path, "r") as fp:
-        # Convert all line endings to a single '\n'.
-        lines = fp.read()
-
-    lines = lines.replace("\r\n", "\n") # Convert Windows files to Linux.
-    lines = lines.replace("\r", "\n")   # Convert Mac files to Linux.
-
+def read_file(afr, path):
+    lines = afr.read(path)
     result = lines.splitlines()
     # The returned list strings will NOT have '\n' at the end.
     # Blank lines will be zero length.
@@ -84,14 +63,14 @@ def is_url(path):
             path.startswith("https://"))
 
 
-def create_difflib(base, modi):
+def create_difflib(afr, base, modi):
     if is_url(base):
         assert(is_url(modi))
-        base_l = fetch_url_contents(base)
-        modi_l = fetch_url_contents(modi)
+        base_l = fetch_url_contents(afr, base)
+        modi_l = fetch_url_contents(afr, modi)
     else:
-        base_l = read_file(base)
-        modi_l = read_file(modi)
+        base_l = read_file(afr, base)
+        modi_l = read_file(afr, modi)
 
     return (difflib.SequenceMatcher(None, base_l, modi_l),
             base_l,
@@ -282,14 +261,15 @@ def add_replaced_line_region(desc, base_l, modi_l, intraline_threshold):
 
 
 
-def create_diff_descriptor(verbose, intraline_percent, dump_ir, base, modi):
+def create_diff_descriptor(afr, verbose, intraline_percent,
+                           dump_ir, base, modi):
     if False:
         beg = datetime.datetime.now()
     desc  = diff_desc.DiffDesc(verbose, intraline_percent)
     marks = ""
 
     # Turn diffs create_difflib() generator into useful structure.
-    (matcher, base_l, modi_l) = create_difflib(base, modi)
+    (matcher, base_l, modi_l) = create_difflib(afr, base, modi)
 
     # Examines the file as a whole.
     for opinfo in matcher.get_opcodes():

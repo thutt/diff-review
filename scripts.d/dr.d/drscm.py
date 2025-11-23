@@ -252,9 +252,9 @@ class SCM(object):
 
             if self.commit_msg_ is not None:
                 # Write commit message / change description file.
-                self.commit_msg_file_ = os.path.join(self.review_dir_,
-                                                     "commit_msg.text")
-                with open(self.commit_msg_file_, "w") as fp:
+                self.commit_msg_file_ = "commit_msg.text"
+                with open(os.path.join(self.review_dir_,
+                                       self.commit_msg_file_), "w") as fp:
                     for l in self.commit_msg_:
                         fp.write("%s\n" % (l))
             else:

@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # Copyright (c) 2025  Logic Magicians Software (Taylor Hutt).
 # All Rights Reserved.
 # Licensed under Gnu GPL V3.
@@ -9,13 +8,14 @@ Help dialog for diff_review
 This module contains the help dialog that displays user documentation.
 """
 from PyQt6.QtWidgets import QDialog, QVBoxLayout, QTextEdit, QPushButton
+from PyQt6.QtCore import Qt
 
 
 class HelpDialog(QDialog):
     """Dialog that displays help documentation for the diff viewer"""
     
     def __init__(self, parent=None):
-        super().__init__(parent)
+        super().__init__(parent, Qt.WindowType.Window)
         self.setWindowTitle("Diff Viewer - How to Use")
         self.setMinimumSize(700, 600)
         
