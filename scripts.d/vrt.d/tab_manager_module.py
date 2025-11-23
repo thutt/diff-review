@@ -1181,17 +1181,6 @@ class DiffViewerTabWidget(QMainWindow):
         viewer = self.get_current_viewer()
         return viewer.modified_line_nums if viewer else []
     
-    @property
-    def commit_msg_file(self):
-        """Get commit_msg_file from current viewer"""
-        viewer = self.get_current_viewer()
-        return viewer.commit_msg_file if viewer else None
-    
-    def get_commit_msg_lines(self):
-        """Get commit message lines from current viewer"""
-        viewer = self.get_current_viewer()
-        return viewer.get_commit_msg_lines() if viewer else []
-    
     def on_tab_changed(self, index):
         """Handle tab change to update sidebar button states"""
         self.update_button_states()

@@ -679,16 +679,6 @@ class DiffViewer(QMainWindow):
         self.note_count += 1
         self.update_status()
     
-    def get_commit_msg_lines(self):
-        if not self.commit_msg_file:
-            return []
-        
-        try:
-            with open(self.commit_msg_file, 'r') as f:
-                return f.read().split('\n')
-        except Exception:
-            return []
-    
     def take_note(self, side):
         if not self.note_file:
             QMessageBox.information(self, 'Note Taking Disabled',
