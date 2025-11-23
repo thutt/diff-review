@@ -613,17 +613,9 @@ class DiffViewerTabWidget(QMainWindow):
         # Build list of files that need to be opened
         files_to_open = []
         
-        # Check commit message
-        if self.commit_msg_rel_path_:
-            commit_msg_open = False
-            for i in range(self.tab_widget.count()):
-                widget = self.tab_widget.widget(i)
-                if hasattr(widget, 'is_commit_msg') and widget.is_commit_msg:
-                    commit_msg_open = True
-                    break
-            if not commit_msg_open:
-                files_to_open.append(('commit_msg', None))
-        
+        if self.commit_msg_rel_path_ and 'commit_msg' not in self.file_to_tab_index:
+            files_to_open.append(('commit_msg', None))
+ 
         # Check which files aren't open yet
         for file_class in self.file_classes:
             if file_class not in self.file_to_tab_index:
