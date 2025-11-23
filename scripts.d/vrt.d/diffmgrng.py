@@ -7,23 +7,17 @@ import difflib
 import diff_desc
 import dumpir
 
-def read_file(path):
-    with open(path, "r") as fp:
-        # Convert all line endings to a single '\n'.
-        lines = fp.read()
-
-    lines = lines.replace("\r\n", "\n") # Convert Windows files to Linux.
-    lines = lines.replace("\r", "\n")   # Convert Mac files to Linux.
-
+def read_file(afr, path):
+    lines = afr.read(path)
     result = lines.splitlines()
     # The returned list strings will NOT have '\n' at the end.
     # Blank lines will be zero length.
     return result
 
 
-def create_difflib(base, modi):
-    base_l = read_file(base)
-    modi_l = read_file(modi)
+def create_difflib(afr, base, modi):
+    base_l = read_file(afr, base)
+    modi_l = read_file(afr, modi)
     return (difflib.SequenceMatcher(None, base_l, modi_l),
             base_l,
             modi_l)
@@ -213,14 +207,15 @@ def add_replaced_line_region(desc, base_l, modi_l, intraline_threshold):
 
 
 
-def create_diff_descriptor(verbose, intraline_percent, dump_ir, base, modi):
+def create_diff_descriptor(afr, verbose, intraline_percent,
+                           dump_ir, base, modi):
     if False:
         beg = datetime.datetime.now()
     desc  = diff_desc.DiffDesc(verbose, intraline_percent)
     marks = ""
 
     # Turn diffs create_difflib() generator into useful structure.
-    (matcher, base_l, modi_l) = create_difflib(base, modi)
+    (matcher, base_l, modi_l) = create_difflib(afr, base, modi)
 
     # Examines the file as a whole.
     for opinfo in matcher.get_opcodes():

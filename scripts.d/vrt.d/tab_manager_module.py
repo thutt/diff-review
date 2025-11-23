@@ -79,6 +79,7 @@ class DiffViewerTabWidget(QMainWindow):
     """Main window containing tabs of DiffViewer instances with file sidebar"""
     
     def __init__(self,
+                 afr,           # Abstract file reader
                  display_lines: int,
                  display_chars: int,
                  show_diff_map: bool,
@@ -96,6 +97,7 @@ class DiffViewerTabWidget(QMainWindow):
         
         super().__init__()
         
+        self.afr_ = afr
         self.display_lines = display_lines
         self.display_chars = display_chars
         self.ignore_tab = ignore_tab
@@ -332,11 +334,6 @@ class DiffViewerTabWidget(QMainWindow):
         Args:
             commit_msg_rel_path: Path to the commit message file
         """
-        # Check if file exists and is readable
-        if (not os.path.isfile(commit_msg_rel_path) or
-            not os.access(commit_msg_rel_path, os.R_OK)):
-            return  # File doesn't exist or can't be read, don't add
-        
         self.commit_msg_rel_path_ = commit_msg_rel_path
         
         # Create a special button for commit message
@@ -376,13 +373,7 @@ class DiffViewerTabWidget(QMainWindow):
     
     def create_commit_msg_tab(self):
         """Create a tab displaying the commit message"""
-        try:
-            with open(self.commit_msg_rel_path_, 'r') as f:
-                commit_msg_text = f.read()
-        except Exception as e:
-            QMessageBox.warning(self, 'Error Reading Commit Message',
-                              f'Could not read commit message file:\n{e}')
-            return
+        commit_msg_text = self.afr_.read(self.commit_msg_rel_path_)
         
         # Create text widget
         text_widget = QPlainTextEdit()
@@ -1595,7 +1586,8 @@ class DiffViewerTabWidget(QMainWindow):
         
         # Reload diff
         try:
-            desc = diffmgr.create_diff_descriptor(False,
+            desc = diffmgr.create_diff_descriptor(self.afr_,
+                                                  False,
                                                   self.intraline_percent,
                                                   self.dump_ir,
                                                   viewer.base_file,
