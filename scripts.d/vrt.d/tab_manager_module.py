@@ -89,6 +89,7 @@ class DiffViewerTabWidget(QMainWindow):
                  ignore_trailing_ws: bool,
                  ignore_intraline: bool,
                  intraline_percent : float,
+                 palette           : str,
                  dump_ir           : bool):
         if QApplication.instance() is None:
             self._app = QApplication(sys.argv)
@@ -106,6 +107,10 @@ class DiffViewerTabWidget(QMainWindow):
         self.dump_ir = dump_ir
         self.intraline_percent = intraline_percent
         self._bulk_loading = False  # Suppress highlighting during "Open All Files"
+        
+        # Apply explicit palette if specified, otherwise use auto-selected default
+        if palette is not None:
+            color_palettes.set_current_palette(palette)
         
         self.setWindowTitle("Diff Viewer")
         

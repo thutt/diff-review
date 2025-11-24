@@ -11,6 +11,7 @@ import signal
 import sys
 import traceback
 
+import color_palettes
 import diffmgrng as diffmgr
 import diff_viewer
 import file_local
@@ -21,6 +22,12 @@ import utils
 home                = os.getenv("HOME", os.path.expanduser("~"))
 default_review_dir  = os.path.join(home, "review")
 default_review_name = "default"
+color_palettes      = {
+    "std"  : color_palettes.STANDARD_PALETTE.name,
+    "cb"   : color_palettes.COLORBLIND_PALETTE.name,
+    "dstd" : color_palettes.DARK_MODE_STANDARD_PALETTE.name,
+    "dcb"  : color_palettes.DARK_MODE_COLORBLIND_PALETTE.name
+}
 
 
 class FileButton (object):
@@ -63,6 +70,10 @@ Return Code:
   0       : success
   non-zero: failure
 """)
+    palette_choices = [ ]
+    for f in color_palettes.keys():
+        palette_choices.append("%-5s : %s" % (f, color_palettes[f]))
+
     formatter = argparse.RawTextHelpFormatter
     parser    = argparse.ArgumentParser(usage                 = None,
                                         formatter_class       = formatter,
@@ -144,25 +155,6 @@ Return Code:
                    dest     = "arg_intraline_percent")
 
 
-    o = parser.add_argument_group("Display Geometry Options")
-    o.add_argument("--display-n-lines",
-                   help     = ("Set number of lines of source to show."),
-                   action   = "store",
-                   type     = int,
-                   default  = 40,
-                   required = False,
-                   metavar  = "<integer>",
-                   dest     = "arg_display_n_lines")
-
-    o.add_argument("--display-n-chars",
-                   help     = ("Set number of characters of source to show."),
-                   action   = "store",
-                   type     = int,
-                   default  = 80,
-                   required = False,
-                   metavar  = "<integer>",
-                   dest     = "arg_display_n_chars")
-
     o.add_argument("--max-line-length",
                    help     = ("Set maximum line length of source code."),
                    action   = "store",
@@ -209,7 +201,36 @@ Return Code:
                          dest     = "arg_ack_insecure_cert")
 
 
-    o = parser.add_argument_group("Diff Display Characteristics")
+    o = parser.add_argument_group("Display Characteristics")
+    o.add_argument("--display-n-lines",
+                   help     = ("Set number of lines of source to show."),
+                   action   = "store",
+                   type     = int,
+                   default  = 40,
+                   required = False,
+                   metavar  = "<integer>",
+                   dest     = "arg_display_n_lines")
+
+    o.add_argument("--display-n-chars",
+                   help     = ("Set number of characters of source to show."),
+                   action   = "store",
+                   type     = int,
+                   default  = 80,
+                   required = False,
+                   metavar  = "<integer>",
+                   dest     = "arg_display_n_chars")
+
+    o.add_argument("--palette",
+                   help     = ("Set initial color palette to use when "
+                               "displaying changes (choices: %(choices)s).\n" +
+                               '\n'.join(palette_choices)),
+                   action   = "store",
+                   choices  = color_palettes.keys(),
+                   default  = None,
+                   required = False,
+                   metavar  = "<color palette name>",
+                   dest     = "arg_palette")
+
     o.add_argument("--show-diff-map",
                    help     = ("Show diff map between the two source "
                                "panes on startup."),
@@ -440,6 +461,10 @@ def make_viewer(options, base, modi, note):
     return viewer
 
 def generate(options, note):
+    selected_palette = None
+    if options.arg_palette is not None:
+        selected_palette = color_palettes[options.arg_palette]
+        
     tab_widget  = tab_manager_module.DiffViewerTabWidget(options.afr_,
                                                          options.arg_display_n_lines,
                                                          options.arg_display_n_chars,
@@ -450,6 +475,7 @@ def generate(options, note):
                                                          options.arg_ignore_trailing_whitespace,
                                                          options.arg_ignore_intraline,
                                                          options.intraline_percent_,
+                                                         selected_palette,
                                                          options.arg_dump_ir)
 
 
