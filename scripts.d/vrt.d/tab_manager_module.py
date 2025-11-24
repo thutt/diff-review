@@ -124,6 +124,9 @@ class DiffViewerTabWidget(QMainWindow):
         self.line_numbers_visible = show_line_numbers  # Initial state for line numbers
         self.global_note_file = None  # Global note file for all viewers
         
+        # Global bookmarks: maps (tab_index, line_idx) -> True
+        self.global_bookmarks = {}
+        
         # File watching and auto-reload
         self.auto_reload_enabled = auto_reload  # Initial auto-reload state from parameter
         self.file_watchers = {}  # Maps viewer -> QFileSystemWatcher
@@ -737,6 +740,8 @@ class DiffViewerTabWidget(QMainWindow):
         # Store references
         viewer_widget.diff_viewer = diff_viewer
         viewer_widget.file_class = file_class
+        diff_viewer.tab_manager = self  # Back-reference for bookmark sync
+        diff_viewer.tab_index = index  # Store tab index
         
         # Install event filter on text widgets to handle Tab key
         diff_viewer.base_text.installEventFilter(self)
@@ -1336,6 +1341,20 @@ class DiffViewerTabWidget(QMainWindow):
             if hasattr(widget, 'base_file'):
                 self.cleanup_file_watcher(widget)
             
+            # Clean up bookmarks for this tab
+            keys_to_remove = [key for key in self.global_bookmarks if key[0] == index]
+            for key in keys_to_remove:
+                del self.global_bookmarks[key]
+            
+            # Update bookmark keys for tabs after this one (decrement tab_index)
+            updated_bookmarks = {}
+            for (tab_idx, line_idx), value in self.global_bookmarks.items():
+                if tab_idx > index:
+                    updated_bookmarks[(tab_idx - 1, line_idx)] = value
+                else:
+                    updated_bookmarks[(tab_idx, line_idx)] = value
+            self.global_bookmarks = updated_bookmarks
+            
             # Check if this is the commit message tab
             if hasattr(widget, 'is_commit_msg') and widget.is_commit_msg:
                 if 'commit_msg' in self.file_to_tab_index:
@@ -1350,6 +1369,12 @@ class DiffViewerTabWidget(QMainWindow):
             for key, tab_idx in list(self.file_to_tab_index.items()):
                 if tab_idx > index:
                     self.file_to_tab_index[key] = tab_idx - 1
+            
+            # Update tab_index in remaining viewers
+            for i in range(self.tab_widget.count()):
+                widget = self.tab_widget.widget(i)
+                if hasattr(widget, 'diff_viewer'):
+                    widget.diff_viewer.tab_index = i
             
             self.tab_widget.removeTab(index)
             
@@ -1456,6 +1481,86 @@ class DiffViewerTabWidget(QMainWindow):
                 self._reset_commit_msg_font_size(current_widget)
             elif hasattr(current_widget, 'diff_viewer'):
                 current_widget.diff_viewer.reset_font_size()
+    
+    def navigate_to_next_bookmark(self):
+        """Navigate to next bookmark across all tabs"""
+        if not self.global_bookmarks:
+            return
+        
+        current_tab = self.tab_widget.currentIndex()
+        viewer = self.get_current_viewer()
+        if not viewer:
+            return
+        
+        # Get current line
+        if viewer.base_text.hasFocus():
+            current_line = viewer.base_text.textCursor().blockNumber()
+        elif viewer.modified_text.hasFocus():
+            current_line = viewer.modified_text.textCursor().blockNumber()
+        else:
+            current_line = 0
+        
+        # Sort all bookmarks
+        sorted_bookmarks = sorted(self.global_bookmarks.keys())
+        
+        # Find next bookmark
+        for tab_idx, line_idx in sorted_bookmarks:
+            if tab_idx > current_tab or (tab_idx == current_tab and line_idx > current_line):
+                self._jump_to_bookmark(tab_idx, line_idx)
+                return
+        
+        # Wrap around to first bookmark
+        if sorted_bookmarks:
+            tab_idx, line_idx = sorted_bookmarks[0]
+            self._jump_to_bookmark(tab_idx, line_idx)
+    
+    def navigate_to_prev_bookmark(self):
+        """Navigate to previous bookmark across all tabs"""
+        if not self.global_bookmarks:
+            return
+        
+        current_tab = self.tab_widget.currentIndex()
+        viewer = self.get_current_viewer()
+        if not viewer:
+            return
+        
+        # Get current line
+        if viewer.base_text.hasFocus():
+            current_line = viewer.base_text.textCursor().blockNumber()
+        elif viewer.modified_text.hasFocus():
+            current_line = viewer.modified_text.textCursor().blockNumber()
+        else:
+            current_line = 0
+        
+        # Sort all bookmarks in reverse
+        sorted_bookmarks = sorted(self.global_bookmarks.keys(), reverse=True)
+        
+        # Find previous bookmark
+        for tab_idx, line_idx in sorted_bookmarks:
+            if tab_idx < current_tab or (tab_idx == current_tab and line_idx < current_line):
+                self._jump_to_bookmark(tab_idx, line_idx)
+                return
+        
+        # Wrap around to last bookmark
+        if sorted_bookmarks:
+            tab_idx, line_idx = sorted_bookmarks[0]
+            self._jump_to_bookmark(tab_idx, line_idx)
+    
+    def _jump_to_bookmark(self, tab_idx, line_idx):
+        """Jump to a specific bookmark"""
+        # Switch to tab
+        self.tab_widget.setCurrentIndex(tab_idx)
+        
+        # Get viewer
+        viewer = self.get_viewer_at_index(tab_idx)
+        if not viewer:
+            return
+        
+        # Center on line
+        viewer.center_on_line(line_idx)
+        
+        # Set focus to base text (arbitrary choice)
+        viewer.base_text.setFocus()
     
     def toggle_tab_visibility(self):
         """Toggle tab character visibility in all viewers"""
@@ -1814,6 +1919,21 @@ class DiffViewerTabWidget(QMainWindow):
                 viewer.take_note_from_widget('base')
             elif viewer.modified_text.hasFocus():
                 viewer.take_note_from_widget('modified')
+            return
+        
+        # [ - Previous bookmark
+        if key == Qt.Key.Key_BracketLeft:
+            self.navigate_to_prev_bookmark()
+            return
+        
+        # ] - Next bookmark
+        if key == Qt.Key.Key_BracketRight:
+            self.navigate_to_next_bookmark()
+            return
+        
+        # M - Toggle bookmark
+        if key == Qt.Key.Key_M:
+            viewer.toggle_bookmark()
             return
         
         # N - Next change

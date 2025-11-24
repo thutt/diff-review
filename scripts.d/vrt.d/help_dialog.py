@@ -153,6 +153,17 @@ class HelpDialog(QDialog):
             <li>All notes are appended to the notes file (created if it does not exist)</li>
         </ul>
         
+        <h3>Bookmarks</h3>
+        <ul>
+            <li><b>M:</b> Toggle bookmark on current line</li>
+            <li><b>[:</b> Navigate to previous bookmark (wraps around, switches tabs)</li>
+            <li><b>]:</b> Navigate to next bookmark (wraps around, switches tabs)</li>
+            <li><b>Visual indicator:</b> Cyan/teal vertical bar on left edge of bookmarked lines</li>
+            <li><b>Global scope:</b> Bookmarks work across all open tabs</li>
+            <li><b>Status bar:</b> Shows bookmark count next to notes count</li>
+            <li>Bookmarks are not persisted - closing a tab removes its bookmarks</li>
+        </ul>
+        
         <h3>Diff Map</h3>
         <ul>
             <li>Vertical bar shows overview of all changes in the file</li>

@@ -48,6 +48,7 @@ class DiffViewer(QMainWindow):
         
         self.base_noted_lines = set()
         self.modified_noted_lines = set()
+        self.bookmarked_lines = set()  # Line indices that are bookmarked
         
         self.base_display = []
         self.modified_display = []
@@ -120,6 +121,7 @@ class DiffViewer(QMainWindow):
         self.base_line_area.set_text_widget(self.base_text)
         self.base_text.set_line_number_area(self.base_line_area)
         self.base_text.set_max_line_length(self.max_line_length)
+        self.base_text.viewer = self  # Reference for bookmark lookup
         base_layout.addWidget(self.base_line_area)
         base_layout.addWidget(self.base_text)
         base_container = QWidget()
@@ -141,6 +143,7 @@ class DiffViewer(QMainWindow):
         self.modified_line_area.set_text_widget(self.modified_text)
         self.modified_text.set_line_number_area(self.modified_line_area)
         self.modified_text.set_max_line_length(self.max_line_length)
+        self.modified_text.viewer = self  # Reference for bookmark lookup
         modified_layout.addWidget(self.modified_line_area)
         modified_layout.addWidget(self.modified_text)
         modified_container = QWidget()
@@ -166,12 +169,14 @@ class DiffViewer(QMainWindow):
         self.region_label = QLabel("Region: 0 of 0")
         self.highlighting_label = QLabel("")
         self.highlighting_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.bookmarks_label = QLabel("Bookmarks: 0")
         self.notes_label = QLabel("Notes: 0")
         
         status_layout.addWidget(self.region_label)
         status_layout.addStretch()
         status_layout.addWidget(self.highlighting_label)
         status_layout.addStretch()
+        status_layout.addWidget(self.bookmarks_label)
         status_layout.addWidget(self.notes_label)
         status_frame = QFrame()
         status_frame.setFrameStyle(QFrame.Shape.Panel | QFrame.Shadow.Sunken)
@@ -904,6 +909,7 @@ class DiffViewer(QMainWindow):
         total = self.n_changed_regions
         current = self.current_region + 1 if total > 0 else 0
         self.region_label.setText(f"Region: {current} of {total}")
+        self.bookmarks_label.setText(f"Bookmarks: {len(self.bookmarked_lines)}")
         self.notes_label.setText(f"Notes: {self.note_count}")
     
     def toggle_diff_map(self):
@@ -923,6 +929,50 @@ class DiffViewer(QMainWindow):
             self.base_line_area.show()
             self.modified_line_area.show()
             self.line_numbers_visible = True
+    
+    def toggle_bookmark(self):
+        """Toggle bookmark on current focused line"""
+        # Determine which text widget has focus
+        if self.base_text.hasFocus():
+            line_idx = self.base_text.textCursor().blockNumber()
+            text_widget = self.base_text
+        elif self.modified_text.hasFocus():
+            line_idx = self.modified_text.textCursor().blockNumber()
+            text_widget = self.modified_text
+        else:
+            return
+        
+        # Toggle in local set
+        if line_idx in self.bookmarked_lines:
+            self.bookmarked_lines.remove(line_idx)
+        else:
+            self.bookmarked_lines.add(line_idx)
+        
+        # Store on BOTH text widgets so paintEvent can access directly
+        if not hasattr(self.base_text, 'bookmarked_lines'):
+            self.base_text.bookmarked_lines = set()
+        if not hasattr(self.modified_text, 'bookmarked_lines'):
+            self.modified_text.bookmarked_lines = set()
+        
+        if line_idx in self.bookmarked_lines:
+            self.base_text.bookmarked_lines.add(line_idx)
+            self.modified_text.bookmarked_lines.add(line_idx)
+        else:
+            self.base_text.bookmarked_lines.discard(line_idx)
+            self.modified_text.bookmarked_lines.discard(line_idx)
+        
+        # Sync with global bookmarks using stored references
+        if hasattr(self, 'tab_manager') and hasattr(self, 'tab_index'):
+            key = (self.tab_index, line_idx)
+            if line_idx in self.bookmarked_lines:
+                self.tab_manager.global_bookmarks[key] = True
+            elif key in self.tab_manager.global_bookmarks:
+                del self.tab_manager.global_bookmarks[key]
+        
+        # Update visuals
+        self.base_text.viewport().update()
+        self.modified_text.viewport().update()
+        self.update_status()
     
     def increase_font_size(self):
         """Increase font size (max 24pt)"""
@@ -996,6 +1046,11 @@ class DiffViewer(QMainWindow):
         
         if key == Qt.Key.Key_S and modifiers & Qt.KeyboardModifier.ControlModifier:
             self.show_search_dialog()
+            return
+        
+        # M - Toggle bookmark
+        if key == Qt.Key.Key_M:
+            self.toggle_bookmark()
             return
         
         if key == Qt.Key.Key_N:

@@ -166,6 +166,7 @@ class SyncedPlainTextEdit(QPlainTextEdit):
         self.region_highlight_end = -1
         self.focused_line = -1
         self.noted_lines = set()  # Track which lines have notes
+        self.bookmarked_lines = set()  # Track which lines have bookmarks
         self.max_line_length = None  # Maximum line length indicator
         
         self.setReadOnly(True)
@@ -364,6 +365,22 @@ class SyncedPlainTextEdit(QPlainTextEdit):
         
         first_visible_block = self.firstVisibleBlock()
         first_visible = first_visible_block.blockNumber()
+        
+        # Draw bookmarked lines with left edge bar
+        if self.bookmarked_lines:
+            viewport_lines = self.viewport().height() // line_height if line_height > 0 else 0
+            for line_idx in self.bookmarked_lines:
+                if (line_idx >= first_visible and 
+                    line_idx < first_visible + viewport_lines):
+                    
+                    block = self.document().findBlockByNumber(line_idx)
+                    if block.isValid():
+                        block_geom = self.blockBoundingGeometry(block)
+                        y_pos = int(block_geom.translated(self.contentOffset()).top())
+                        block_height = int(block_geom.height())
+                        
+                        # Bright cyan vertical bar on left edge - 5px wide for visibility
+                        painter.fillRect(0, y_pos, 5, block_height, QColor(0, 255, 255))
         
         # Draw noted lines with background color
         if self.noted_lines:
