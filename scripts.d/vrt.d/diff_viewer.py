@@ -378,54 +378,67 @@ class DiffViewer(QMainWindow):
         QTimer.singleShot(0, self.highlight_next_chunk)
     
     def highlight_next_chunk(self):
-        """Highlight next chunk of lines."""
+        """Highlight next chunk of lines with batch formatting for performance."""
         if not self.highlighting_in_progress:
             return
         
-        chunk_size = 500
+        chunk_size = 1000  # Increased from 500 for better throughput
         start_line = self.highlighting_next_line
         end_line = min(start_line + chunk_size, len(self.base_line_objects))
         
         import diff_desc
         palette = color_palettes.get_current_palette()
         
-        for i in range(start_line, end_line):
-            base_line = self.base_line_objects[i]
-            modi_line = self.modified_line_objects[i]
-            
-            # BASE SIDE
-            if not base_line.show_line_number():
-                self.highlight_line(self.base_text, i, palette.get_color('placeholder'), base_line)
-            else:
-                bg_color = None
-                if base_line.region_:
-                    region_kind = base_line.region_.kind_
-                    if region_kind == diff_desc.RegionDesc.DELETE or \
-                       region_kind == diff_desc.RegionDesc.CHANGE:
-                        bg_color = palette.get_color('base_changed_bg')
+        # Begin edit block for base text widget - batches all operations into single repaint
+        base_cursor = self.base_text.textCursor()
+        base_cursor.beginEditBlock()
+        
+        # Begin edit block for modified text widget
+        modi_cursor = self.modified_text.textCursor()
+        modi_cursor.beginEditBlock()
+        
+        try:
+            for i in range(start_line, end_line):
+                base_line = self.base_line_objects[i]
+                modi_line = self.modified_line_objects[i]
                 
-                if bg_color:
-                    self.highlight_line(self.base_text, i, bg_color, base_line)
-                    self.base_line_area.set_line_background(i, bg_color)
+                # BASE SIDE
+                if not base_line.show_line_number():
+                    self.highlight_line(self.base_text, i, palette.get_color('placeholder'), base_line)
+                else:
+                    bg_color = None
+                    if base_line.region_:
+                        region_kind = base_line.region_.kind_
+                        if region_kind == diff_desc.RegionDesc.DELETE or \
+                           region_kind == diff_desc.RegionDesc.CHANGE:
+                            bg_color = palette.get_color('base_changed_bg')
+                    
+                    if bg_color:
+                        self.highlight_line(self.base_text, i, bg_color, base_line)
+                        self.base_line_area.set_line_background(i, bg_color)
+                    
+                    self.apply_runs(self.base_text, i, base_line)
                 
-                self.apply_runs(self.base_text, i, base_line)
-            
-            # MODIFIED SIDE
-            if not modi_line.show_line_number():
-                self.highlight_line(self.modified_text, i, palette.get_color('placeholder'), modi_line)
-            else:
-                bg_color = None
-                if modi_line.region_:
-                    region_kind = modi_line.region_.kind_
-                    if region_kind == diff_desc.RegionDesc.ADD or \
-                       region_kind == diff_desc.RegionDesc.CHANGE:
-                        bg_color = palette.get_color('modi_changed_bg')
-                
-                if bg_color:
-                    self.highlight_line(self.modified_text, i, bg_color, modi_line)
-                    self.modified_line_area.set_line_background(i, bg_color)
-                
-                self.apply_runs(self.modified_text, i, modi_line)
+                # MODIFIED SIDE
+                if not modi_line.show_line_number():
+                    self.highlight_line(self.modified_text, i, palette.get_color('placeholder'), modi_line)
+                else:
+                    bg_color = None
+                    if modi_line.region_:
+                        region_kind = modi_line.region_.kind_
+                        if region_kind == diff_desc.RegionDesc.ADD or \
+                           region_kind == diff_desc.RegionDesc.CHANGE:
+                            bg_color = palette.get_color('modi_changed_bg')
+                    
+                    if bg_color:
+                        self.highlight_line(self.modified_text, i, bg_color, modi_line)
+                        self.modified_line_area.set_line_background(i, bg_color)
+                    
+                    self.apply_runs(self.modified_text, i, modi_line)
+        finally:
+            # End edit blocks - triggers single repaint for each widget
+            base_cursor.endEditBlock()
+            modi_cursor.endEditBlock()
         
         self.highlighting_next_line = end_line
         
