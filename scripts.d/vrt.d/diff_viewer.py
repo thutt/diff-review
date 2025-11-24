@@ -71,6 +71,8 @@ class DiffViewer(QMainWindow):
         self._needs_highlighting_update = False  # Set by tab_manager for deferred updates
         self._needs_color_refresh = False  # Set by tab_manager for deferred color updates
         
+        self.current_font_size = 12  # Default font size
+        
         self.setup_gui()
     
     def setup_gui(self):
@@ -922,6 +924,45 @@ class DiffViewer(QMainWindow):
             self.modified_line_area.show()
             self.line_numbers_visible = True
     
+    def increase_font_size(self):
+        """Increase font size (max 24pt)"""
+        if self.current_font_size < 24:
+            self.current_font_size += 1
+            self._apply_font_size()
+    
+    def decrease_font_size(self):
+        """Decrease font size (min 6pt)"""
+        if self.current_font_size > 6:
+            self.current_font_size -= 1
+            self._apply_font_size()
+    
+    def reset_font_size(self):
+        """Reset font size to default (12pt)"""
+        self.current_font_size = 12
+        self._apply_font_size()
+    
+    def _apply_font_size(self):
+        """Apply current font size to all text widgets and line number areas"""
+        text_font = QFont("Courier", self.current_font_size, QFont.Weight.Bold)
+        
+        # Apply to text widgets
+        self.base_text.setFont(text_font)
+        self.modified_text.setFont(text_font)
+        
+        # Apply to line number areas
+        self.base_line_area.setFont(text_font)
+        self.base_line_area._font = text_font
+        self.modified_line_area.setFont(text_font)
+        self.modified_line_area._font = text_font
+        
+        # Force update of line number areas
+        self.base_line_area.update()
+        self.modified_line_area.update()
+        
+        # Force update of text widget viewports
+        self.base_text.viewport().update()
+        self.modified_text.viewport().update()
+    
     def showEvent(self, event):
         """Override to ensure highlighting is applied when window becomes visible"""
         super().showEvent(event)
@@ -932,6 +973,18 @@ class DiffViewer(QMainWindow):
     def keyPressEvent(self, event):
         key = event.key()
         modifiers = event.modifiers()
+        
+        # Font size changes - Ctrl/Cmd + Plus/Minus/0
+        if modifiers & (Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.MetaModifier):
+            if key in (Qt.Key.Key_Plus, Qt.Key.Key_Equal):  # + or = key
+                self.increase_font_size()
+                return
+            elif key == Qt.Key.Key_Minus:
+                self.decrease_font_size()
+                return
+            elif key == Qt.Key.Key_0:
+                self.reset_font_size()
+                return
         
         if key == Qt.Key.Key_H and modifiers & Qt.KeyboardModifier.AltModifier:
             self.toggle_diff_map()

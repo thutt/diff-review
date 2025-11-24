@@ -182,6 +182,15 @@ class HelpDialog(QDialog):
             <li><b>Alt+R / Cmd+R:</b> Toggle Auto-reload Files on/off</li>
         </ul>
         
+        <h3>Font Size</h3>
+        <ul>
+            <li><b>Ctrl++ / Cmd++:</b> Increase font size (up to 24pt)</li>
+            <li><b>Ctrl+- / Cmd+-:</b> Decrease font size (down to 6pt)</li>
+            <li><b>Ctrl+0 / Cmd+0:</b> Reset font size to default (12pt)</li>
+            <li>Font size changes apply to current tab only (including commit message tabs)</li>
+            <li>Changes are not persisted between sessions</li>
+        </ul>
+        
         <h3>Line Numbers</h3>
         <ul>
             <li>Shows original line numbers from each file</li>

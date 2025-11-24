@@ -277,6 +277,23 @@ class DiffViewerTabWidget(QMainWindow):
         self.auto_reload_action.triggered.connect(self.toggle_auto_reload)
         view_menu.addAction(self.auto_reload_action)
         
+        view_menu.addSeparator()
+        
+        increase_font_action = QAction("Increase Font Size", self)
+        increase_font_action.setShortcuts([QKeySequence.StandardKey.ZoomIn])
+        increase_font_action.triggered.connect(self.increase_font_size)
+        view_menu.addAction(increase_font_action)
+        
+        decrease_font_action = QAction("Decrease Font Size", self)
+        decrease_font_action.setShortcuts([QKeySequence.StandardKey.ZoomOut])
+        decrease_font_action.triggered.connect(self.decrease_font_size)
+        view_menu.addAction(decrease_font_action)
+        
+        reset_font_action = QAction("Reset Font Size", self)
+        reset_font_action.setShortcuts([QKeySequence("Ctrl+0"), QKeySequence("Meta+0")])
+        reset_font_action.triggered.connect(self.reset_font_size)
+        view_menu.addAction(reset_font_action)
+        
         # Palette menu
         palette_menu = menubar.addMenu("Palette")
         
@@ -1413,6 +1430,33 @@ class DiffViewerTabWidget(QMainWindow):
                 if viewer in self.changed_files and self.changed_files[viewer]:
                     self.reload_viewer(viewer)
     
+    def increase_font_size(self):
+        """Increase font size in current tab"""
+        current_widget = self.tab_widget.currentWidget()
+        if current_widget:
+            if hasattr(current_widget, 'is_commit_msg') and current_widget.is_commit_msg:
+                self._change_commit_msg_font_size(current_widget, 1)
+            elif hasattr(current_widget, 'diff_viewer'):
+                current_widget.diff_viewer.increase_font_size()
+    
+    def decrease_font_size(self):
+        """Decrease font size in current tab"""
+        current_widget = self.tab_widget.currentWidget()
+        if current_widget:
+            if hasattr(current_widget, 'is_commit_msg') and current_widget.is_commit_msg:
+                self._change_commit_msg_font_size(current_widget, -1)
+            elif hasattr(current_widget, 'diff_viewer'):
+                current_widget.diff_viewer.decrease_font_size()
+    
+    def reset_font_size(self):
+        """Reset font size to default in current tab"""
+        current_widget = self.tab_widget.currentWidget()
+        if current_widget:
+            if hasattr(current_widget, 'is_commit_msg') and current_widget.is_commit_msg:
+                self._reset_commit_msg_font_size(current_widget)
+            elif hasattr(current_widget, 'diff_viewer'):
+                current_widget.diff_viewer.reset_font_size()
+    
     def toggle_tab_visibility(self):
         """Toggle tab character visibility in all viewers"""
         self.ignore_tab = not self.show_tab_action.isChecked()
@@ -1670,10 +1714,61 @@ class DiffViewerTabWidget(QMainWindow):
                 if v != viewer:
                     v._needs_color_refresh = True
     
+    def _change_commit_msg_font_size(self, text_widget, delta):
+        """Change font size for commit message tab"""
+        if not hasattr(text_widget, 'current_font_size'):
+            text_widget.current_font_size = 12  # Initialize if not set
+        
+        new_size = text_widget.current_font_size + delta
+        # Clamp to range [6, 24]
+        new_size = max(6, min(24, new_size))
+        
+        if new_size != text_widget.current_font_size:
+            text_widget.current_font_size = new_size
+            font = QFont("Courier", new_size, QFont.Weight.Bold)
+            text_widget.setFont(font)
+            text_widget.viewport().update()
+    
+    def _reset_commit_msg_font_size(self, text_widget):
+        """Reset font size for commit message tab to default (12pt)"""
+        text_widget.current_font_size = 12
+        font = QFont("Courier", 12, QFont.Weight.Bold)
+        text_widget.setFont(font)
+        text_widget.viewport().update()
+    
     def keyPressEvent(self, event):
         """Handle key press events"""
         key = event.key()
         modifiers = event.modifiers()
+        
+        # Font size changes - works for both DiffViewer and commit message tabs
+        if modifiers & (Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.MetaModifier):
+            if key in (Qt.Key.Key_Plus, Qt.Key.Key_Equal):  # + or = key
+                current_widget = self.tab_widget.currentWidget()
+                if current_widget:
+                    # Check if it's a commit message tab
+                    if hasattr(current_widget, 'is_commit_msg') and current_widget.is_commit_msg:
+                        self._change_commit_msg_font_size(current_widget, 1)
+                    # Otherwise it's a DiffViewer
+                    elif hasattr(current_widget, 'diff_viewer'):
+                        current_widget.diff_viewer.increase_font_size()
+                return
+            elif key == Qt.Key.Key_Minus:
+                current_widget = self.tab_widget.currentWidget()
+                if current_widget:
+                    if hasattr(current_widget, 'is_commit_msg') and current_widget.is_commit_msg:
+                        self._change_commit_msg_font_size(current_widget, -1)
+                    elif hasattr(current_widget, 'diff_viewer'):
+                        current_widget.diff_viewer.decrease_font_size()
+                return
+            elif key == Qt.Key.Key_0:
+                current_widget = self.tab_widget.currentWidget()
+                if current_widget:
+                    if hasattr(current_widget, 'is_commit_msg') and current_widget.is_commit_msg:
+                        self._reset_commit_msg_font_size(current_widget)
+                    elif hasattr(current_widget, 'diff_viewer'):
+                        current_widget.diff_viewer.reset_font_size()
+                return
         
         # Get current viewer for most commands
         viewer = self.get_current_viewer()
