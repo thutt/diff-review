@@ -1,9 +1,16 @@
 # Copyright (c) 2025  Logic Magicians Software (Taylor Hutt).
 # All Rights Reserved.
 # Licensed under Gnu GPL V3.
-import requests
+import utils
+
+try:
+    import requests
+except Exception as exc:
+    utils.fatal("Unable to import 'requests'.  "
+                "You must install the 'requests' module.")
+
 from requests.auth import HTTPBasicAuth
-from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, 
+from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
                               QLineEdit, QPushButton, QMessageBox)
 from PyQt6.QtCore import Qt
 
@@ -17,15 +24,15 @@ _verify_ssl = True  # Start with verification enabled
 
 class SSLVerificationDialog(QDialog):
     """Dialog to ask user whether to accept unverified SSL certificate"""
-    
+
     def __init__(self, url, error_msg, parent=None):
         super().__init__(parent)
         self.setWindowTitle("SSL Certificate Verification Failed")
         self.setModal(True)
         self.accept_unverified = False
-        
+
         layout = QVBoxLayout(self)
-        
+
         # Warning icon and message
         warning_label = QLabel(
             f"WARNING: SSL Certificate verification failed for:\n{url}\n\n"
@@ -39,23 +46,23 @@ class SSLVerificationDialog(QDialog):
         )
         warning_label.setWordWrap(True)
         layout.addWidget(warning_label)
-        
+
         # Buttons
         button_layout = QHBoxLayout()
-        
+
         accept_button = QPushButton("Accept and Continue (Insecure)")
         accept_button.clicked.connect(self.on_accept)
-        
+
         cancel_button = QPushButton("Cancel")
         cancel_button.clicked.connect(self.reject)
         cancel_button.setDefault(True)  # Make cancel the default
-        
+
         button_layout.addWidget(accept_button)
         button_layout.addWidget(cancel_button)
         layout.addLayout(button_layout)
-        
+
         self.setMinimumWidth(500)
-    
+
     def on_accept(self):
         """User chose to accept unverified certificate"""
         self.accept_unverified = True
@@ -64,27 +71,27 @@ class SSLVerificationDialog(QDialog):
 
 class BasicAuthDialog(QDialog):
     """Dialog for securely prompting for HTTP Basic Auth credentials"""
-    
+
     def __init__(self, url, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Authentication Required")
         self.setModal(True)
         self.username = None
         self.password = None
-        
+
         layout = QVBoxLayout(self)
-        
+
         # Info label
         info_label = QLabel(f"Authentication required for:\n{url}")
         layout.addWidget(info_label)
-        
+
         # Username field
         username_layout = QHBoxLayout()
         username_layout.addWidget(QLabel("Username:"))
         self.username_field = QLineEdit()
         username_layout.addWidget(self.username_field)
         layout.addLayout(username_layout)
-        
+
         # Password field
         password_layout = QHBoxLayout()
         password_layout.addWidget(QLabel("Password:"))
@@ -92,7 +99,7 @@ class BasicAuthDialog(QDialog):
         self.password_field.setEchoMode(QLineEdit.EchoMode.Password)
         password_layout.addWidget(self.password_field)
         layout.addLayout(password_layout)
-        
+
         # Buttons
         button_layout = QHBoxLayout()
         ok_button = QPushButton("OK")
@@ -104,12 +111,12 @@ class BasicAuthDialog(QDialog):
         button_layout.addWidget(ok_button)
         button_layout.addWidget(cancel_button)
         layout.addLayout(button_layout)
-        
+
         # Focus on username field
         self.username_field.setFocus()
-        
+
         self.setMinimumWidth(400)
-    
+
     def accept(self):
         """Store credentials when OK is clicked"""
         self.username = self.username_field.text()
@@ -118,21 +125,25 @@ class BasicAuthDialog(QDialog):
 
 
 class FetchDesc(object):
-    def __init__(self, url, require_auth=False, parent_widget=None):
+    def __init__(self, url,
+                 ack_insecure_cert,
+                 require_auth=False,
+                 parent_widget=None):
         """
         Initialize fetch descriptor
-        
+
         Args:
             url: URL to fetch
             require_auth: If True, always prompt for credentials before fetching.
                          If False, only prompt if 401 response is received.
             parent_widget: Parent widget for auth dialog (optional)
         """
-        self.url_           = url
-        self.body_          = None
-        self.http_code_     = None
-        self.require_auth_  = require_auth
-        self.parent_widget_ = parent_widget
+        self.url_               = url
+        self.body_              = None
+        self.http_code_         = None
+        self.require_auth_      = require_auth
+        self.parent_widget_     = parent_widget
+        self.ack_insecure_cert_ = ack_insecure_cert
 
     def _get_cached_credentials(self):
         """Get cached credentials if available"""
@@ -161,16 +172,24 @@ class FetchDesc(object):
     def fetch(self):
         """
         Fetch content from URL, prompting for auth if needed
-        
+
         Uses cached credentials if available. Only prompts once per session.
         Tries with SSL verification first, prompts user if verification fails.
         If require_auth is True, prompts before first attempt.
         If require_auth is False, attempts fetch, and prompts only on 401.
         """
         global _verify_ssl
-        
+
+        if not self.ack_insecure_cert_:
+            _verify_ssl = False
+            # Suppress warnings for the rest of the session, because
+            # it was requested.
+            import warnings
+            import urllib3
+            warnings.filterwarnings('ignore', message='.*Unverified HTTPS.*')
+
         auth = None
-        
+
         # Try to use cached credentials first
         cached = self._get_cached_credentials()
         if cached:
@@ -183,7 +202,7 @@ class FetchDesc(object):
                 self.http_code_ = None
                 return
             auth = HTTPBasicAuth(*creds)
-        
+
         # Make the request with current SSL verification setting
         try:
             response = requests.get(self.url_, auth=auth, verify=_verify_ssl)

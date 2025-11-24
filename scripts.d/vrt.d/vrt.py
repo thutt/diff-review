@@ -14,7 +14,9 @@ import traceback
 import diffmgrng as diffmgr
 import diff_viewer
 import file_local
+import file_url
 import tab_manager_module
+import utils
 
 home                = os.getenv("HOME", os.path.expanduser("~"))
 default_review_dir  = os.path.join(home, "review")
@@ -45,11 +47,6 @@ class FileButton (object):
         viewer = make_viewer(self.options_, base, modi,
                              self.options_.arg_note)
         tab_widget.add_viewer(viewer)
-
-
-def fatal(msg):
-    print("fatal: %s" % (msg))
-    sys.exit(1)
 
 
 def configure_parser():
@@ -120,7 +117,7 @@ Return Code:
                          default  = None,
                          required = False,
                          metavar  = "<pathname>",
-                         dest     = "arg_dossier")
+                         dest     = "arg_dossier_path")
 
     d_group.add_argument("--url",
                          help     = ("URL from which dossier & diffs can be retrived."),
@@ -191,6 +188,25 @@ Return Code:
                    action   = "store_false",
                    required = False,
                    dest     = "arg_auto_reload")
+
+
+    o = parser.add_argument_group("HTTP Certificate Verification Options")
+    o.add_argument("--verify-https-cert",
+                         help     = ("Require acknowledgment that a URL signed "
+                                     "with an unverified certificate is "
+                                     "insecure."),
+                         action   = "store_true",
+                         default  = True,
+                         required = False,
+                         dest     = "arg_ack_insecure_cert")
+
+    o.add_argument("--no-verify-https-cert",
+                         help     = ("Do not prompt to acknowledge that URLs "
+                                     "signed with unverified certificates is "
+                                     "are insecure."),
+                         action   = "store_false",
+                         required = False,
+                         dest     = "arg_ack_insecure_cert")
 
 
     o = parser.add_argument_group("Diff Display Characteristics")
@@ -311,7 +327,7 @@ def rsync_and_rerun(options):
     rsyncer = os.path.join(parent_dir, "rsyncer")
     cmd     = [ rsyncer,
                 "--fqdn", options.arg_fqdn,
-                "--dossier", options.arg_dossier ]
+                "--dossier", options.arg_dossier_path ]
     os.execv(rsyncer, cmd)
 
 
@@ -319,33 +335,28 @@ def process_command_line():
     parser  = configure_parser()
     options = parser.parse_args()
 
-    # afr: abstract file reader
-    review_dir = os.path.join(options.arg_review_dir, options.arg_review_name)
-    afr = file_local.LocalFileAccess(review_dir)
-    if options.arg_dossier is None:
-        options.arg_dossier = os.path.join(review_dir, "dossier.json")
-
-    options.diffs_root_dir = os.path.join(default_review_dir,
+    options.diffs_root_dir_ = os.path.join(default_review_dir,
                                           default_review_name)
     if options.arg_dossier_url is not None:
-        pass                    # XXX Anything to do?
+        # Import fetchurl locally to avoid 'requests' module unless
+        # '--url' is used.
+        import fetchurl
+        options.afr_ = file_url.URLFileAccess(options.arg_dossier_url,
+                                              options.arg_ack_insecure_cert)
     else:
+        review_dir   = os.path.join(options.arg_review_dir,
+                                    options.arg_review_name)
+
         # Check for '--dossier', or use default dossier.
-        if options.arg_dossier is None:
-            options.arg_dossier = os.path.join(options.diffs_root_dir,
-                                               "dossier.json")
+        if options.arg_dossier_path is None:
+            options.arg_dossier_path = os.path.join(options.diffs_root_dir_)
         else:
-            # Older versions of 'dr' would output the full dossier
-            # pathname, while newer versions do not (to make http
-            # integration easier).  Remain backwards compatible with
-            # older versions by not adding the dossier name if it's
-            # already present on the command line.
-            if not options.arg_dossier.endswith("dossier.json"):
-                options.diffs_root_dir = options.arg_dossier
-                options.arg_dossier = os.path.join(options.diffs_root_dir,
-                                                   "dossier.json")
-            else:
-                options.diffs_root_dir = os.path.dirname(options.arg_dossier)
+            if options.arg_dossier_path.endswith("dossier.json"):
+                utils.fatal("'%s' must not have the dossier name included." %
+                            (options.arg_dossier_path))
+
+            options.diffs_root_dir_  = options.arg_dossier_path
+        options.afr_ = file_local.LocalFileAccess(options.arg_dossier_path)
 
     options.arg_intraline_percent = max(1, min(options.arg_intraline_percent,
                                                100))
@@ -355,30 +366,32 @@ def process_command_line():
 
     if options.arg_fqdn is not None:
         rsync_and_rerun(options)
-    elif options.arg_dossier_url is not None:
-        # Import fetchurl locally to avoid 'requests' module unless
-        # '--url' is used.
-        import fetchurl
-        desc = fetchurl.FetchDesc(os.path.join(options.arg_dossier_url,
-                                               "dossier.json"))
-        desc.fetch()
-        if desc.http_code_ is None:
-            fatal("HTTP connection could not be made; "
-                  "cannot retrieve change's dossier.")
-        else:
-            if desc.http_code_ == 200:
-                options.dossier_ = json.loads(desc.body_)
-            else:
-                fatal("Cannot retrieve change's dossier; "
-                      "HTTP error: %s. " % (desc.http_code_))
-
-    elif os.path.exists(options.arg_dossier):
-        dossier = afr.read(options.arg_dossier)
-        options.dossier_ = json.loads(dossier)
-        # The abstract file instance's root must come from the repository.
-        options.afr_ = file_local.LocalFileAccess(options.dossier_["root"])
     else:
-        fatal("dossier '%s' does not exist." % (options.arg_dossier))
+        dossier = options.afr_.read("dossier.json")
+        if options.arg_dossier_url is not None:
+            try:
+                # Reading breaks the lines into an array of non-'\n'
+                # terminated strings.
+                #
+                options.dossier_ = json.loads('\n'.join(dossier))
+            except Exception as exc:
+                options.dossier_ = None
+
+            if options.dossier_ is None:
+                print("")
+                for l in dossier:
+                    print(l)
+                print("")
+                utils.fatal("Unable to retrieve dossier from:\n  '%s'" %
+                            (options.arg_dossier_url))
+        else:
+            # The dossier is now an array of lines with no linefeeds.  Put
+            # it back together for json.loads() to parse.
+            try:
+                options.dossier_ = json.loads('\n'.join(dossier))
+            except Exception as exc:
+                utils.fatal("Unable to load dossier from:\n  '%s'" %
+                            (options.arg_dossier_path))
 
     # inv: options.dossier_ is now a valid json dictionary.
 

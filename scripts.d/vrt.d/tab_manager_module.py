@@ -374,6 +374,12 @@ class DiffViewerTabWidget(QMainWindow):
     def create_commit_msg_tab(self):
         """Create a tab displaying the commit message"""
         commit_msg_text = self.afr_.read(self.commit_msg_rel_path_)
+
+        # The afr_.read() will return the lines as an array of
+        # non-'\n' strings.  The setPlainText() function seems to need
+        # a single string.  So, for this special case, put the lines
+        # back together.
+        commit_msg_text = '\n'.join(commit_msg_text)
         
         # Create text widget
         text_widget = QPlainTextEdit()

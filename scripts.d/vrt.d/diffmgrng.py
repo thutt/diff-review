@@ -9,68 +9,9 @@ import os
 import diff_desc
 import dumpir
 
-def read_file(afr, path):
-    lines = afr.read(path)
-    result = lines.splitlines()
-    # The returned list strings will NOT have '\n' at the end.
-    # Blank lines will be zero length.
-    return result
-
-
-def fetch_url_contents(url):
-    # Import fetchurl locally to avoid 'requests' module unless
-    # '--url' is used.
-    import fetchurl
-    desc = fetchurl.FetchDesc(url)
-    desc.fetch()
-    if desc.http_code_ is None:
-        return [
-            "An unidentified network error occurred during the download of",
-            "",
-            "  %s" % (url),
-            "",
-            "No HTTP code was produced, so this is most likely to be",
-            "a network infrastructure error, or the web server is down.",
-            "",
-            "The file contents could not be retrieved."
-        ]
-    else:
-        if desc.http_code_ == 200:
-            lines = desc.body_
-        else:
-            return [
-                "Fetching the following URL",
-                "",
-                "  %s" % (url),
-                "",
-                "produced this HTML response code: %s" % (desc.http_code_),
-                "",
-                "The file contents could not be retrieved."
-            ]
-
-
-    lines = lines.replace("\r\n", "\n") # Convert Windows files to Linux.
-    lines = lines.replace("\r", "\n")   # Convert Mac files to Linux.
-
-    result = lines.splitlines()
-    # The returned list of strings will NOT have '\n' at the end.
-    # Blank lines will be zero length.
-    return result
-
-
-def is_url(path):
-    return (path.startswith("http://") or
-            path.startswith("https://"))
-
-
 def create_difflib(afr, base, modi):
-    if is_url(base):
-        assert(is_url(modi))
-        base_l = fetch_url_contents(afr, base)
-        modi_l = fetch_url_contents(afr, modi)
-    else:
-        base_l = read_file(afr, base)
-        modi_l = read_file(afr, modi)
+    base_l = afr.read(base)
+    modi_l = afr.read(modi)
 
     return (difflib.SequenceMatcher(None, base_l, modi_l),
             base_l,
@@ -206,7 +147,7 @@ def add_replaced_line_region(desc, base_l, modi_l, intraline_threshold):
                 elif opc == "delete":
                     assert((m_end - m_beg) == 0) # Characters deleted.
                     r_len = b_end - b_beg
-                    l_base.runs_deleted_ += [ 
+                    l_base.runs_deleted_ += [
                         diff_desc.TextRunDeleted(b_beg, r_len)
                     ]
                     l_base.runs_tabs_ += diff_desc.find_tab_runs(l_base,
@@ -229,7 +170,7 @@ def add_replaced_line_region(desc, base_l, modi_l, intraline_threshold):
                     l_modi.runs_tabs_ += diff_desc.find_tab_runs(l_modi, m_beg,
                                                                  m_end - m_beg)
                     l_modi.runs_tws_  += diff_desc.find_trailing_whitespace(l_modi)
-        
+
         desc.cache_base(l_base)
         desc.cache_modi(l_modi)
         desc.flush(0, False, None)

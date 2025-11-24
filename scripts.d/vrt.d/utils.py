@@ -11,6 +11,11 @@ import sys
 from PyQt6.QtCore import QtMsgType, qInstallMessageHandler
 
 
+def fatal(msg):
+    print("fatal: %s" % (msg))
+    sys.exit(1)
+
+
 def qt_message_handler(mode, context, message):
     """
     Custom Qt message handler to suppress XKB warnings and handle other Qt messages.
