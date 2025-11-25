@@ -1,0 +1,2 @@
+Fully qualified domain name of the host where the diffs were created.
+[default: %(default)s]

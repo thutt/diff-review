@@ -5,6 +5,7 @@
 import argparse
 import json
 import os
+import sys
 
 import color_palettes
 import file_local
@@ -21,7 +22,61 @@ color_palettes_dict = {
     "dcb"  : color_palettes.DARK_MODE_COLORBLIND_PALETTE.name
 }
 
-def configure_parser():
+
+def get_help_dir():
+    script_dir = os.path.dirname(sys.argv[0])
+    help_dir   = os.path.join(script_dir, "help")
+    return help_dir
+
+
+def process_extended_help_request(options, opt_extended):
+    # If any extended help was requested, display its file and exit.
+    for ext in opt_extended:
+        topic    = ext[0]
+        field    = ext[1]
+        help_arg = getattr(options, field)
+
+        if help_arg:
+            help_dir = get_help_dir()
+            fname = os.path.join(help_dir, "%s_extended.text" % (topic))
+            with open(fname, "r") as fp:
+                lines = fp.read()
+
+            print("\n--%s\n" % (topic))
+            for l in lines.splitlines():
+                print("  %s" % (l))
+
+            print("\n")
+            sys.exit(0)
+
+
+def regular_help(ext, extended, topic):
+    assert(isinstance(topic, str))
+    help_dir = get_help_dir()
+    fname = os.path.join(help_dir, "%s.text" % (topic))
+    assert(os.path.exists(fname))
+    with open(fname, "r") as fp:
+        lines = fp.read()
+
+    ext_help = "--help-%s" % (topic)
+    ext_dest = "arg_%s_ext_help" % (topic)
+
+    extended.append((topic, ext_dest))
+
+    lines += "See %s." % (ext_help)
+
+    ext.add_argument(ext_help,
+                     help     = argparse.SUPPRESS,
+                     action   = "store_true",
+                     default  = False,
+                     required = False,
+                     dest     = ext_dest)
+
+    return lines
+
+
+def configure_parser(ext_options):
+    assert(isinstance(ext_options, list))
     description = ("""
 
 claude facilitates viewing the contents of an already-generated diff.
@@ -47,297 +102,247 @@ Return Code:
                                         prog                  = "view-review-tabs",
                                         fromfile_prefix_chars = '@')
 
-    o = parser.add_argument_group("Remote Host Specification Options")
-    o.add_argument("--fqdn",
-                   help     = ("Fully qualified domain name of the host "
-                               "where the diffs were created. "
-                               "If the diffs are stored on another "
-                               "system to which this system does not have "
-                               "direct access specify this name of that system "
-                               "with this option.  "
-                               "This option option will cause another script "
-                               "to be executed that will use rsync to copy "
-                               "the files locally.  The current value of "
-                               "${USER} will be used for the invocation of "
-                               "rsync. [default: %(default)s]"),
-                   action   = "store",
-                   default  = None,
-                   metavar  = "<FQDN of host>",
-                   required = False,
-                   dest     = "arg_fqdn")
+    dso = parser.add_argument_group("Diff Specification Options")
+    dro = parser.add_argument_group("Diff Rendering Options")
+    nto = parser.add_argument_group("Note Taking Options")
+    aro = parser.add_argument_group("Automatic Reload Options")
+    hco = parser.add_argument_group("HTTPS Certificate Options")
+    dco = parser.add_argument_group("Display Characteristics Options")
+    oo  = parser.add_argument_group("Output Options")
+    ext = parser.add_argument_group("Extended Help Information")
 
-    o = parser.add_argument_group("Diff Specification Options")
-    o.add_argument("-R", "--review-directory",
-                   help     = ("Specifies root directory where diffs will be "
-                               "written."),
-                   action   = "store",
-                   default  = default_review_dir,
-                   metavar  = "<pathname>",
-                   required = False,
-                   dest     = "arg_review_dir")
-
-    o.add_argument("-r", "--review-name",
-                   help     = ("Specifies the name of the diffs as they will "
-                               "be written."),
-                   action   = "store",
-                   default  = default_review_name,
-                   metavar  = "<name>",
-                   required = False,
-                   dest     = "arg_review_name")
-
-
-    d_group = parser.add_mutually_exclusive_group()
-    d_group.add_argument("--dossier",
-                         help     = ("JSON file containing change information."),
+    d_group = dso.add_mutually_exclusive_group()
+    d_group.add_argument("--diff-dir",
+                         help     = regular_help(ext, ext_options, "diff-dir"),
                          action   = "store",
                          default  = None,
                          required = False,
                          metavar  = "<pathname>",
                          dest     = "arg_dossier_path")
 
-    d_group.add_argument("--url",
-                         help     = ("URL from which dossier & diffs can be retrived."),
+    d_group.add_argument("--diff-url",
+                         help     = regular_help(ext, ext_options, "diff-url"),
                          action   = "store",
                          default  = None,
                          required = False,
                          metavar  = "<URL>",
                          dest     = "arg_dossier_url")
 
-    o.add_argument("--intraline-percent",
-                   help     = ("Integer percentage of similarity of two lines, "
-                               "below which intraline diffs will not be "
-                               "enabled. A higher value will reduce "
-                               "incomprehensible intraline diff coloring.  A "
-                               "lower value will present the lines as deleted "
-                               "from the base file and added to the "
-                               "modified file.  Value supplied is clamped to "
-                               "the range [1, 100] (default: %(default)s)"),
-                   action   = "store",
-                   type     = int,
-                   default  = 60,
-                   metavar  = "<intraline percent>",
-                   required = False,
-                   dest     = "arg_intraline_percent")
+    dso.add_argument("--fqdn",
+                     help     = regular_help(ext, ext_options, "fqdn"),
+                     action   = "store",
+                     default  = None,
+                     metavar  = "<FQDN>",
+                     required = False,
+                     dest     = "arg_fqdn")
 
 
-    o.add_argument("--max-line-length",
-                   help     = ("Set maximum line length of source code."),
-                   action   = "store",
-                   type     = int,
-                   default  = 80,
-                   required = False,
-                   metavar  = "<integer>",
-                   dest     = "arg_max_line_length")
+    dro.add_argument("--intraline-percent",
+                     help     = regular_help(ext, ext_options, "intraline-percent"),
+                     action   = "store",
+                     type     = int,
+                     default  = 60,
+                     metavar  = "<intraline percent>",
+                     required = False,
+                     dest     = "arg_intraline_percent")
 
 
-    o = parser.add_argument_group("Automatic Reload Options")
-    o.add_argument("--auto-reload",
-                   help     = ("Automatically  reload changed files "
-                               "into viewer."),
-                   action   = "store_true",
-                   default  = True,
-                   required = False,
-                   dest     = "arg_auto_reload")
+    dro.add_argument("--max-line-length",
+                     help     = regular_help(ext, ext_options, "max-line-length"),
+                     action   = "store",
+                     type     = int,
+                     default  = 80,
+                     required = False,
+                     metavar  = "<integer>",
+                     dest     = "arg_max_line_length")
 
-    o.add_argument("--no-auto-reload",
-                   help     = ("Do not automatically reload changed files "
-                               "into viewer."),
-                   action   = "store_false",
-                   required = False,
-                   dest     = "arg_auto_reload")
-
-
-    o = parser.add_argument_group("HTTP Certificate Verification Options")
-    o.add_argument("--verify-https-cert",
-                         help     = ("Require acknowledgment that a URL signed "
-                                     "with an unverified certificate is "
-                                     "insecure."),
-                         action   = "store_true",
-                         default  = True,
-                         required = False,
-                         dest     = "arg_ack_insecure_cert")
-
-    o.add_argument("--no-verify-https-cert",
-                         help     = ("Do not prompt to acknowledge that URLs "
-                                     "signed with unverified certificates is "
-                                     "are insecure."),
-                         action   = "store_false",
-                         required = False,
-                         dest     = "arg_ack_insecure_cert")
+    dro.add_argument("--palette",
+                     help     = regular_help(ext, ext_options, "palette"),
+                     action   = "store",
+                     choices  = color_palettes_dict.keys(),
+                     default  = None,
+                     required = False,
+                     metavar  = "<color palette name>",
+                     dest     = "arg_palette")
 
 
-    o = parser.add_argument_group("Display Characteristics")
-    o.add_argument("--display-n-lines",
-                   help     = ("Set number of lines of source to show."),
-                   action   = "store",
-                   type     = int,
-                   default  = 40,
-                   required = False,
-                   metavar  = "<integer>",
-                   dest     = "arg_display_n_lines")
+    nto.add_argument("--note-file",
+                     help     = regular_help(ext, ext_options, "note-file"),
+                     action   = "store",
+                     default  = None,
+                     required = False,
+                     metavar  = "<path of file to write>",
+                     dest     = "arg_note")
 
-    o.add_argument("--display-n-chars",
-                   help     = ("Set number of characters of source to show."),
-                   action   = "store",
-                   type     = int,
-                   default  = 80,
-                   required = False,
-                   metavar  = "<integer>",
-                   dest     = "arg_display_n_chars")
 
-    o.add_argument("--palette",
-                   help     = ("Set initial color palette to use when "
-                               "displaying changes (choices: %(choices)s).\n" +
-                               '\n'.join(palette_choices)),
-                   action   = "store",
-                   choices  = color_palettes_dict.keys(),
-                   default  = None,
-                   required = False,
-                   metavar  = "<color palette name>",
-                   dest     = "arg_palette")
+    aro.add_argument("--auto-reload",
+                     help     = regular_help(ext, ext_options, "auto-reload"),
+                     action   = "store_true",
+                     default  = True,
+                     required = False,
+                     dest     = "arg_auto_reload")
 
-    o.add_argument("--show-diff-map",
-                   help     = ("Show diff map between the two source "
-                               "panes on startup."),
-                   action   = "store_true",
-                   default  = True,
-                   required = False,
-                   dest     = "arg_diff_map")
+    aro.add_argument("--no-auto-reload",
+                     action   = "store_false",
+                     required = False,
+                     dest     = "arg_auto_reload")
 
-    o.add_argument("--no-show-diff-map",
-                   help     = ("Do not show diff map between the two source "
-                               "panes on startup."),
-                   action   = "store_false",
-                   required = False,
-                   dest     = "arg_diff_map")
 
-    o.add_argument("--show-trailing-whitespace",
-                   help     = ("Show trailing whitespace found in "
-                               "the file."),
-                   action   = "store_false", # Internal semantic is 'ignore'.
-                   default  = False,
-                   required = False,
-                   dest     = "arg_ignore_trailing_whitespace")
+    hco.add_argument("--verify-https-cert",
+                     help     = regular_help(ext, ext_options, "verify-https-cert"),
+                     action   = "store_true",
+                     default  = True,
+                     required = False,
+                     dest     = "arg_ack_insecure_cert")
 
-    o.add_argument("--no-show-trailing-whitespace",
-                   help     = ("Do not show trailing whitespace found in "
-                               "the file."),
-                   action   = "store_true", # Internal semantic is 'ignore'.
-                   required = False,
-                   dest     = "arg_ignore_trailing_whitespace")
+    hco.add_argument("--no-verify-https-cert",
+                     action   = "store_false",
+                     required = False,
+                     dest     = "arg_ack_insecure_cert")
 
-    o.add_argument("--show-tab",
-                   help     = ("Display visually outstanding "
-                               "TAB characters."),
-                   action   = "store_false", # Internal semantic is 'ignore'.
-                   default  = False,
-                   required = False,
-                   dest     = "arg_ignore_tab")
 
-    o.add_argument("--no-show-tab",
-                   help     = ("Do not display visually outstanding "
-                               "TAB characters."),
-                   action   = "store_true", # Internal semantic is 'ignore'.
-                   required = False,
-                   dest     = "arg_ignore_tab")
+    dco.add_argument("--display-n-lines",
+                     help     = ("Set initial number of lines of source "
+                                 "to show in viewer.\n[default: %(default)s]"),
+                     action   = "store",
+                     type     = int,
+                     default  = 40,
+                     required = False,
+                     metavar  = "<integer>",
+                     dest     = "arg_display_n_lines")
 
-    o.add_argument("--show-intraline",
-                   help     = ("Show intraline differences between "
-                               "lines in the different panes."),
-                   action   = "store_false", # Internal semantic is 'ignore'.
-                   default  = False,
-                   required = False,
-                   dest     = "arg_ignore_intraline")
+    dco.add_argument("--display-n-chars",
+                     help     = ("Set initial number of characters per line "
+                                 "to show in viewer.\n[default: %(default)s]"),
+                     action   = "store",
+                     type     = int,
+                     default  = 80,
+                     required = False,
+                     metavar  = "<integer>",
+                     dest     = "arg_display_n_chars")
 
-    o.add_argument("--no-show-intraline",
-                   help     = ("Do not show intraline differences between "
-                               "lines in the different panes."),
-                   action   = "store_true", # Internal semantic is 'ignore'.
-                   required = False,
-                   dest     = "arg_ignore_intraline")
+    dco.add_argument("--show-diff-map",
+                     help     = "Show diff map in viewer.",
+                     action   = "store_true",
+                     default  = True,
+                     required = False,
+                     dest     = "arg_diff_map")
 
-    o.add_argument("--show-line-numbers",
-                   help     = ("When selected, the line numbers will be shown "
-                               "on startup."),
-                   action   = "store_true",
-                   default  = True,
-                   required = False,
-                   dest     = "arg_line_numbers")
+    dco.add_argument("--no-show-diff-map",
+                     help     = "Do not show diff map in viewer.",
+                     action   = "store_false",
+                     required = False,
+                     dest     = "arg_diff_map")
 
-    o.add_argument("--no-show-line-numbers",
-                   help     = ("When selected, the line numbers will be hidden "
-                               "on startup."),
-                   action   = "store_false",
-                   required = False,
-                   dest     = "arg_line_numbers")
+    dco.add_argument("--show-trailing-whitespace",
+                     help     = "Visually expose trailing whitespace.",
+                     action   = "store_false", # Internal semantic is 'ignore'.
+                     default  = False,
+                     required = False,
+                     dest     = "arg_ignore_trailing_whitespace")
 
-    o = parser.add_argument_group("Note Taking Options")
-    o.add_argument("--note-file",
-                   help     = ("Name of note file to which notes will "
-                               "be written."),
-                   action   = "store",
-                   default  = None,
-                   required = False,
-                   metavar  = "<path of file to write>",
-                   dest     = "arg_note")
+    dco.add_argument("--no-show-trailing-whitespace",
+                     help     = ("Do not visually expose trailing whitespace."),
+                     action   = "store_true", # Internal semantic is 'ignore'.
+                     required = False,
+                     dest     = "arg_ignore_trailing_whitespace")
 
-    o = parser.add_argument_group("Output Options")
-    o.add_argument("--dump-ir",
-                   help     = ("Dump internal representation of diff.  "
-                               "Creates 'dr-base-<file>.text' and "
-                               "'dr-modi-<file>.text' "
-                               "in the specified directory."),
-                   action   = "store",
-                   default  = None,
-                   required = False,
-                   metavar  = "<path of directory to write output>",
-                   dest     = "arg_dump_ir")
+    dco.add_argument("--show-tab",
+                     help     = ("Visually expose TABs."),
+                     action   = "store_false", # Internal semantic is 'ignore'.
+                     default  = False,
+                     required = False,
+                     dest     = "arg_ignore_tab")
 
-    o.add_argument("--verbose",
-                   help     = ("Turn on verbose diagnostic output"),
-                   action   = "store_true",
-                   default  = False,
-                   required = False,
-                   dest     = "arg_verbose")
+    dco.add_argument("--no-show-tab",
+                     help     = ("Do not visually expose TABs."),
+                     action   = "store_true", # Internal semantic is 'ignore'.
+                     required = False,
+                     dest     = "arg_ignore_tab")
 
+    dco.add_argument("--show-intraline",
+                     help     = ("Visually show intraline changes."),
+                     action   = "store_false", # Internal semantic is 'ignore'.
+                     default  = False,
+                     required = False,
+                     dest     = "arg_ignore_intraline")
+
+    dco.add_argument("--no-show-intraline",
+                     help     = ("Do not visually show intraline changes."),
+                     action   = "store_true", # Internal semantic is 'ignore'.
+                     required = False,
+                     dest     = "arg_ignore_intraline")
+
+    dco.add_argument("--show-line-numbers",
+                     help     = ("Show line numbers."),
+                     action   = "store_true",
+                     default  = True,
+                     required = False,
+                     dest     = "arg_line_numbers")
+
+    dco.add_argument("--no-show-line-numbers",
+                     help     = ("Do not show line numbers."),
+                     action   = "store_false",
+                     required = False,
+                     dest     = "arg_line_numbers")
+
+
+    oo.add_argument("--dump-ir",
+                    help     = argparse.SUPPRESS, # Internal use only.
+                    action   = "store",
+                    default  = None,
+                    required = False,
+                    metavar  = "<path of directory to write output>",
+                    dest     = "arg_dump_ir")
+
+    oo.add_argument("--verbose",
+                    help     = ("Turn on verbose diagnostic output"),
+                    action   = "store_true",
+                    default  = False,
+                    required = False,
+                    dest     = "arg_verbose")
+    
     parser.add_argument("tail",
                         help  = "Command line tail",
                         nargs = "*")
     return parser
 
 
+
 def process_command_line():
-    parser  = configure_parser()
+    opt_extended = [ ]
+    parser  = configure_parser(opt_extended)
     options = parser.parse_args()
 
-    options.diffs_root_dir_ = os.path.join(default_review_dir,
-                                          default_review_name)
-    if options.arg_dossier_url is not None:
-        # Import fetchurl locally to avoid 'requests' module unless
-        # '--url' is used.
-        import fetchurl
-        options.afr_ = file_url.URLFileAccess(options.arg_dossier_url,
-                                              options.arg_ack_insecure_cert)
-    else:
-        review_dir   = os.path.join(options.arg_review_dir,
-                                    options.arg_review_name)
-
-        # Check for '--dossier', or use default dossier.
-        if options.arg_dossier_path is None:
-            options.arg_dossier_path = os.path.join(options.diffs_root_dir_)
-        else:
-            if options.arg_dossier_path.endswith("dossier.json"):
-                utils.fatal("'%s' must not have the dossier name included." %
-                            (options.arg_dossier_path))
-
-            options.diffs_root_dir_  = options.arg_dossier_path
-        options.afr_ = file_local.LocalFileAccess(options.arg_dossier_path)
+    process_extended_help_request(options, opt_extended)
 
     options.arg_intraline_percent = max(1, min(options.arg_intraline_percent,
                                                100))
     assert(1 <= options.arg_intraline_percent and
            options.arg_intraline_percent <= 100)
     options.intraline_percent_ = float(options.arg_intraline_percent) / 100.0
+
+    options.arg_max_line_length = max(1, options.arg_max_line_length)
+
+    if options.arg_dossier_url is not None:
+        # Import fetchurl locally to avoid 'requests' module unless
+        # '--url' is used.  The 'requests' module isn't always
+        # installed, and there is no reason to need it to be installed
+        # if it's not used.
+        import fetchurl
+        options.afr_ = file_url.URLFileAccess(options.arg_dossier_url,
+                                              options.arg_ack_insecure_cert)
+    else:
+        # options.arg_dossier_path can be None.  When that is the
+        # case, use the default review name.
+        if options.arg_dossier_path is None:
+            options.arg_dossier_path = os.path.join(default_review_dir,
+                                                    default_review_name)
+        elif options.arg_dossier_path.endswith("dossier.json"):
+            utils.fatal("'%s' must not have the dossier name included." %
+                        (options.arg_dossier_path))
+
+        options.afr_ = file_local.LocalFileAccess(options.arg_dossier_path)
 
     options.selected_palette_ = None
     if options.arg_palette is not None:
@@ -369,6 +374,10 @@ def process_command_line():
             try:
                 options.dossier_ = json.loads('\n'.join(dossier))
             except Exception as exc:
+                print("")
+                for l in dossier:
+                    print(l)
+                print("")
                 utils.fatal("Unable to load dossier from:\n  '%s'" %
                             (options.arg_dossier_path))
 

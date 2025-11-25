@@ -1,0 +1,31 @@
+An unverified http certificate means that the certificate is
+untrustworthy; while the connection may be encrypted, the identity of
+the destination cannot be validated.  This means that the you cannot
+be sure you are talking with the correct destination.
+
+If you encounter a request to acknowledge that your connection is
+insecure, you need to make a judgement call.  Consider the following
+carefully before proceeding:
+
+
+ o Probably ok to proceed
+
+    Internal company sites with self-signed certs
+    Local development environments (e.g., localhost)
+    Known internal networks where you trust the cert source
+
+ o Probably NOT ok to proceed
+
+    Banking, shopping, email, or any public website
+    Any site where you enter personal or financial information
+    Unexpected certificate warnings on public Wi-Fi
+
+
+If your internal development IT team is not good with setting up valid
+certificates, and you are sure there is no risk, you can use:
+
+  --no-verify-https-cert
+
+to disable the requirement to acknowledge that the site may be
+insecure.  However, use this only when you are absolutely sure that
+this is ok.

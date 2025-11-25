@@ -1,0 +1,5 @@
+The UI uses this number to draw a vertical line in both the base and
+modified source panels to indicate the maximum length of a source line
+set by your local coding standard.
+
+The minimum value is 1.

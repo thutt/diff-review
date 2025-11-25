@@ -13,7 +13,25 @@ class LocalFileAccess(file_access.FileAccess):
     def read_(self, pathname):
         pathname = os.path.join(self.root_, pathname)
 
-        with open(pathname, "r") as fp:
-            lines = fp.read()
-
-        return lines
+        if os.path.exists(pathname):
+            if os.access(pathname, os.R_OK):
+                with open(pathname, "r") as fp:
+                    return fp.read()
+            else:
+                result = [
+                    "The file: ",
+                    "",
+                    "   '%s'" % (pathname),
+                    "",
+                    "is not readable by your account."
+                ]
+            return '\n'.join(result)
+        else:
+            result = [
+                "The file: ",
+                "",
+                "   '%s'" % (pathname),
+                "",
+                "does not exist."
+            ]
+            return '\n'.join(result)

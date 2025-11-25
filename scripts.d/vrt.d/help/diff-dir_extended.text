@@ -1,0 +1,12 @@
+The --diff-dir provides the location of a diff produced by
+'diff-review' which one wants to review.
+
+If not specified, and '--diff-url' is also not specified, the program
+will use the default pathname.
+
+When a valid diffs is found at this path, the program will laod the
+dossier, and start the UI to view the file diffs.
+
+This is mutually exclusive with '--diff-url'.
+
+The default pathname is '~/review/default'.

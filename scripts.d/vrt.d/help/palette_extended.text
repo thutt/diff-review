@@ -1,0 +1,11 @@
+Initial color palette for displaying changes.   If not specified,
+auto-selection occurs.
+
+  std   : Standard.
+  cb    : Colorblind Friendly.
+  dstd  : Dark Mode Standard.
+  dcb   : Dark Mode Colorblind.
+
+For autoselection, 'cb' is the default.
+
+On MacOS, if Dark Mode is enabled, then 'dcb' is the default.

@@ -1,0 +1,36 @@
+Reviewing code well requires comments to be made and then provided as
+feedback to the author.  In most cases, online review systems have the
+best editor that a web browser can offer, but that's usually a very,
+very poor excuse for an editor; it's not integrated into the code, and
+generally has no features to make you productive.
+
+This note taking feature of this tool (also available through the
+File|Open Note menu), writes notes into the selected file, which you
+can simultaneously edit in the editor that makes you most productive.
+
+Note taking can be done with any open tab.
+
+
+To take a note using the keyboard:
+
+  Use Shfit-UpArrow and Shift-DownArrow to select the lines on which
+  you want to take a note.
+
+  Press Ctrl-N.
+
+  The selected lines will be written to the note file.
+
+  Now switch to your editor, refresh the file, and add your comments.
+
+To take a note using the mouse:
+
+  Hold the left button while dragging the mouse across the text on
+  which you want a note to be taken.
+
+  Once your selection is complete, Press the right button and select
+  'Take Note'.
+
+  Now switch to your editor, refresh the file, and add your comments.
+
+  Additionally, the lines will have a slight background color change
+  to signify that a note has been taken on them.

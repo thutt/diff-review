@@ -79,8 +79,8 @@ def report(options, changed_info, elapsed_time):
 
         print("\n"
               "Changes:  %s" % (changed_info))
-        print("Viewer :  vrt %s--dossier '%s'" % (fqdn, os.path.dirname(dossier)))
-        print("Viewer :  vrt --url %s://%s:%s%s" %
+        print("Viewer :  vrt %s--diff-dir '%s'" % (fqdn, os.path.dirname(dossier)))
+        print("Viewer :  vrt --diff-url %s://%s:%s%s" %
               (protocol, options.arg_url_server,
                options.arg_url_port, url_dossier_dir))
         print("Viewer :  vr -R '%s' -r '%s'" %
