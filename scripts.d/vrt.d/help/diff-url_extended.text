@@ -1,0 +1,31 @@
+This specifies a URL, either http or https, from which diffs can be
+retrieved and viewed.
+
+If the URL is https:
+
+  o The certificate is validated.
+
+    If it doesn't pass verification, you will be prompted to accept
+    the risk and continue, or to cancel the access.
+
+    The default is to require acknowledgment when a certificate fails
+    verification, but that behavior can be changed with
+    '--no-verify-https-cert'.
+
+  o A username and password is requested.
+
+    If the credentials are correct, access is granted and the diff
+    will be displayed through the normal UI.
+
+    If you are worried about security of the username and password,
+    you may audit fetchurl.py.
+
+
+If the URL is http:
+
+   o Access is granted directly, and no credentials are required.
+
+If the URL does not reference a valid diff, an error message will be
+displayed and the program will halt.
+
+This is mutually exclusive with '--diff-dir'.

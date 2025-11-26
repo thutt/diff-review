@@ -16,11 +16,21 @@ On Ubuntu, this can be satisfied with:
 
     sudo apt install python3-pyqt6
 
+- <code>requests</code>
+
+To use the '--url' option of <code>vrt</code> and fetch diffs from a
+URL, you must have the <code>requests</code> module installed.
+
+On MacOS, and Windows <code>cmd.exe</code>, this can be satisfied with:
+
+    pip3 install requests
+
+
 # Supported Operating Systems
 
  - Linux
- - MacOS (basic functionality)
- - Windows (proof-of-concept functionality)
+ - MacOS
+ - Windows (--url not yet supported)
 
 # Viewer Managers
 

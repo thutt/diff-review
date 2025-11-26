@@ -1,0 +1,2 @@
+Initial color palette (choices: %(choices)s).
+[default: %(default)s]

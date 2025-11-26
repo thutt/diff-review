@@ -3,7 +3,6 @@
 # Licensed under Gnu GPL V3.
 #
 import argparse
-import json
 import os
 import PyQt6
 import subprocess
@@ -11,13 +10,11 @@ import signal
 import sys
 import traceback
 
+import cmdlineargs
+import color_palettes
 import diffmgrng as diffmgr
 import diff_viewer
 import tab_manager_module
-
-home                = os.getenv("HOME", os.path.expanduser("~"))
-default_review_dir  = os.path.join(home, "review")
-default_review_name = "default"
 
 
 class FileButton (object):
@@ -33,259 +30,17 @@ class FileButton (object):
         return self.modi_rel_path_
 
     def add_viewer(self, tab_widget):
-        base   = os.path.join(self.root_path_, "base.d", self.base_rel_path_)
-        modi   = os.path.join(self.root_path_, "modi.d", self.modi_rel_path_)
+        url = self.options_.arg_dossier_url
+        if url is not None:
+            root_path = url
+        else:
+            root_path = self.root_path_
+
+        base   = os.path.join(root_path, "base.d", self.base_rel_path_)
+        modi   = os.path.join(root_path, "modi.d", self.modi_rel_path_)
         viewer = make_viewer(self.options_, base, modi,
-                             self.options_.arg_note,
-                             self.options_.dossier_["commit_msg"])
+                             self.options_.arg_note)
         tab_widget.add_viewer(viewer)
-
-
-def fatal(msg):
-    print("fatal: %s" % (msg))
-    sys.exit(1)
-
-
-def configure_parser():
-    description = ("""
-
-claude facilitates viewing the contents of an already-generated diff.
-
-""")
-
-    help_epilog = ("""
-
-
-Return Code:
-  0       : success
-  non-zero: failure
-""")
-    formatter = argparse.RawTextHelpFormatter
-    parser    = argparse.ArgumentParser(usage                 = None,
-                                        formatter_class       = formatter,
-                                        description           = description,
-                                        epilog                = help_epilog,
-                                        prog                  = "view-review-tabs",
-                                        fromfile_prefix_chars = '@')
-
-    o = parser.add_argument_group("Remote Host Specification Options")
-    o.add_argument("--fqdn",
-                   help     = ("Fully qualified domain name of the host "
-                               "where the diffs were created. "
-                               "If the diffs are stored on another "
-                               "system to which this system does not have "
-                               "direct access specify this name of that system "
-                               "with this option.  "
-                               "This option option will cause another script "
-                               "to be executed that will use rsync to copy "
-                               "the files locally.  The current value of "
-                               "${USER} will be used for the invocation of "
-                               "rsync. [default: %(default)s]"),
-                   action   = "store",
-                   default  = None,
-                   metavar  = "<FQDN of host>",
-                   required = False,
-                   dest     = "arg_fqdn")
-
-    o = parser.add_argument_group("Diff Specification Options")
-    o.add_argument("-R", "--review-directory",
-                   help     = ("Specifies root directory where diffs will be "
-                               "written."),
-                   action   = "store",
-                   default  = default_review_dir,
-                   metavar  = "<pathname>",
-                   required = False,
-                   dest     = "arg_review_dir")
-
-    o.add_argument("-r", "--review-name",
-                   help     = ("Specifies the name of the diffs as they will "
-                               "be written."),
-                   action   = "store",
-                   default  = default_review_name,
-                   metavar  = "<name>",
-                   required = False,
-                   dest     = "arg_review_name")
-
-    o.add_argument("--dossier",
-                   help     = ("JSON file containing change information."),
-                   action   = "store",
-                   default  = None,
-                   required = False,
-                   metavar  = "<pathname>",
-                   dest     = "arg_dossier")
-
-    o.add_argument("--intraline-percent",
-                   help     = ("Integer percentage of similarity of two lines, "
-                               "below which intraline diffs will not be "
-                               "enabled. A higher value will reduce "
-                               "incomprehensible intraline diff coloring.  A "
-                               "lower value will present the lines as deleted "
-                               "from the base file and added to the "
-                               "modified file.  Value supplied is clamped to "
-                               "the range [1, 100] (default: %(default)s)"),
-                   action   = "store",
-                   type     = int,
-                   default  = 60,
-                   metavar  = "<intraline percent>",
-                   required = False,
-                   dest     = "arg_intraline_percent")
-
-
-    o = parser.add_argument_group("Display Geometry Options")
-    o.add_argument("--display-n-lines",
-                   help     = ("Set number of lines of source to show."),
-                   action   = "store",
-                   type     = int,
-                   default  = 40,
-                   required = False,
-                   metavar  = "<integer>",
-                   dest     = "arg_display_n_lines")
-
-    o.add_argument("--display-n-chars",
-                   help     = ("Set number of characters of source to show."),
-                   action   = "store",
-                   type     = int,
-                   default  = 80,
-                   required = False,
-                   metavar  = "<integer>",
-                   dest     = "arg_display_n_chars")
-
-    o.add_argument("--max-line-length",
-                   help     = ("Set maximum line length of source code."),
-                   action   = "store",
-                   type     = int,
-                   default  = 80,
-                   required = False,
-                   metavar  = "<integer>",
-                   dest     = "arg_max_line_length")
-
-
-    o = parser.add_argument_group("Automatic Reload Options")
-    o.add_argument("--auto-reload",
-                   help     = ("Automatically  reload changed files "
-                               "into viewer."),
-                   action   = "store_true",
-                   default  = True,
-                   required = False,
-                   dest     = "arg_auto_reload")
-
-    o.add_argument("--no-auto-reload",
-                   help     = ("Do not automatically reload changed files "
-                               "into viewer."),
-                   action   = "store_false",
-                   required = False,
-                   dest     = "arg_auto_reload")
-
-
-    o = parser.add_argument_group("Diff Display Characteristics")
-    o.add_argument("--show-diff-map",
-                   help     = ("Show diff map between the two source "
-                               "panes on startup."),
-                   action   = "store_true",
-                   default  = True,
-                   required = False,
-                   dest     = "arg_diff_map")
-
-    o.add_argument("--no-show-diff-map",
-                   help     = ("Do not show diff map between the two source "
-                               "panes on startup."),
-                   action   = "store_false",
-                   required = False,
-                   dest     = "arg_diff_map")
-
-    o.add_argument("--show-trailing-whitespace",
-                   help     = ("Show trailing whitespace found in "
-                               "the file."),
-                   action   = "store_false", # Internal semantic is 'ignore'.
-                   default  = False,
-                   required = False,
-                   dest     = "arg_ignore_trailing_whitespace")
-
-    o.add_argument("--no-show-trailing-whitespace",
-                   help     = ("Do not show trailing whitespace found in "
-                               "the file."),
-                   action   = "store_true", # Internal semantic is 'ignore'.
-                   required = False,
-                   dest     = "arg_ignore_trailing_whitespace")
-
-    o.add_argument("--show-tab",
-                   help     = ("Display visually outstanding "
-                               "TAB characters."),
-                   action   = "store_false", # Internal semantic is 'ignore'.
-                   default  = False,
-                   required = False,
-                   dest     = "arg_ignore_tab")
-
-    o.add_argument("--no-show-tab",
-                   help     = ("Do not display visually outstanding "
-                               "TAB characters."),
-                   action   = "store_true", # Internal semantic is 'ignore'.
-                   required = False,
-                   dest     = "arg_ignore_tab")
-
-    o.add_argument("--show-intraline",
-                   help     = ("Show intraline differences between "
-                               "lines in the different panes."),
-                   action   = "store_false", # Internal semantic is 'ignore'.
-                   default  = False,
-                   required = False,
-                   dest     = "arg_ignore_intraline")
-
-    o.add_argument("--no-show-intraline",
-                   help     = ("Do not show intraline differences between "
-                               "lines in the different panes."),
-                   action   = "store_true", # Internal semantic is 'ignore'.
-                   required = False,
-                   dest     = "arg_ignore_intraline")
-
-    o.add_argument("--show-line-numbers",
-                   help     = ("When selected, the line numbers will be shown "
-                               "on startup."),
-                   action   = "store_true",
-                   default  = True,
-                   required = False,
-                   dest     = "arg_line_numbers")
-
-    o.add_argument("--no-show-line-numbers",
-                   help     = ("When selected, the line numbers will be hidden "
-                               "on startup."),
-                   action   = "store_false",
-                   required = False,
-                   dest     = "arg_line_numbers")
-
-    o = parser.add_argument_group("Note Taking Options")
-    o.add_argument("--note-file",
-                   help     = ("Name of note file to which notes will "
-                               "be written."),
-                   action   = "store",
-                   default  = None,
-                   required = False,
-                   metavar  = "<path of file to write>",
-                   dest     = "arg_note")
-
-    o = parser.add_argument_group("Output Options")
-    o.add_argument("--dump-ir",
-                   help     = ("Dump internal representation of diff.  "
-                               "Creates 'dr-base-<file>.text' and "
-                               "'dr-modi-<file>.text' "
-                               "in the specified directory."),
-                   action   = "store",
-                   default  = None,
-                   required = False,
-                   metavar  = "<path of directory to write output>",
-                   dest     = "arg_dump_ir")
-
-    o.add_argument("--verbose",
-                   help     = ("Turn on verbose diagnostic output"),
-                   action   = "store_true",
-                   default  = False,
-                   required = False,
-                   dest     = "arg_verbose")
-
-    parser.add_argument("tail",
-                        help  = "Command line tail",
-                        nargs = "*")
-    return parser
 
 
 def rsync_and_rerun(options):
@@ -295,43 +50,8 @@ def rsync_and_rerun(options):
     rsyncer = os.path.join(parent_dir, "rsyncer")
     cmd     = [ rsyncer,
                 "--fqdn", options.arg_fqdn,
-                "--dossier", options.arg_dossier ]
+                "--dossier", options.arg_dossier_path ]
     os.execv(rsyncer, cmd)
-
-
-def process_command_line():
-    parser  = configure_parser()
-    options = parser.parse_args()
-
-    if options.arg_dossier is None:
-        options.arg_dossier = os.path.join(default_review_dir,
-                                           default_review_name,
-                                           "dossier.json")
-    else:
-        # Older versions of 'dr' would output the full dossier
-        # pathname, while newer versions do not (to make http
-        # integration easier).  Remain backwards compatible with older
-        # versions by not adding the dossier name if it's already
-        # present on the command line.
-        if not options.arg_dossier.endswith("dossier.json"):
-            options.arg_dossier = os.path.join(options.arg_dossier,
-                                               "dossier.json")
-
-    options.arg_intraline_percent = max(1, min(options.arg_intraline_percent,
-                                               100))
-    assert(1 <= options.arg_intraline_percent and
-           options.arg_intraline_percent <= 100)
-    options.intraline_percent_ = float(options.arg_intraline_percent) / 100.0
-
-    if options.arg_fqdn is not None:
-        rsync_and_rerun(options)
-    elif os.path.exists(options.arg_dossier):
-        with open(options.arg_dossier, "r") as fp:
-            options.dossier_ = json.load(fp)
-    else:
-        fatal("dossier '%s' does not exist." % (options.arg_dossier))
-
-    return options
 
 
 def add_diff_to_viewer(desc, viewer):
@@ -360,13 +80,14 @@ def show_line_numbers(options):
     return options.arg_line_numbers
 
 
-def make_viewer(options, base, modi, note, commit_msg):
-    viewer = diff_viewer.DiffViewer(base, modi, note, commit_msg,
+def make_viewer(options, base, modi, note):
+    viewer = diff_viewer.DiffViewer(base, modi, note,
                                     options.arg_max_line_length,
                                     show_diff_map(options),
                                     show_line_numbers(options))
 
-    desc = diffmgr.create_diff_descriptor(options.arg_verbose,
+    desc = diffmgr.create_diff_descriptor(options.afr_,
+                                          options.arg_verbose,
                                           options.intraline_percent_,
                                           options.arg_dump_ir,
                                           base, modi)
@@ -375,8 +96,8 @@ def make_viewer(options, base, modi, note, commit_msg):
     return viewer
 
 def generate(options, note):
-    application = PyQt6.QtWidgets.QApplication(sys.argv)
-    tab_widget  = tab_manager_module.DiffViewerTabWidget(options.arg_display_n_lines,
+    tab_widget  = tab_manager_module.DiffViewerTabWidget(options.afr_,
+                                                         options.arg_display_n_lines,
                                                          options.arg_display_n_chars,
                                                          show_diff_map(options),
                                                          show_line_numbers(options),
@@ -385,13 +106,14 @@ def generate(options, note):
                                                          options.arg_ignore_trailing_whitespace,
                                                          options.arg_ignore_intraline,
                                                          options.intraline_percent_,
+                                                         options.selected_palette_,
                                                          options.arg_dump_ir)
 
 
-    if options.dossier_['commit_msg'] is not None:
-        tab_widget.add_commit_msg(options.dossier_['commit_msg'])
+    if options.dossier_["commit_msg"] is not None:
+        tab_widget.add_commit_msg(options.dossier_["commit_msg"])
 
-    for f in options.dossier_['files']:
+    for f in options.dossier_["files"]:
         file_inst = FileButton(options,
                                f["action"],
                                options.dossier_["root"],
@@ -407,7 +129,8 @@ def generate(options, note):
 
 def main():
     try:
-        options = process_command_line()
+        application = PyQt6.QtWidgets.QApplication(sys.argv)
+        options = cmdlineargs.process_command_line()
         return generate(options, options.arg_note)
 
     except KeyboardInterrupt:

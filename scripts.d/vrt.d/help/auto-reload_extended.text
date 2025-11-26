@@ -1,0 +1,11 @@
+This options causes the UI to automatically reload local files, that
+are opened in a tab and that have changed on-disk, into the viewer.
+
+Files retrieved via a URL are not subject to automatic reloading.
+
+If you want to reload such a file because the author has updated the
+diffs, close the tab and reopen the tab.
+
+Auto reloading is quite useful when you want to &-off the viewer and
+iterate on perfecting your own change.
+

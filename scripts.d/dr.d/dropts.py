@@ -4,6 +4,7 @@
 #
 import argparse
 import os
+import socket
 
 def configure_parser():
     description = ("""
@@ -37,9 +38,10 @@ This will produce the following text on the console:
       modify   arch/arm64/kernel/module.c
 
     Changes:  committed [5 files, 38 lines]
-    Viewer :  vrt --dossier '/home/thutt/review/default/dossier.json'
+    Viewer :  vrt --dossier '/home/thutt/review/default'
+    Viewer :  vrt --url http://<server>.harp-project.com:8080/home/thutt/review/default
     Viewer :  vr -R '/home/thutt/review' -r 'default'
-    Elapsed:  0:00:00.160313
+    Elapsed:  0:00:00.154148
 
 The lines prefixed with 'Viewer' are commands that can be executed to
 view the changes.
@@ -100,6 +102,44 @@ Return Code:
                    metavar  = "<path of git executable>",
                    required = False,
                    dest     = "arg_git_path")
+
+    o = parser.add_argument_group("HTTP Specification Options")
+    o.add_argument("--url-port",
+                   help     = ("Port that should be embedded in the "
+                               "URL displayed for the '--url' option."
+                               "If --url-https is specified, port 443 is used."
+                               "[default: %(default)s]"),
+                   action   = "store",
+                   default  = None,
+                   metavar  = "<HTTP protocol port number>",
+                   required = False,
+                   dest     = "arg_url_port")
+
+    o.add_argument("--url-R", "--url-review-directory",
+                   help     = ("Specifies root directory that will be output in "
+                               "'--url' option.  It must be the path from the "
+                               "actual server root to the directory where the "
+                               "diffs are written.  If the server root "
+                               "directory is '/home', and the reviews are at "
+                               "/home/${USER}/review, this argument should be "
+                               "provided '${USER}'.  If not provided, the "
+                               "value of '-R' will be used"),
+                   action   = "store",
+                   default  = None,
+                   metavar  = "<Web server review directory>",
+                   required = False,
+                   dest     = "arg_url_review_directory")
+
+    o.add_argument("--url-server",
+                   help     = ("FQDN of the host that serves as the webserver "
+                               "for the diffs that will be generated. "
+                               "[default: %(default)s]"),
+                   action   = "store",
+                   default  = socket.getfqdn(),
+                   metavar  = "<FQDN of Web Server host>",
+                   required = False,
+                   dest     = "arg_url_server")
+
 
     o = parser.add_argument_group("Remote Host Specification Options")
     o.add_argument("--fqdn",
@@ -169,6 +209,22 @@ Return Code:
                    required = False,
                    choices  = [ "no", "all" ],
                    dest     = "arg_git_untracked")
+
+
+    d_group = parser.add_mutually_exclusive_group()
+    d_group.add_argument("--url-https",
+                         help     = ("Sets Web-based diffs protocol to HTTPS "
+                                     "(default)."),
+                         action   = "store_true",
+                         default  = True,
+                         required = False,
+                         dest     = "arg_url_https")
+
+    d_group.add_argument("--no-url-https",
+                         help     = ("Sets Web-based diffs protocol to HTTP."),
+                         action   = "store_false",
+                         required = False,
+                         dest     = "arg_url_https")
 
 
     parser.add_argument("tail",

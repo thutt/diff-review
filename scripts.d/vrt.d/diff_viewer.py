@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # Copyright (c) 2025  Logic Magicians Software (Taylor Hutt).
 # All Rights Reserved.
 # Licensed under Gnu GPL V3.
@@ -21,13 +20,16 @@ from PyQt6.QtGui import (QColor, QFont, QTextCursor, QAction, QFontMetrics,
 from utils import extract_display_path
 from search_dialogs import SearchDialog, SearchResultDialog
 from ui_components import LineNumberArea, DiffMapWidget, SyncedPlainTextEdit
-from commit_msg_dialog import CommitMsgDialog
 import color_palettes
 
 
 class DiffViewer(QMainWindow):
-    def __init__(self, base_file: str, modified_file: str, note_file: str, 
-                 commit_msg_file: str, max_line_length: int, show_diff_map: bool,
+    def __init__(self,
+                 base_file: str,
+                 modified_file: str,
+                 note_file: str,
+                 max_line_length: int,
+                 show_diff_map: bool,
                  show_line_numbers: bool):
         if QApplication.instance() is None:
             self._app = QApplication(sys.argv)
@@ -39,7 +41,6 @@ class DiffViewer(QMainWindow):
         self.base_file = base_file
         self.modified_file = modified_file
         self.note_file = note_file
-        self.commit_msg_file = commit_msg_file
         self.max_line_length = max_line_length
         self.show_diff_map = show_diff_map
         self.show_line_numbers = show_line_numbers
@@ -47,6 +48,7 @@ class DiffViewer(QMainWindow):
         
         self.base_noted_lines = set()
         self.modified_noted_lines = set()
+        self.bookmarked_lines = set()  # Line indices that are bookmarked
         
         self.base_display = []
         self.modified_display = []
@@ -69,6 +71,8 @@ class DiffViewer(QMainWindow):
         self.highlighting_next_line = 0  # Next line to highlight
         self._needs_highlighting_update = False  # Set by tab_manager for deferred updates
         self._needs_color_refresh = False  # Set by tab_manager for deferred color updates
+        
+        self.current_font_size = 12  # Default font size
         
         self.setup_gui()
     
@@ -117,6 +121,7 @@ class DiffViewer(QMainWindow):
         self.base_line_area.set_text_widget(self.base_text)
         self.base_text.set_line_number_area(self.base_line_area)
         self.base_text.set_max_line_length(self.max_line_length)
+        self.base_text.viewer = self  # Reference for bookmark lookup
         base_layout.addWidget(self.base_line_area)
         base_layout.addWidget(self.base_text)
         base_container = QWidget()
@@ -138,6 +143,7 @@ class DiffViewer(QMainWindow):
         self.modified_line_area.set_text_widget(self.modified_text)
         self.modified_text.set_line_number_area(self.modified_line_area)
         self.modified_text.set_max_line_length(self.max_line_length)
+        self.modified_text.viewer = self  # Reference for bookmark lookup
         modified_layout.addWidget(self.modified_line_area)
         modified_layout.addWidget(self.modified_text)
         modified_container = QWidget()
@@ -163,12 +169,14 @@ class DiffViewer(QMainWindow):
         self.region_label = QLabel("Region: 0 of 0")
         self.highlighting_label = QLabel("")
         self.highlighting_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.bookmarks_label = QLabel("Bookmarks: 0")
         self.notes_label = QLabel("Notes: 0")
         
         status_layout.addWidget(self.region_label)
         status_layout.addStretch()
         status_layout.addWidget(self.highlighting_label)
         status_layout.addStretch()
+        status_layout.addWidget(self.bookmarks_label)
         status_layout.addWidget(self.notes_label)
         status_frame = QFrame()
         status_frame.setFrameStyle(QFrame.Shape.Panel | QFrame.Shadow.Sunken)
@@ -377,54 +385,67 @@ class DiffViewer(QMainWindow):
         QTimer.singleShot(0, self.highlight_next_chunk)
     
     def highlight_next_chunk(self):
-        """Highlight next chunk of lines."""
+        """Highlight next chunk of lines with batch formatting for performance."""
         if not self.highlighting_in_progress:
             return
         
-        chunk_size = 500
+        chunk_size = 1000  # Increased from 500 for better throughput
         start_line = self.highlighting_next_line
         end_line = min(start_line + chunk_size, len(self.base_line_objects))
         
         import diff_desc
         palette = color_palettes.get_current_palette()
         
-        for i in range(start_line, end_line):
-            base_line = self.base_line_objects[i]
-            modi_line = self.modified_line_objects[i]
-            
-            # BASE SIDE
-            if not base_line.show_line_number():
-                self.highlight_line(self.base_text, i, palette.get_color('placeholder'), base_line)
-            else:
-                bg_color = None
-                if base_line.region_:
-                    region_kind = base_line.region_.kind_
-                    if region_kind == diff_desc.RegionDesc.DELETE or \
-                       region_kind == diff_desc.RegionDesc.CHANGE:
-                        bg_color = palette.get_color('base_changed_bg')
+        # Begin edit block for base text widget - batches all operations into single repaint
+        base_cursor = self.base_text.textCursor()
+        base_cursor.beginEditBlock()
+        
+        # Begin edit block for modified text widget
+        modi_cursor = self.modified_text.textCursor()
+        modi_cursor.beginEditBlock()
+        
+        try:
+            for i in range(start_line, end_line):
+                base_line = self.base_line_objects[i]
+                modi_line = self.modified_line_objects[i]
                 
-                if bg_color:
-                    self.highlight_line(self.base_text, i, bg_color, base_line)
-                    self.base_line_area.set_line_background(i, bg_color)
+                # BASE SIDE
+                if not base_line.show_line_number():
+                    self.highlight_line(self.base_text, i, palette.get_color('placeholder'), base_line)
+                else:
+                    bg_color = None
+                    if base_line.region_:
+                        region_kind = base_line.region_.kind_
+                        if region_kind == diff_desc.RegionDesc.DELETE or \
+                           region_kind == diff_desc.RegionDesc.CHANGE:
+                            bg_color = palette.get_color('base_changed_bg')
+                    
+                    if bg_color:
+                        self.highlight_line(self.base_text, i, bg_color, base_line)
+                        self.base_line_area.set_line_background(i, bg_color)
+                    
+                    self.apply_runs(self.base_text, i, base_line)
                 
-                self.apply_runs(self.base_text, i, base_line)
-            
-            # MODIFIED SIDE
-            if not modi_line.show_line_number():
-                self.highlight_line(self.modified_text, i, palette.get_color('placeholder'), modi_line)
-            else:
-                bg_color = None
-                if modi_line.region_:
-                    region_kind = modi_line.region_.kind_
-                    if region_kind == diff_desc.RegionDesc.ADD or \
-                       region_kind == diff_desc.RegionDesc.CHANGE:
-                        bg_color = palette.get_color('modi_changed_bg')
-                
-                if bg_color:
-                    self.highlight_line(self.modified_text, i, bg_color, modi_line)
-                    self.modified_line_area.set_line_background(i, bg_color)
-                
-                self.apply_runs(self.modified_text, i, modi_line)
+                # MODIFIED SIDE
+                if not modi_line.show_line_number():
+                    self.highlight_line(self.modified_text, i, palette.get_color('placeholder'), modi_line)
+                else:
+                    bg_color = None
+                    if modi_line.region_:
+                        region_kind = modi_line.region_.kind_
+                        if region_kind == diff_desc.RegionDesc.ADD or \
+                           region_kind == diff_desc.RegionDesc.CHANGE:
+                            bg_color = palette.get_color('modi_changed_bg')
+                    
+                    if bg_color:
+                        self.highlight_line(self.modified_text, i, bg_color, modi_line)
+                        self.modified_line_area.set_line_background(i, bg_color)
+                    
+                    self.apply_runs(self.modified_text, i, modi_line)
+        finally:
+            # End edit blocks - triggers single repaint for each widget
+            base_cursor.endEditBlock()
+            modi_cursor.endEditBlock()
         
         self.highlighting_next_line = end_line
         
@@ -681,16 +702,6 @@ class DiffViewer(QMainWindow):
         self.note_count += 1
         self.update_status()
     
-    def get_commit_msg_lines(self):
-        if not self.commit_msg_file:
-            return []
-        
-        try:
-            with open(self.commit_msg_file, 'r') as f:
-                return f.read().split('\n')
-        except Exception:
-            return []
-    
     def take_note(self, side):
         if not self.note_file:
             QMessageBox.information(self, 'Note Taking Disabled',
@@ -898,6 +909,7 @@ class DiffViewer(QMainWindow):
         total = self.n_changed_regions
         current = self.current_region + 1 if total > 0 else 0
         self.region_label.setText(f"Region: {current} of {total}")
+        self.bookmarks_label.setText(f"Bookmarks: {len(self.bookmarked_lines)}")
         self.notes_label.setText(f"Notes: {self.note_count}")
     
     def toggle_diff_map(self):
@@ -918,6 +930,89 @@ class DiffViewer(QMainWindow):
             self.modified_line_area.show()
             self.line_numbers_visible = True
     
+    def toggle_bookmark(self):
+        """Toggle bookmark on current focused line"""
+        # Determine which text widget has focus
+        if self.base_text.hasFocus():
+            line_idx = self.base_text.textCursor().blockNumber()
+            text_widget = self.base_text
+        elif self.modified_text.hasFocus():
+            line_idx = self.modified_text.textCursor().blockNumber()
+            text_widget = self.modified_text
+        else:
+            return
+        
+        # Toggle in local set
+        if line_idx in self.bookmarked_lines:
+            self.bookmarked_lines.remove(line_idx)
+        else:
+            self.bookmarked_lines.add(line_idx)
+        
+        # Store on BOTH text widgets so paintEvent can access directly
+        if not hasattr(self.base_text, 'bookmarked_lines'):
+            self.base_text.bookmarked_lines = set()
+        if not hasattr(self.modified_text, 'bookmarked_lines'):
+            self.modified_text.bookmarked_lines = set()
+        
+        if line_idx in self.bookmarked_lines:
+            self.base_text.bookmarked_lines.add(line_idx)
+            self.modified_text.bookmarked_lines.add(line_idx)
+        else:
+            self.base_text.bookmarked_lines.discard(line_idx)
+            self.modified_text.bookmarked_lines.discard(line_idx)
+        
+        # Sync with global bookmarks using stored references
+        if hasattr(self, 'tab_manager') and hasattr(self, 'tab_index'):
+            key = (self.tab_index, line_idx)
+            if line_idx in self.bookmarked_lines:
+                self.tab_manager.global_bookmarks[key] = True
+            elif key in self.tab_manager.global_bookmarks:
+                del self.tab_manager.global_bookmarks[key]
+        
+        # Update visuals
+        self.base_text.viewport().update()
+        self.modified_text.viewport().update()
+        self.update_status()
+    
+    def increase_font_size(self):
+        """Increase font size (max 24pt)"""
+        if self.current_font_size < 24:
+            self.current_font_size += 1
+            self._apply_font_size()
+    
+    def decrease_font_size(self):
+        """Decrease font size (min 6pt)"""
+        if self.current_font_size > 6:
+            self.current_font_size -= 1
+            self._apply_font_size()
+    
+    def reset_font_size(self):
+        """Reset font size to default (12pt)"""
+        self.current_font_size = 12
+        self._apply_font_size()
+    
+    def _apply_font_size(self):
+        """Apply current font size to all text widgets and line number areas"""
+        text_font = QFont("Courier", self.current_font_size, QFont.Weight.Bold)
+        
+        # Apply to text widgets
+        self.base_text.setFont(text_font)
+        self.modified_text.setFont(text_font)
+        
+        # Apply to line number areas
+        self.base_line_area.setFont(text_font)
+        self.base_line_area._font = text_font
+        self.modified_line_area.setFont(text_font)
+        self.modified_line_area._font = text_font
+        
+        # Force update of line number areas
+        self.base_line_area.update()
+        self.modified_line_area.update()
+        
+        # Force update of text widget viewports
+        self.base_text.viewport().update()
+        self.modified_text.viewport().update()
+    
     def showEvent(self, event):
         """Override to ensure highlighting is applied when window becomes visible"""
         super().showEvent(event)
@@ -929,6 +1024,18 @@ class DiffViewer(QMainWindow):
         key = event.key()
         modifiers = event.modifiers()
         
+        # Font size changes - Ctrl/Cmd + Plus/Minus/0
+        if modifiers & (Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.MetaModifier):
+            if key in (Qt.Key.Key_Plus, Qt.Key.Key_Equal):  # + or = key
+                self.increase_font_size()
+                return
+            elif key == Qt.Key.Key_Minus:
+                self.decrease_font_size()
+                return
+            elif key == Qt.Key.Key_0:
+                self.reset_font_size()
+                return
+        
         if key == Qt.Key.Key_H and modifiers & Qt.KeyboardModifier.AltModifier:
             self.toggle_diff_map()
             return
@@ -939,6 +1046,11 @@ class DiffViewer(QMainWindow):
         
         if key == Qt.Key.Key_S and modifiers & Qt.KeyboardModifier.ControlModifier:
             self.show_search_dialog()
+            return
+        
+        # M - Toggle bookmark
+        if key == Qt.Key.Key_M:
+            self.toggle_bookmark()
             return
         
         if key == Qt.Key.Key_N:

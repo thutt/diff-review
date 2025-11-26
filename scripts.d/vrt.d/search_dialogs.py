@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # Copyright (c) 2025  Logic Magicians Software (Taylor Hutt).
 # All Rights Reserved.
 # Licensed under Gnu GPL V3.
@@ -67,16 +66,14 @@ class HTMLDelegate(QStyledItemDelegate):
 class SearchDialog(QDialog):
     """Dialog to input search text"""
     
-    def __init__(self, parent=None, has_commit_msg=False):
+    def __init__(self, parent=None):
         super().__init__(parent)
         self.search_text = None
         self.case_sensitive = False
         self.search_base = True
         self.search_modi = True
-        self.search_commit_msg = True
         self.search_all_tabs = True
         self.use_regex = False
-        self.has_commit_msg = has_commit_msg
         
         # Check if parent is tab widget with multiple tabs
         self.has_multiple_tabs = False
@@ -163,7 +160,6 @@ class SearchDialog(QDialog):
             # Always search all sources
             self.search_base = True
             self.search_modi = True
-            self.search_commit_msg = True
             # Get search_all_tabs state from checkbox if it exists
             if self.has_multiple_tabs and hasattr(self, 'all_tabs_checkbox'):
                 self.search_all_tabs = self.all_tabs_checkbox.isChecked()
@@ -174,7 +170,7 @@ class SearchResultDialog(QDialog):
     """Dialog to show search results and allow selection"""
     
     def __init__(self, search_text, parent, case_sensitive=False, 
-                 search_base=True, search_modi=True, search_commit_msg=True,
+                 search_base=True, search_modi=True,
                  search_all_tabs=False, use_regex=False):
         super().__init__(parent)
         self.search_text = search_text
@@ -182,7 +178,6 @@ class SearchResultDialog(QDialog):
         self.case_sensitive = case_sensitive
         self.search_base = search_base
         self.search_modi = search_modi
-        self.search_commit_msg = search_commit_msg
         self.search_all_tabs = search_all_tabs
         self.use_regex = use_regex
         self.parent_tab_widget = parent
@@ -364,15 +359,14 @@ class SearchResultDialog(QDialog):
                 
                 # Check if it's a commit message tab
                 if hasattr(tab_widget, 'is_commit_msg') and tab_widget.is_commit_msg:
-                    if self.search_commit_msg:
-                        text = tab_widget.toPlainText()
-                        lines = text.split('\n')
-                        for line_num, line_text in enumerate(lines):
-                            # Find ALL matches in this line
-                            matches = self.find_all_matches_in_line(line_text)
-                            for char_pos, matched_text in matches:
-                                results.append((tab_index, tab_title, 'commit_msg', 
-                                              line_num + 1, line_num, line_text, char_pos))
+                    text = tab_widget.toPlainText()
+                    lines = text.split('\n')
+                    for line_num, line_text in enumerate(lines):
+                        # Find ALL matches in this line
+                        matches = self.find_all_matches_in_line(line_text)
+                        for char_pos, matched_text in matches:
+                            results.append((tab_index, tab_title, 'commit_msg', 
+                                          line_num + 1, line_num, line_text, char_pos))
                 # Otherwise it's a diff viewer
                 elif hasattr(tab_widget, 'diff_viewer'):
                     viewer = tab_widget.diff_viewer
@@ -406,15 +400,14 @@ class SearchResultDialog(QDialog):
             
             # Check if it's a commit message tab
             if hasattr(current_widget, 'is_commit_msg') and current_widget.is_commit_msg:
-                if self.search_commit_msg:
-                    text = current_widget.toPlainText()
-                    lines = text.split('\n')
-                    for line_num, line_text in enumerate(lines):
-                        # Find ALL matches in this line
-                        matches = self.find_all_matches_in_line(line_text)
-                        for char_pos, matched_text in matches:
-                            results.append((tab_index, tab_title, 'commit_msg', 
-                                          line_num + 1, line_num, line_text, char_pos))
+                text = current_widget.toPlainText()
+                lines = text.split('\n')
+                for line_num, line_text in enumerate(lines):
+                    # Find ALL matches in this line
+                    matches = self.find_all_matches_in_line(line_text)
+                    for char_pos, matched_text in matches:
+                        results.append((tab_index, tab_title, 'commit_msg', 
+                                      line_num + 1, line_num, line_text, char_pos))
             # Otherwise it's a diff viewer
             elif hasattr(current_widget, 'diff_viewer'):
                 viewer = current_widget.diff_viewer

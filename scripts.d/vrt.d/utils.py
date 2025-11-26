@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # Copyright (c) 2025  Logic Magicians Software (Taylor Hutt).
 # All Rights Reserved.
 # Licensed under Gnu GPL V3.
@@ -10,6 +9,11 @@ This module contains helper functions used across the diff viewer application.
 """
 import sys
 from PyQt6.QtCore import QtMsgType, qInstallMessageHandler
+
+
+def fatal(msg):
+    print("fatal: %s" % (msg))
+    sys.exit(1)
 
 
 def qt_message_handler(mode, context, message):

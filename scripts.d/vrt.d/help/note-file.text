@@ -1,0 +1,2 @@
+Name of note file to which notes will be written.
+[default: %(default)s]

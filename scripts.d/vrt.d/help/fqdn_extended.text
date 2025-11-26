@@ -1,0 +1,16 @@
+This options facilitates viewing of remote diffs on a local machine,
+provided you have permission to rsync the original files to you local
+machine.
+
+This is an option produced by diff-review to make it possible to
+review files when it is on a remote machine, and there is no webserver
+that provides access to the diffs.  See the help of diff-review for
+more details.
+
+When this option is used with view-review-tabs, 'rsync' is employed to
+copy the entire diff directory from the remote machine to the local
+machine, and view-review-tabs is relaunched to view the local copy of
+the remote diffs.
+
+The current value of ${USER} will use used to invoke the 'rsync' to
+copy the files from the remote machine.

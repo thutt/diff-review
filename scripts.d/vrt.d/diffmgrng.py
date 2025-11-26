@@ -4,26 +4,15 @@
 #
 import datetime
 import difflib
+import os
+
 import diff_desc
 import dumpir
 
-def read_file(path):
-    with open(path, "r") as fp:
-        # Convert all line endings to a single '\n'.
-        lines = fp.read()
+def create_difflib(afr, base, modi):
+    base_l = afr.read(base)
+    modi_l = afr.read(modi)
 
-    lines = lines.replace("\r\n", "\n") # Convert Windows files to Linux.
-    lines = lines.replace("\r", "\n")   # Convert Mac files to Linux.
-
-    result = lines.splitlines()
-    # The returned list strings will NOT have '\n' at the end.
-    # Blank lines will be zero length.
-    return result
-
-
-def create_difflib(base, modi):
-    base_l = read_file(base)
-    modi_l = read_file(modi)
     return (difflib.SequenceMatcher(None, base_l, modi_l),
             base_l,
             modi_l)
@@ -158,7 +147,7 @@ def add_replaced_line_region(desc, base_l, modi_l, intraline_threshold):
                 elif opc == "delete":
                     assert((m_end - m_beg) == 0) # Characters deleted.
                     r_len = b_end - b_beg
-                    l_base.runs_deleted_ += [ 
+                    l_base.runs_deleted_ += [
                         diff_desc.TextRunDeleted(b_beg, r_len)
                     ]
                     l_base.runs_tabs_ += diff_desc.find_tab_runs(l_base,
@@ -181,7 +170,7 @@ def add_replaced_line_region(desc, base_l, modi_l, intraline_threshold):
                     l_modi.runs_tabs_ += diff_desc.find_tab_runs(l_modi, m_beg,
                                                                  m_end - m_beg)
                     l_modi.runs_tws_  += diff_desc.find_trailing_whitespace(l_modi)
-        
+
         desc.cache_base(l_base)
         desc.cache_modi(l_modi)
         desc.flush(0, False, None)
@@ -213,14 +202,15 @@ def add_replaced_line_region(desc, base_l, modi_l, intraline_threshold):
 
 
 
-def create_diff_descriptor(verbose, intraline_percent, dump_ir, base, modi):
+def create_diff_descriptor(afr, verbose, intraline_percent,
+                           dump_ir, base, modi):
     if False:
         beg = datetime.datetime.now()
     desc  = diff_desc.DiffDesc(verbose, intraline_percent)
     marks = ""
 
     # Turn diffs create_difflib() generator into useful structure.
-    (matcher, base_l, modi_l) = create_difflib(base, modi)
+    (matcher, base_l, modi_l) = create_difflib(afr, base, modi)
 
     # Examines the file as a whole.
     for opinfo in matcher.get_opcodes():
@@ -258,4 +248,3 @@ def create_diff_descriptor(verbose, intraline_percent, dump_ir, base, modi):
         dumpir.dump(dump_ir, base, modi, desc)
 
     return desc
-

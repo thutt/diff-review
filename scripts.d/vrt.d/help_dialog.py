@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # Copyright (c) 2025  Logic Magicians Software (Taylor Hutt).
 # All Rights Reserved.
 # Licensed under Gnu GPL V3.
@@ -9,13 +8,14 @@ Help dialog for diff_review
 This module contains the help dialog that displays user documentation.
 """
 from PyQt6.QtWidgets import QDialog, QVBoxLayout, QTextEdit, QPushButton
+from PyQt6.QtCore import Qt
 
 
 class HelpDialog(QDialog):
     """Dialog that displays help documentation for the diff viewer"""
     
     def __init__(self, parent=None):
-        super().__init__(parent)
+        super().__init__(parent, Qt.WindowType.Window)
         self.setWindowTitle("Diff Viewer - How to Use")
         self.setMinimumSize(700, 600)
         
@@ -153,6 +153,17 @@ class HelpDialog(QDialog):
             <li>All notes are appended to the notes file (created if it does not exist)</li>
         </ul>
         
+        <h3>Bookmarks</h3>
+        <ul>
+            <li><b>M:</b> Toggle bookmark on current line</li>
+            <li><b>[:</b> Navigate to previous bookmark (wraps around, switches tabs)</li>
+            <li><b>]:</b> Navigate to next bookmark (wraps around, switches tabs)</li>
+            <li><b>Visual indicator:</b> Cyan/teal vertical bar on left edge of bookmarked lines</li>
+            <li><b>Global scope:</b> Bookmarks work across all open tabs</li>
+            <li><b>Status bar:</b> Shows bookmark count next to notes count</li>
+            <li>Bookmarks are not persisted - closing a tab removes its bookmarks</li>
+        </ul>
+        
         <h3>Diff Map</h3>
         <ul>
             <li>Vertical bar shows overview of all changes in the file</li>
@@ -180,6 +191,15 @@ class HelpDialog(QDialog):
             <li><b>Alt+W / Cmd+W:</b> Toggle Trailing Whitespace highlighting</li>
             <li><b>Alt+I / Cmd+I:</b> Toggle Intraline Changes highlighting</li>
             <li><b>Alt+R / Cmd+R:</b> Toggle Auto-reload Files on/off</li>
+        </ul>
+        
+        <h3>Font Size</h3>
+        <ul>
+            <li><b>Ctrl++ / Cmd++:</b> Increase font size (up to 24pt)</li>
+            <li><b>Ctrl+- / Cmd+-:</b> Decrease font size (down to 6pt)</li>
+            <li><b>Ctrl+0 / Cmd+0:</b> Reset font size to default (12pt)</li>
+            <li>Font size changes apply to current tab only (including commit message tabs)</li>
+            <li>Changes are not persisted between sessions</li>
         </ul>
         
         <h3>Line Numbers</h3>

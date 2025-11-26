@@ -1,0 +1,15 @@
+The ability to provide intraline change coloring depends on the
+similarity of the two lines being compared.  If they are too
+dissimilar, the highlighting devolves into nonsensical coloring of
+characters that are different between the two lines.
+
+For this tool, the similarity is measured as a percentage, and this is
+the minimum threshold of similarity used to performing intraline
+coloring.
+
+Setting the value too low will give nonsensical coloring results,
+while setting it too high will reduce the amount of intraline
+coloring.
+
+The default similarity percentage gives good aesthetic results.
+

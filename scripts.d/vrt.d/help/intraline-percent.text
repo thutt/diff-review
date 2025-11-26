@@ -1,0 +1,2 @@
+Percentage of similarity for intraline diff coloring.
+[default: %(default)s]
