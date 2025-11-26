@@ -21,6 +21,7 @@ from help_dialog import HelpDialog
 from search_dialogs import SearchDialog, SearchResultDialog
 import color_palettes
 import view_state_manager
+import bookmark_manager
 
 
 class FileButton(QPushButton):
@@ -147,6 +148,12 @@ class DiffViewerTabWidget(QMainWindow):
         self.view_state_mgr = view_state_manager.ViewStateManager(
             self, show_diff_map, show_line_numbers,
             ignore_tab, ignore_trailing_ws, ignore_intraline)
+        
+        # Create bookmark manager
+        self.bookmark_mgr = bookmark_manager.BookmarkManager(self)
+        
+        # Keep reference to global_bookmarks for compatibility
+        self.global_bookmarks = self.bookmark_mgr.global_bookmarks
         
         # Create main layout
         central = QWidget()
@@ -1420,18 +1427,9 @@ class DiffViewerTabWidget(QMainWindow):
                 self.cleanup_file_watcher(widget)
             
             # Clean up bookmarks for this tab
-            keys_to_remove = [key for key in self.global_bookmarks if key[0] == index]
-            for key in keys_to_remove:
-                del self.global_bookmarks[key]
-            
-            # Update bookmark keys for tabs after this one (decrement tab_index)
-            updated_bookmarks = {}
-            for (tab_idx, line_idx), value in self.global_bookmarks.items():
-                if tab_idx > index:
-                    updated_bookmarks[(tab_idx - 1, line_idx)] = value
-                else:
-                    updated_bookmarks[(tab_idx, line_idx)] = value
-            self.global_bookmarks = updated_bookmarks
+            self.bookmark_mgr.cleanup_tab_bookmarks(index)
+            # Update local reference
+            self.global_bookmarks = self.bookmark_mgr.global_bookmarks
             
             # Check if this is the commit message tab
             if hasattr(widget, 'is_commit_msg') and widget.is_commit_msg:
@@ -1552,83 +1550,15 @@ class DiffViewerTabWidget(QMainWindow):
     
     def navigate_to_next_bookmark(self):
         """Navigate to next bookmark across all tabs"""
-        if not self.global_bookmarks:
-            return
-        
-        current_tab = self.tab_widget.currentIndex()
-        viewer = self.get_current_viewer()
-        if not viewer:
-            return
-        
-        # Get current line
-        if viewer.base_text.hasFocus():
-            current_line = viewer.base_text.textCursor().blockNumber()
-        elif viewer.modified_text.hasFocus():
-            current_line = viewer.modified_text.textCursor().blockNumber()
-        else:
-            current_line = 0
-        
-        # Sort all bookmarks
-        sorted_bookmarks = sorted(self.global_bookmarks.keys())
-        
-        # Find next bookmark
-        for tab_idx, line_idx in sorted_bookmarks:
-            if tab_idx > current_tab or (tab_idx == current_tab and line_idx > current_line):
-                self._jump_to_bookmark(tab_idx, line_idx)
-                return
-        
-        # Wrap around to first bookmark
-        if sorted_bookmarks:
-            tab_idx, line_idx = sorted_bookmarks[0]
-            self._jump_to_bookmark(tab_idx, line_idx)
+        self.bookmark_mgr.navigate_to_next_bookmark()
     
     def navigate_to_prev_bookmark(self):
         """Navigate to previous bookmark across all tabs"""
-        if not self.global_bookmarks:
-            return
-        
-        current_tab = self.tab_widget.currentIndex()
-        viewer = self.get_current_viewer()
-        if not viewer:
-            return
-        
-        # Get current line
-        if viewer.base_text.hasFocus():
-            current_line = viewer.base_text.textCursor().blockNumber()
-        elif viewer.modified_text.hasFocus():
-            current_line = viewer.modified_text.textCursor().blockNumber()
-        else:
-            current_line = 0
-        
-        # Sort all bookmarks in reverse
-        sorted_bookmarks = sorted(self.global_bookmarks.keys(), reverse=True)
-        
-        # Find previous bookmark
-        for tab_idx, line_idx in sorted_bookmarks:
-            if tab_idx < current_tab or (tab_idx == current_tab and line_idx < current_line):
-                self._jump_to_bookmark(tab_idx, line_idx)
-                return
-        
-        # Wrap around to last bookmark
-        if sorted_bookmarks:
-            tab_idx, line_idx = sorted_bookmarks[0]
-            self._jump_to_bookmark(tab_idx, line_idx)
+        self.bookmark_mgr.navigate_to_prev_bookmark()
     
     def _jump_to_bookmark(self, tab_idx, line_idx):
         """Jump to a specific bookmark"""
-        # Switch to tab
-        self.tab_widget.setCurrentIndex(tab_idx)
-        
-        # Get viewer
-        viewer = self.get_viewer_at_index(tab_idx)
-        if not viewer:
-            return
-        
-        # Center on line
-        viewer.center_on_line(line_idx)
-        
-        # Set focus to base text (arbitrary choice)
-        viewer.base_text.setFocus()
+        self.bookmark_mgr._jump_to_bookmark(tab_idx, line_idx)
     
     def toggle_tab_visibility(self):
         """Toggle tab character visibility in all viewers"""
