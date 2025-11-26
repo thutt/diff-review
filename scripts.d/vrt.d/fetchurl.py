@@ -158,6 +158,12 @@ class FetchDesc(object):
         _cached_username = username
         _cached_password = password
 
+    def _clear_cached_credentials(self):
+        """Clear cached credentials"""
+        global _cached_username, _cached_password
+        _cached_username = None
+        _cached_password = None
+
     def _prompt_for_credentials(self):
         """Prompt user for credentials using PyQt6 dialog"""
         dialog = BasicAuthDialog(self.url_, self.parent_widget_)
@@ -173,10 +179,9 @@ class FetchDesc(object):
         """
         Fetch content from URL, prompting for auth if needed
 
-        Uses cached credentials if available. Only prompts once per session.
-        Tries with SSL verification first, prompts user if verification fails.
-        If require_auth is True, prompts before first attempt.
-        If require_auth is False, attempts fetch, and prompts only on 401.
+        Uses cached credentials if available. Retries authentication until
+        success or user cancels. Tries with SSL verification first, prompts 
+        user if verification fails.
         """
         global _verify_ssl
 
@@ -188,77 +193,80 @@ class FetchDesc(object):
             import urllib3
             warnings.filterwarnings('ignore', message='.*Unverified HTTPS.*')
 
-        auth = None
+        # Keep trying until success or user cancels
+        while True:
+            auth = None
 
-        # Try to use cached credentials first
-        cached = self._get_cached_credentials()
-        if cached:
-            auth = HTTPBasicAuth(*cached)
-        elif self.require_auth_:
-            # No cached credentials and auth is required
-            creds = self._prompt_for_credentials()
-            if not creds:
-                self.body_      = None
-                self.http_code_ = None
-                return
-            auth = HTTPBasicAuth(*creds)
-
-        # Make the request with current SSL verification setting
-        try:
-            response = requests.get(self.url_, auth=auth, verify=_verify_ssl)
-        except requests.exceptions.SSLError as ssl_err:
-            # SSL verification failed - ask user what to do
-            if _verify_ssl:  # Only prompt if we haven't already disabled verification
-                dialog = SSLVerificationDialog(self.url_, str(ssl_err), self.parent_widget_)
-                if dialog.exec() == QDialog.DialogCode.Accepted and dialog.accept_unverified:
-                    # User chose to accept unverified certificate
-                    _verify_ssl = False
-                    # Suppress warnings for the rest of the session
-                    import warnings
-                    import urllib3
-                    warnings.filterwarnings('ignore', message='.*Unverified HTTPS.*')
-                    # Retry without verification
-                    try:
-                        response = requests.get(self.url_, auth=auth, verify=False)
-                    except requests.RequestException as e:
-                        self.body_      = None
-                        self.http_code_ = None
-                        return
-                else:
+            # Try to use cached credentials first
+            cached = self._get_cached_credentials()
+            if cached:
+                auth = HTTPBasicAuth(*cached)
+            else:
+                # No cached credentials - prompt user
+                creds = self._prompt_for_credentials()
+                if not creds:
                     # User cancelled
                     self.body_      = None
-                    self.http_code_ = None
+                    self.http_code_ = 401
                     return
-            else:
-                # SSL verification already disabled, but still got SSL error
-                self.body_      = None
-                self.http_code_ = None
-                return
-        except requests.RequestException as e:
-            self.body_      = None  # None --> Nothing fetched.
-            self.http_code_ = None  # None --> Network error.
-            return
-
-        # If we get 401 and haven't prompted yet, prompt and retry
-        if response.status_code == 401 and not self.require_auth_:
-            creds = self._prompt_for_credentials()
-            if creds:
                 auth = HTTPBasicAuth(*creds)
-                try:
-                    response = requests.get(self.url_, auth=auth, verify=_verify_ssl)
-                except requests.RequestException as e:
+
+            # Make the request with current SSL verification setting
+            try:
+                response = requests.get(self.url_, auth=auth, verify=_verify_ssl)
+            except requests.exceptions.SSLError as ssl_err:
+                # SSL verification failed - ask user what to do
+                if _verify_ssl:  # Only prompt if we haven't already disabled verification
+                    dialog = SSLVerificationDialog(self.url_, str(ssl_err), self.parent_widget_)
+                    if dialog.exec() == QDialog.DialogCode.Accepted and dialog.accept_unverified:
+                        # User chose to accept unverified certificate
+                        _verify_ssl = False
+                        # Suppress warnings for the rest of the session
+                        import warnings
+                        import urllib3
+                        warnings.filterwarnings('ignore', message='.*Unverified HTTPS.*')
+                        # Retry without verification
+                        try:
+                            response = requests.get(self.url_, auth=auth, verify=False)
+                        except requests.RequestException as e:
+                            self.body_      = None
+                            self.http_code_ = None
+                            return
+                    else:
+                        # User cancelled SSL dialog - treat as cancel
+                        self.body_      = None
+                        self.http_code_ = 401
+                        return
+                else:
+                    # SSL verification already disabled, but still got SSL error
                     self.body_      = None
                     self.http_code_ = None
                     return
-            else:
-                # User cancelled auth dialog
-                self.body_      = None
-                self.http_code_ = 401
+            except requests.RequestException as e:
+                self.body_      = None  # None --> Nothing fetched.
+                self.http_code_ = None  # None --> Network error.
                 return
 
-        try:
-            self.body_ = response.text
-        except Exception:
-            self.body_ = response.content.decode(errors="replace")
-        finally:
-            self.http_code_ = response.status_code
+            # Check response
+            if response.status_code == 200:
+                # Success!
+                try:
+                    self.body_ = response.text
+                except Exception:
+                    self.body_ = response.content.decode(errors="replace")
+                finally:
+                    self.http_code_ = response.status_code
+                return
+            elif response.status_code == 401:
+                # Auth failed - clear cached credentials and loop to retry
+                self._clear_cached_credentials()
+                # Loop will prompt again
+            else:
+                # Some other HTTP error - return it
+                try:
+                    self.body_ = response.text
+                except Exception:
+                    self.body_ = response.content.decode(errors="replace")
+                finally:
+                    self.http_code_ = response.status_code
+                return
