@@ -20,6 +20,7 @@ from PyQt6.QtGui import (QAction, QFont, QKeySequence, QActionGroup, QFontMetric
 from help_dialog import HelpDialog
 from search_dialogs import SearchDialog, SearchResultDialog
 import color_palettes
+import view_state_manager
 
 
 class FileButton(QPushButton):
@@ -141,6 +142,11 @@ class DiffViewerTabWidget(QMainWindow):
         # Loading animation state
         self.loading_buttons = {}  # Maps button -> (original_text, timer, dot_count)
         self.loading_file_class = None  # Track which file is currently loading
+        
+        # Create view state manager
+        self.view_state_mgr = view_state_manager.ViewStateManager(
+            self, show_diff_map, show_line_numbers,
+            ignore_tab, ignore_trailing_ws, ignore_intraline)
         
         # Create main layout
         central = QWidget()
@@ -853,19 +859,11 @@ class DiffViewerTabWidget(QMainWindow):
             diff_viewer.ensure_highlighting_applied()
         
         # Apply global view state to new viewer
-        if self.diff_map_visible != diff_viewer.diff_map_visible:
-            diff_viewer.toggle_diff_map()
-        if self.line_numbers_visible != diff_viewer.line_numbers_visible:
-            diff_viewer.toggle_line_numbers()
+        self.view_state_mgr.apply_to_viewer(diff_viewer)
         
         # Apply global note file if set
         if self.global_note_file:
             diff_viewer.note_file = self.global_note_file
-        
-        # Apply global whitespace ignore settings
-        diff_viewer.ignore_tab = self.ignore_tab
-        diff_viewer.ignore_trailing_ws = self.ignore_trailing_ws
-        diff_viewer.ignore_intraline = self.ignore_intraline
         
         # Set up file watching for this viewer
         self.setup_file_watcher(diff_viewer)
@@ -1505,25 +1503,15 @@ class DiffViewerTabWidget(QMainWindow):
     
     def toggle_diff_map(self):
         """Toggle diff map in all viewers"""
-        self.diff_map_visible = not self.diff_map_visible
-        viewers = self.get_all_viewers()
-        for viewer in viewers:
-            if viewer.diff_map_visible != self.diff_map_visible:
-                viewer.toggle_diff_map()
-        
-        # Update checkbox state
-        self.show_diff_map_action.setChecked(self.diff_map_visible)
+        self.view_state_mgr.toggle_diff_map()
+        # Sync local state
+        self.diff_map_visible = self.view_state_mgr.diff_map_visible
     
     def toggle_line_numbers(self):
         """Toggle line numbers in all viewers"""
-        self.line_numbers_visible = not self.line_numbers_visible
-        viewers = self.get_all_viewers()
-        for viewer in viewers:
-            if viewer.line_numbers_visible != self.line_numbers_visible:
-                viewer.toggle_line_numbers()
-        
-        # Update checkbox state
-        self.show_line_numbers_action.setChecked(self.line_numbers_visible)
+        self.view_state_mgr.toggle_line_numbers()
+        # Sync local state
+        self.line_numbers_visible = self.view_state_mgr.line_numbers_visible
     
     def toggle_auto_reload(self):
         """Toggle auto-reload preference"""
@@ -1644,45 +1632,21 @@ class DiffViewerTabWidget(QMainWindow):
     
     def toggle_tab_visibility(self):
         """Toggle tab character visibility in all viewers"""
-        self.ignore_tab = not self.show_tab_action.isChecked()
-        # Update current viewer immediately
-        viewer = self.get_current_viewer()
-        if viewer:
-            viewer.ignore_tab = self.ignore_tab
-            viewer.restart_highlighting()
-        # Mark all other viewers as needing update
-        for v in self.get_all_viewers():
-            if v != viewer:
-                v.ignore_tab = self.ignore_tab
-                v._needs_highlighting_update = True
+        self.view_state_mgr.toggle_tab_visibility()
+        # Sync local state
+        self.ignore_tab = self.view_state_mgr.ignore_tab
     
     def toggle_trailing_ws_visibility(self):
         """Toggle trailing whitespace visibility in all viewers"""
-        self.ignore_trailing_ws = not self.show_trailing_ws_action.isChecked()
-        # Update current viewer immediately
-        viewer = self.get_current_viewer()
-        if viewer:
-            viewer.ignore_trailing_ws = self.ignore_trailing_ws
-            viewer.restart_highlighting()
-        # Mark all other viewers as needing update
-        for v in self.get_all_viewers():
-            if v != viewer:
-                v.ignore_trailing_ws = self.ignore_trailing_ws
-                v._needs_highlighting_update = True
+        self.view_state_mgr.toggle_trailing_ws_visibility()
+        # Sync local state
+        self.ignore_trailing_ws = self.view_state_mgr.ignore_trailing_ws
     
     def toggle_intraline_visibility(self):
         """Toggle intraline changes visibility in all viewers"""
-        self.ignore_intraline = not self.show_intraline_action.isChecked()
-        # Update current viewer immediately
-        viewer = self.get_current_viewer()
-        if viewer:
-            viewer.ignore_intraline = self.ignore_intraline
-            viewer.restart_highlighting()
-        # Mark all other viewers as needing update
-        for v in self.get_all_viewers():
-            if v != viewer:
-                v.ignore_intraline = self.ignore_intraline
-                v._needs_highlighting_update = True
+        self.view_state_mgr.toggle_intraline_visibility()
+        # Sync local state
+        self.ignore_intraline = self.view_state_mgr.ignore_intraline
     
     def setup_file_watcher(self, viewer):
         """Set up file system watching for a viewer's files"""
