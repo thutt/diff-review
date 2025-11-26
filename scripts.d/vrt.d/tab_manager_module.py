@@ -138,6 +138,10 @@ class DiffViewerTabWidget(QMainWindow):
         self.reload_timers = {}  # Maps viewer -> QTimer (for debouncing)
         self.changed_files = {}  # Maps viewer -> set of changed files
         
+        # Loading animation state
+        self.loading_buttons = {}  # Maps button -> (original_text, timer, dot_count)
+        self.loading_file_class = None  # Track which file is currently loading
+        
         # Create main layout
         central = QWidget()
         main_layout = QHBoxLayout(central)
@@ -708,10 +712,81 @@ class DiffViewerTabWidget(QMainWindow):
             # Tab was closed, remove from mapping
             del self.file_to_tab_index[file_class]
         
-        # No existing tab, create new one
-        self.current_file_class = file_class  # Store for add_viewer to use
-        file_class.add_viewer(self)
-        self.current_file_class = None  # Clear after use
+        # Find the button for this file
+        button = None
+        for btn in self.file_buttons:
+            if btn.file_class == file_class:
+                button = btn
+                break
+        
+        if button:
+            # Start loading animation
+            self.start_loading_animation(button, file_class)
+            
+            # Defer the heavy work to allow UI to repaint
+            QTimer.singleShot(50, lambda: self.load_file_deferred(file_class))
+        else:
+            # No button found, load immediately (shouldn't happen)
+            self.load_file_deferred(file_class)
+    
+    def start_loading_animation(self, button, file_class):
+        """Start an animated loading indicator on a button"""
+        original_text = button.text()
+        
+        # Change button style to show loading state
+        button.setStyleSheet("""
+            QPushButton {
+                text-align: left;
+                padding: 8px 8px 8px 20px;
+                border: none;
+                border-left: 4px solid #2196F3;
+                background-color: #E3F2FD;
+                font-style: italic;
+                color: #1976D2;
+            }
+        """)
+        
+        # Create animation timer
+        timer = QTimer()
+        dot_count = [0]  # Use list to allow modification in nested function
+        
+        def update_dots():
+            dot_count[0] = (dot_count[0] + 1) % 4
+            dots = '.' * dot_count[0]
+            button.setText(f"Loading{dots}")
+        
+        timer.timeout.connect(update_dots)
+        timer.start(400)  # Update every 400ms
+        update_dots()  # Set initial text
+        
+        # Store state for cleanup
+        self.loading_buttons[button] = (original_text, timer, dot_count)
+        self.loading_file_class = file_class
+    
+    def stop_loading_animation(self, button):
+        """Stop loading animation and restore button state"""
+        if button in self.loading_buttons:
+            original_text, timer, dot_count = self.loading_buttons[button]
+            timer.stop()
+            button.setText(original_text)
+            del self.loading_buttons[button]
+        
+        self.loading_file_class = None
+        # Button style will be restored by update_button_states()
+    
+    def load_file_deferred(self, file_class):
+        """Load a file after UI has had a chance to repaint"""
+        try:
+            # No existing tab, create new one
+            self.current_file_class = file_class  # Store for add_viewer to use
+            file_class.add_viewer(self)
+            self.current_file_class = None  # Clear after use
+        finally:
+            # Stop loading animation
+            for btn in self.file_buttons:
+                if btn.file_class == file_class:
+                    self.stop_loading_animation(btn)
+                    break
     
     def add_viewer(self, diff_viewer, tab_title=None):
         """
