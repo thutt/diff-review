@@ -37,6 +37,8 @@ class HelpDialog(QDialog):
         return """
         <h2>Diff Viewer - User Guide</h2>
         
+        <p><strong>Tip:</strong> Press <b>F1</b> or <b>Ctrl+?</b> for a quick keyboard shortcuts reference card!</p>
+        
         <h3>Overview</h3>
         <p>This diff viewer displays side-by-side comparison of files with synchronized scrolling and highlighting of changes. Multiple diffs can be opened in tabs with a sidebar for file navigation.</p>
         

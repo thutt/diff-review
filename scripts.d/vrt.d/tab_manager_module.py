@@ -18,6 +18,7 @@ from PyQt6.QtGui import (QAction, QFont, QKeySequence, QActionGroup, QFontMetric
                          QColor, QTextDocument, QShortcut)
 
 from help_dialog import HelpDialog
+from shortcuts_dialog import ShortcutsDialog
 from search_dialogs import SearchDialog, SearchResultDialog
 import color_palettes
 import view_state_manager
@@ -356,6 +357,12 @@ class DiffViewerTabWidget(QMainWindow):
         
         # Help menu
         help_menu = menubar.addMenu("Help")
+        
+        shortcuts_action = QAction("Keyboard Shortcuts", self)
+        shortcuts_action.setShortcuts([QKeySequence("Ctrl+?"), QKeySequence("F1")])
+        shortcuts_action.triggered.connect(self.show_shortcuts)
+        help_menu.addAction(shortcuts_action)
+        
         help_action = QAction("How to Use", self)
         help_action.triggered.connect(self.show_help)
         help_menu.addAction(help_action)
@@ -1155,6 +1162,11 @@ class DiffViewerTabWidget(QMainWindow):
         help_dialog = HelpDialog(self)
         help_dialog.show()
     
+    def show_shortcuts(self):
+        """Show keyboard shortcuts reference"""
+        shortcuts_dialog = ShortcutsDialog(self)
+        shortcuts_dialog.show()  # Non-modal, not stay-on-top
+    
     def switch_palette(self, palette_name):
         """Switch to a different color palette and refresh all viewers"""
         if color_palettes.set_current_palette(palette_name):
@@ -1211,6 +1223,12 @@ class DiffViewerTabWidget(QMainWindow):
         
         # Get current viewer for most commands
         viewer = self.get_current_viewer()
+        
+        # F1 or Ctrl+? - Show keyboard shortcuts
+        if key == Qt.Key.Key_F1 or (key == Qt.Key.Key_Question and 
+                                      modifiers & Qt.KeyboardModifier.ControlModifier):
+            self.show_shortcuts()
+            return
         
         # Escape closes the entire application
         if key == Qt.Key.Key_Escape:
