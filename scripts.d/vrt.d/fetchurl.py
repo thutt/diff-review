@@ -179,9 +179,10 @@ class FetchDesc(object):
         """
         Fetch content from URL, prompting for auth if needed
 
-        Uses cached credentials if available. Retries authentication until
-        success or user cancels. Tries with SSL verification first, prompts 
-        user if verification fails.
+        Uses cached credentials if available. Tries unauthenticated request first,
+        then prompts for credentials only if server returns 401. Retries 
+        authentication until success or user cancels. Tries with SSL verification 
+        first, prompts user if verification fails.
         """
         global _verify_ssl
 
@@ -197,19 +198,22 @@ class FetchDesc(object):
         while True:
             auth = None
 
-            # Try to use cached credentials first
+            # Determine if we should use authentication
             cached = self._get_cached_credentials()
-            if cached:
-                auth = HTTPBasicAuth(*cached)
-            else:
-                # No cached credentials - prompt user
-                creds = self._prompt_for_credentials()
-                if not creds:
-                    # User cancelled
-                    self.body_      = None
-                    self.http_code_ = 401
-                    return
-                auth = HTTPBasicAuth(*creds)
+            if self.require_auth_ or cached:
+                # Use cached credentials if available, or prompt if require_auth is True
+                if cached:
+                    auth = HTTPBasicAuth(*cached)
+                else:
+                    # require_auth is True but no cached credentials - prompt user
+                    creds = self._prompt_for_credentials()
+                    if not creds:
+                        # User cancelled
+                        self.body_      = None
+                        self.http_code_ = 401
+                        return
+                    auth = HTTPBasicAuth(*creds)
+            # Otherwise auth remains None for unauthenticated request
 
             # Make the request with current SSL verification setting
             try:
@@ -258,9 +262,21 @@ class FetchDesc(object):
                     self.http_code_ = response.status_code
                 return
             elif response.status_code == 401:
-                # Auth failed - clear cached credentials and loop to retry
-                self._clear_cached_credentials()
-                # Loop will prompt again
+                # Auth required or failed
+                if auth is None:
+                    # First 401 - server requires authentication
+                    # Prompt for credentials and loop to retry
+                    creds = self._prompt_for_credentials()
+                    if not creds:
+                        # User cancelled
+                        self.body_      = None
+                        self.http_code_ = 401
+                        return
+                    # Credentials cached by _prompt_for_credentials, will be used on retry
+                else:
+                    # Auth failed - clear cached credentials and loop to retry
+                    self._clear_cached_credentials()
+                    # Loop will prompt again
             else:
                 # Some other HTTP error - return it
                 try:
