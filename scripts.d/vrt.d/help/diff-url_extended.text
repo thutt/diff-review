@@ -23,9 +23,118 @@ If the URL is https:
 
 If the URL is http:
 
-   o Access is granted directly, and no credentials are required.
+  o Access is granted directly, and no credentials are required.
 
-If the URL does not reference a valid diff, an error message will be
-displayed and the program will halt.
+
+Here are a few scenarios which result in errors:
+
+  o There is no https server running
+
+    + You will be prompted to credentials.
+    + You will be presented with this error:
+
+       An unidentified network error occurred during the download of
+
+         https://<FQDN>:443/<review-root>/default/dossier.json
+
+       No HTTP code was produced, so this is most likely to be
+       a network infrastructure error, or the web server is down.
+
+       The file contents could not be retrieved.
+
+       fatal: Unable to retrieve dossier from:
+         'https://<FQDN>:443/<review-root>/default'
+
+
+  o There is no http server running
+
+    + You will be presented with this error:
+
+       An unidentified network error occurred during the download of
+
+         http://<FQDN>:80/<review-root>/default/dossier.json
+
+       No HTTP code was produced, so this is most likely to be
+       a network infrastructure error, or the web server is down.
+
+       The file contents could not be retrieved.
+
+       fatal: Unable to retrieve dossier from:
+         'http://<FQDN>:80/<review-root>/default'
+
+
+  o Server is not running on port 80 or 443.
+
+    Use the '--url-port' option of 'dr' to set the port in the URL.
+
+
+  o The '--url-dir' references the wrong path
+
+    If the directory referenced by the '--url-dir' is not correct,
+    you'll get an error that looks like this:
+
+      Fetching the following URL
+
+        https://<FQDN>:443/<incorrect path>/dossier.json
+
+      produced this HTML response code: 404
+
+      The file contents could not be retrieved.
+
+      fatal: Unable to retrieve dossier from:
+        'https://<FQDN>:443/<incorrect path>'
+
+    This means the default directory output by 'diff-review' (aka
+    'dr') is not properly referencing the 'review' directory of the
+    person who generated the diffs.
+
+    There are a couple options:
+
+      1. Experimentally, using a web browser, modify the URL until you
+         find the right path that provides a view into the 'review'
+         directory.  This is not hard if the server provides directory
+         listings, but you can hunt specifically for 'dossier.json' in
+         the directory containing the review.
+
+         For example, if the default review name was used, hunt for
+         'default/dossier.json'.
+
+         When you find it, the value for the '--url-R' option to 'dr'
+         will be the portion of the URL between the FQDN & port
+         through the 'review' directory.
+
+         If the server root is '/home', and 'dr' output this:
+
+           https://<FQDN>:443/home/${USER}/review/default
+
+         You should rerun 'dr' with this option:
+
+           --url-R '${USER}/review'
+
+
+      2.  If the web server is not serving home directories, but is
+          instead serving somewhere else, like 'public_html', you can
+          either copy the diff files to that directory, or use these
+          three 'dr' options to put the files there and generate the
+          correct URL.
+
+            + -R / --review-directory
+
+              This option overrides where 'dr' will write the output.
+
+            + -r / --review-name
+
+              This option allows you to provide a name for the diff.
+
+            + --url-R
+
+              This option allows you to specify the 'review directory'
+              in the URL, as previously seen.
+
+          For example, if your web server is serving '/tmp', you could
+          do this:
+
+            dr  --url-R tmp/testing -R /tmp/testing -r example-name
+
 
 This is mutually exclusive with '--diff-dir'.
