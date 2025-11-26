@@ -111,6 +111,7 @@ Return Code:
     oo  = parser.add_argument_group("Output Options")
     ext = parser.add_argument_group("Extended Help Information")
 
+    # Diff Specification Options
     d_group = dso.add_mutually_exclusive_group()
     d_group.add_argument("--diff-dir",
                          help     = regular_help(ext, ext_options, "diff-dir"),
@@ -137,6 +138,7 @@ Return Code:
                      dest     = "arg_fqdn")
 
 
+    # Diff Rendering Options
     dro.add_argument("--intraline-percent",
                      help     = regular_help(ext, ext_options, "intraline-percent"),
                      action   = "store",
@@ -166,6 +168,7 @@ Return Code:
                      dest     = "arg_palette")
 
 
+    # Note Taking Options
     nto.add_argument("--note-file",
                      help     = regular_help(ext, ext_options, "note-file"),
                      action   = "store",
@@ -175,6 +178,7 @@ Return Code:
                      dest     = "arg_note")
 
 
+    # Auto-reload Options
     aro.add_argument("--auto-reload",
                      help     = regular_help(ext, ext_options, "auto-reload"),
                      action   = "store_true",
@@ -188,6 +192,7 @@ Return Code:
                      dest     = "arg_auto_reload")
 
 
+    # HTTP Certificate Options
     hco.add_argument("--verify-https-cert",
                      help     = regular_help(ext, ext_options, "verify-https-cert"),
                      action   = "store_true",
@@ -201,6 +206,7 @@ Return Code:
                      dest     = "arg_ack_insecure_cert")
 
 
+    # Display Characteristics Options
     dco.add_argument("--display-n-lines",
                      help     = ("Set initial number of lines of source "
                                  "to show in viewer.\n[default: %(default)s]"),
@@ -287,6 +293,7 @@ Return Code:
                      dest     = "arg_line_numbers")
 
 
+    # Output Options
     oo.add_argument("--dump-ir",
                     help     = argparse.SUPPRESS, # Internal use only.
                     action   = "store",
@@ -301,7 +308,7 @@ Return Code:
                     default  = False,
                     required = False,
                     dest     = "arg_verbose")
-    
+
     parser.add_argument("tail",
                         help  = "Command line tail",
                         nargs = "*")

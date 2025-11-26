@@ -18,8 +18,14 @@ from PyQt6.QtGui import (QAction, QFont, QKeySequence, QActionGroup, QFontMetric
                          QColor, QTextDocument, QShortcut)
 
 from help_dialog import HelpDialog
+from shortcuts_dialog import ShortcutsDialog
 from search_dialogs import SearchDialog, SearchResultDialog
 import color_palettes
+import view_state_manager
+import bookmark_manager
+import file_watcher
+import commit_msg_handler
+import search_manager
 
 
 class FileButton(QPushButton):
@@ -120,9 +126,6 @@ class DiffViewerTabWidget(QMainWindow):
         self.file_to_tab_index = {}  # Maps file_class to tab index
         self.current_file_class = None  # Track which file is being added
         self.sidebar_visible = True
-        self.commit_msg_rel_path_ = None  # Track commit message file (internal)
-        self.commit_msg_button = None  # Track commit message button
-        self.search_result_dialogs = []  # Track search result dialogs
         
         # Global view state for all tabs
         self.diff_map_visible = show_diff_map  # Initial state for diff map
@@ -132,15 +135,42 @@ class DiffViewerTabWidget(QMainWindow):
         # Global bookmarks: maps (tab_index, line_idx) -> True
         self.global_bookmarks = {}
         
-        # File watching and auto-reload
-        self.auto_reload_enabled = auto_reload  # Initial auto-reload state from parameter
-        self.file_watchers = {}  # Maps viewer -> QFileSystemWatcher
-        self.reload_timers = {}  # Maps viewer -> QTimer (for debouncing)
-        self.changed_files = {}  # Maps viewer -> set of changed files
-        
         # Loading animation state
         self.loading_buttons = {}  # Maps button -> (original_text, timer, dot_count)
         self.loading_file_class = None  # Track which file is currently loading
+        
+        # Create view state manager
+        self.view_state_mgr = view_state_manager.ViewStateManager(
+            self, show_diff_map, show_line_numbers,
+            ignore_tab, ignore_trailing_ws, ignore_intraline)
+        
+        # Create bookmark manager
+        self.bookmark_mgr = bookmark_manager.BookmarkManager(self)
+        
+        # Keep reference to global_bookmarks for compatibility
+        self.global_bookmarks = self.bookmark_mgr.global_bookmarks
+        
+        # Create file watcher manager
+        self.file_watcher_mgr = file_watcher.FileWatcherManager(self, auto_reload)
+        
+        # Keep references for compatibility
+        self.auto_reload_enabled = self.file_watcher_mgr.auto_reload_enabled
+        self.file_watchers = self.file_watcher_mgr.file_watchers
+        self.reload_timers = self.file_watcher_mgr.reload_timers
+        self.changed_files = self.file_watcher_mgr.changed_files
+        
+        # Create commit message handler
+        self.commit_msg_mgr = commit_msg_handler.CommitMsgHandler(self)
+        
+        # Keep references for compatibility
+        self.commit_msg_rel_path_ = self.commit_msg_mgr.commit_msg_rel_path
+        self.commit_msg_button = self.commit_msg_mgr.commit_msg_button
+        
+        # Create search manager
+        self.search_mgr = search_manager.SearchManager(self)
+        
+        # Keep reference for compatibility
+        self.search_result_dialogs = self.search_mgr.search_result_dialogs
         
         # Create main layout
         central = QWidget()
@@ -327,6 +357,12 @@ class DiffViewerTabWidget(QMainWindow):
         
         # Help menu
         help_menu = menubar.addMenu("Help")
+        
+        shortcuts_action = QAction("Keyboard Shortcuts", self)
+        shortcuts_action.setShortcuts([QKeySequence("Ctrl+?"), QKeySequence("F1")])
+        shortcuts_action.triggered.connect(self.show_shortcuts)
+        help_menu.addAction(shortcuts_action)
+        
         help_action = QAction("How to Use", self)
         help_action.triggered.connect(self.show_help)
         help_menu.addAction(help_action)
@@ -357,209 +393,36 @@ class DiffViewerTabWidget(QMainWindow):
         self.resize(total_width, total_height)
     
     def add_commit_msg(self, commit_msg_rel_path):
-        """
-        Add commit message to the sidebar as the first item.
-        
-        Args:
-            commit_msg_rel_path: Path to the commit message file
-        """
-        self.commit_msg_rel_path_ = commit_msg_rel_path
-        
-        # Create a special button for commit message
-        self.commit_msg_button = QPushButton("Commit Message")
-        self.commit_msg_button.clicked.connect(self.on_commit_msg_clicked)
-        self.commit_msg_button.setStyleSheet("""
-            QPushButton {
-                text-align: left;
-                padding: 8px 8px 8px 20px;
-                border: none;
-                background-color: #fff4e6;
-                border-left: 4px solid transparent;
-                font-weight: bold;
-                color: #e65100;
-            }
-            QPushButton:hover {
-                background-color: #ffe0b2;
-            }
-        """)
-        
-        # Insert after "Open All" button (position 1)
-        self.button_layout.insertWidget(1, self.commit_msg_button)
+        """Add commit message to the sidebar as the first item"""
+        self.commit_msg_mgr.add_commit_msg(commit_msg_rel_path)
+        # Sync references
+        self.commit_msg_rel_path_ = self.commit_msg_mgr.commit_msg_rel_path
+        self.commit_msg_button = self.commit_msg_mgr.commit_msg_button
     
     def on_commit_msg_clicked(self):
         """Handle commit message button click"""
-        # Check if tab already exists
-        if 'commit_msg' in self.file_to_tab_index:
-            tab_index = self.file_to_tab_index['commit_msg']
-            if 0 <= tab_index < self.tab_widget.count():
-                self.tab_widget.setCurrentIndex(tab_index)
-                return
-            # Tab was closed, remove from mapping
-            del self.file_to_tab_index['commit_msg']
-        
-        # Create new commit message tab
-        self.create_commit_msg_tab()
+        self.commit_msg_mgr.on_commit_msg_clicked()
     
     def create_commit_msg_tab(self):
         """Create a tab displaying the commit message"""
-        commit_msg_text = self.afr_.read(self.commit_msg_rel_path_)
-
-        # The afr_.read() will return the lines as an array of
-        # non-'\n' strings.  The setPlainText() function seems to need
-        # a single string.  So, for this special case, put the lines
-        # back together.
-        commit_msg_text = '\n'.join(commit_msg_text)
-        
-        # Create text widget
-        text_widget = QPlainTextEdit()
-        text_widget.setReadOnly(True)
-        text_widget.setPlainText(commit_msg_text)
-        text_widget.setFont(QFont("Courier", 12, QFont.Weight.Bold))
-        
-        # Style commit message with subtle sepia tone
-        text_widget.setStyleSheet("""
-            QPlainTextEdit {
-                background-color: #fdf6e3;
-                color: #5c4a3a;
-            }
-        """)
-        
-        # Set up context menu
-        text_widget.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        text_widget.customContextMenuRequested.connect(
-            lambda pos: self.show_commit_msg_context_menu(pos, text_widget))
-        
-        # Install event filter for keyboard shortcuts
-        text_widget.installEventFilter(self)
-        
-        # Store reference to tab widget for later use
-        text_widget.is_commit_msg = True
-        
-        # Add to tabs
-        index = self.tab_widget.addTab(text_widget, "Commit Message")
-        self.file_to_tab_index['commit_msg'] = index
-        self.tab_widget.setCurrentIndex(index)
-        
-        # Update button state
-        self.update_button_states()
+        self.commit_msg_mgr.create_commit_msg_tab()
     
     def show_search_dialog(self):
         """Show search dialog for current tab"""
-        viewer = self.get_current_viewer()
-        current_widget = self.tab_widget.currentWidget()
-        
-        dialog = SearchDialog(self)
-        if dialog.exec() == dialog.DialogCode.Accepted and dialog.search_text:
-            # Pass self (tab widget) as parent so search results can navigate properly
-            results_dialog = SearchResultDialog(
-                search_text=dialog.search_text,
-                parent=self,
-                case_sensitive=dialog.case_sensitive,
-                search_base=dialog.search_base,
-                search_modi=dialog.search_modi,
-                search_all_tabs=dialog.search_all_tabs,
-                use_regex=dialog.use_regex
-            )
-            # Store reference to prevent garbage collection
-            self.search_result_dialogs.append(results_dialog)
-            # Connect destroyed signal to clean up reference
-            results_dialog.destroyed.connect(lambda: self.search_result_dialogs.remove(results_dialog) 
-                                            if results_dialog in self.search_result_dialogs else None)
-            results_dialog.show()  # Show as modeless, not modal
+        self.search_mgr.show_search_dialog()
+
     
     def search_selected_text(self, text_widget):
         """Search for selected text from any text widget"""
-        cursor = text_widget.textCursor()
-        if not cursor.hasSelection():
-            return
-        
-        search_text = cursor.selectedText()
-        
-        # Default to searching all tabs if multiple tabs are open
-        search_all_tabs = self.tab_widget.count() > 1
-        
-        dialog = SearchResultDialog(search_text, self, case_sensitive=False,
-                                   search_base=True, search_modi=True,
-                                   search_all_tabs=search_all_tabs)
-        # Store reference to prevent garbage collection
-        self.search_result_dialogs.append(dialog)
-        # Connect destroyed signal to clean up reference
-        dialog.destroyed.connect(lambda: self.search_result_dialogs.remove(dialog) 
-                                if dialog in self.search_result_dialogs else None)
-        dialog.show()  # Show as modeless, not modal
+        self.search_mgr.search_selected_text(text_widget)
     
     def show_commit_msg_context_menu(self, pos, text_widget):
         """Show context menu for commit message"""
-        menu = QMenu(self)
-        cursor = text_widget.textCursor()
-        has_selection = cursor.hasSelection()
-        
-        search_action = QAction("Search", self)
-        search_action.setEnabled(has_selection)
-        if has_selection:
-            search_action.triggered.connect(lambda: self.search_selected_text(text_widget))
-        menu.addAction(search_action)
-        
-        menu.addSeparator()
-        
-        # Note taking - need to check if any viewer has a note file
-        note_file = self.get_note_file()
-        if has_selection and note_file:
-            note_action = QAction("Take Note", self)
-            note_action.triggered.connect(
-                lambda: self.take_commit_msg_note(text_widget, note_file))
-            menu.addAction(note_action)
-        else:
-            note_action = QAction("Take Note (no selection)" if note_file else 
-                               "Take Note (no file supplied)", self)
-            note_action.setEnabled(False)
-            menu.addAction(note_action)
-        
-        menu.exec(text_widget.mapToGlobal(pos))
+        self.commit_msg_mgr.show_commit_msg_context_menu(pos, text_widget)
     
     def take_commit_msg_note(self, text_widget, note_file):
         """Take note from commit message"""
-        cursor = text_widget.textCursor()
-        if not cursor.hasSelection():
-            return
-        
-        # Save selection range before doing anything
-        selection_start = cursor.selectionStart()
-        selection_end = cursor.selectionEnd()
-        
-        selected_text = cursor.selectedText()
-        selected_text = selected_text.replace('\u2029', '\n')
-        
-        try:
-            with open(note_file, 'a') as f:
-                f.write("> (commit_msg): Commit Message\n")
-                for line in selected_text.split('\n'):
-                    f.write(f">   {line}\n")
-                f.write('>\n\n\n')
-            
-            # Apply permanent yellow background to noted text
-            from PyQt6.QtGui import QTextCharFormat, QColor
-            
-            # Create new cursor with saved selection
-            highlight_cursor = text_widget.textCursor()
-            highlight_cursor.setPosition(selection_start)
-            highlight_cursor.setPosition(selection_end, highlight_cursor.MoveMode.KeepAnchor)
-            
-            # Create yellow highlight format (match DiffViewer color)
-            highlight_format = QTextCharFormat()
-            highlight_format.setBackground(QColor(255, 255, 200))  # Light yellow like DiffViewer
-            
-            # Apply permanent yellow highlight
-            highlight_cursor.mergeCharFormat(highlight_format)
-            
-            # Update note count in current viewer if it exists
-            viewer = self.get_current_viewer()
-            if viewer:
-                viewer.note_count += 1
-                viewer.update_status()
-        except Exception as e:
-            QMessageBox.warning(self, 'Error Taking Note',
-                              f'Could not write to note file:\n{e}')
+        self.commit_msg_mgr.take_commit_msg_note(text_widget, note_file)
     
     def get_note_file(self):
         """Get note file - prefer global, fallback to any viewer"""
@@ -853,19 +716,11 @@ class DiffViewerTabWidget(QMainWindow):
             diff_viewer.ensure_highlighting_applied()
         
         # Apply global view state to new viewer
-        if self.diff_map_visible != diff_viewer.diff_map_visible:
-            diff_viewer.toggle_diff_map()
-        if self.line_numbers_visible != diff_viewer.line_numbers_visible:
-            diff_viewer.toggle_line_numbers()
+        self.view_state_mgr.apply_to_viewer(diff_viewer)
         
         # Apply global note file if set
         if self.global_note_file:
             diff_viewer.note_file = self.global_note_file
-        
-        # Apply global whitespace ignore settings
-        diff_viewer.ignore_tab = self.ignore_tab
-        diff_viewer.ignore_trailing_ws = self.ignore_trailing_ws
-        diff_viewer.ignore_intraline = self.ignore_intraline
         
         # Set up file watching for this viewer
         self.setup_file_watcher(diff_viewer)
@@ -877,32 +732,7 @@ class DiffViewerTabWidget(QMainWindow):
     
     def show_diff_context_menu(self, pos, text_widget, side):
         """Show context menu for diff viewer text widgets"""
-        menu = QMenu(self)
-        viewer = self.get_current_viewer()
-        
-        if not viewer:
-            return
-        
-        has_selection = text_widget.textCursor().hasSelection()
-        
-        search_action = QAction("Search", self)
-        search_action.setEnabled(has_selection)
-        search_action.triggered.connect(lambda: self.search_selected_text(text_widget))
-        menu.addAction(search_action)
-        
-        menu.addSeparator()
-        
-        if has_selection and viewer.note_file:
-            note_action = QAction("Take Note", self)
-            note_action.triggered.connect(lambda: viewer.take_note(side))
-            menu.addAction(note_action)
-        else:
-            note_action = QAction("Take Note (no selection)" if viewer.note_file else 
-                           "Take Note (no file supplied)", self)
-            note_action.setEnabled(False)
-            menu.addAction(note_action)
-        
-        menu.exec(text_widget.mapToGlobal(pos))
+        self.search_mgr.show_diff_context_menu(pos, text_widget, side)
     
     def highlight_all_matches_in_widget(self, text_widget, search_text, highlight_color):
         """
@@ -914,32 +744,7 @@ class DiffViewerTabWidget(QMainWindow):
             search_text: The text to search for (case-insensitive)
             highlight_color: QColor to use for highlighting all matches
         """
-        from PyQt6.QtGui import QTextCharFormat, QTextCursor
-        
-        # Get all text
-        all_text = text_widget.toPlainText()
-        search_lower = search_text.lower()
-        all_text_lower = all_text.lower()
-        
-        # Find all positions manually
-        pos = 0
-        while True:
-            pos = all_text_lower.find(search_lower, pos)
-            if pos < 0:
-                break
-            
-            # Create cursor at this position and select the match
-            cursor = text_widget.textCursor()
-            cursor.setPosition(pos)
-            cursor.setPosition(pos + len(search_text), QTextCursor.MoveMode.KeepAnchor)
-            
-            # Apply highlight format
-            fmt = QTextCharFormat()
-            fmt.setBackground(highlight_color)
-            cursor.mergeCharFormat(fmt)
-            
-            # Move to next potential match
-            pos += len(search_text)
+        self.search_mgr.highlight_all_matches_in_widget(text_widget, search_text, highlight_color)
     
     def select_search_result(self, side, line_idx, search_text=None, char_pos=None):
         """Navigate to a search result and use two-tier highlighting
@@ -955,120 +760,11 @@ class DiffViewerTabWidget(QMainWindow):
             search_text: Text to search for
             char_pos: Character position of the specific match to highlight bright (optional)
         """
-        viewer = self.get_current_viewer()
-        if not viewer:
-            return
-        
-        viewer.center_on_line(line_idx)
-        
-        # Select the appropriate text widget
-        text_widget = viewer.base_text if side == 'base' else viewer.modified_text
-        text_widget.setFocus()
-        
-        # If search_text is provided, implement two-tier highlighting
-        if search_text:
-            from PyQt6.QtGui import QTextCharFormat, QTextCursor
-            import color_palettes
-            
-            palette = color_palettes.get_current_palette()
-            all_color = palette.get_color('search_highlight_all')
-            current_color = palette.get_color('search_highlight_current')
-            
-            # Check if we need to do initial highlighting (search_text changed)
-            if not hasattr(viewer, '_last_search_text') or viewer._last_search_text != search_text:
-                # First time or new search - clear old highlights and highlight all matches
-                self.clear_search_highlights(viewer.base_text)
-                self.clear_search_highlights(viewer.modified_text)
-                
-                # TIER 1: Highlight ALL matches in BOTH panes with subtle color (ONCE)
-                self.highlight_all_matches_in_widget(viewer.base_text, search_text, all_color)
-                self.highlight_all_matches_in_widget(viewer.modified_text, search_text, all_color)
-                
-                viewer._last_search_text = search_text
-                viewer._last_bright_pos = None  # Track last bright position
-            else:
-                # Same search - just need to change bright highlight
-                # Change previous bright match back to subtle (if exists)
-                if hasattr(viewer, '_last_bright_pos') and viewer._last_bright_pos:
-                    last_widget, last_line_idx, last_char_pos, last_len = viewer._last_bright_pos
-                    block = last_widget.document().findBlockByNumber(last_line_idx)
-                    if block.isValid():
-                        cursor = last_widget.textCursor()
-                        cursor.setPosition(block.position() + last_char_pos)
-                        cursor.setPosition(block.position() + last_char_pos + last_len,
-                                         QTextCursor.MoveMode.KeepAnchor)
-                        fmt = QTextCharFormat()
-                        fmt.setBackground(all_color)  # Back to subtle
-                        cursor.mergeCharFormat(fmt)
-            
-            # TIER 2: Find and highlight the CURRENT match with bright color
-            block = text_widget.document().findBlockByNumber(line_idx)
-            if block.isValid():
-                line_text = block.text()
-                
-                # Use provided char_pos if available, otherwise find first match
-                if char_pos is not None:
-                    pos = char_pos
-                else:
-                    search_lower = search_text.lower()
-                    line_lower = line_text.lower()
-                    pos = line_lower.find(search_lower)
-                
-                if pos >= 0 and pos < len(line_text):
-                    # Apply bright highlight to current match
-                    cursor = text_widget.textCursor()
-                    cursor.setPosition(block.position() + pos)
-                    cursor.setPosition(block.position() + pos + len(search_text), 
-                                     QTextCursor.MoveMode.KeepAnchor)
-                    
-                    fmt = QTextCharFormat()
-                    fmt.setBackground(current_color)
-                    cursor.mergeCharFormat(fmt)
-                    
-                    # Remember this position for next time
-                    viewer._last_bright_pos = (text_widget, line_idx, pos, len(search_text))
-                    
-                    # Position cursor at current match (without selection to avoid blue overlay)
-                    cursor.setPosition(block.position() + pos)
-                    text_widget.setTextCursor(cursor)
-                    text_widget.ensureCursorVisible()
+        self.search_mgr.select_search_result(side, line_idx, search_text, char_pos)
     
     def clear_search_highlights(self, text_widget):
         """Clear all search highlights from a text widget by removing search highlight colors"""
-        from PyQt6.QtGui import QTextCharFormat, QTextCursor
-        import color_palettes
-        
-        palette = color_palettes.get_current_palette()
-        search_all_color = palette.get_color('search_highlight_all')
-        search_current_color = palette.get_color('search_highlight_current')
-        
-        # Iterate through the document and remove search highlight backgrounds
-        cursor = QTextCursor(text_widget.document())
-        cursor.movePosition(QTextCursor.MoveOperation.Start)
-        
-        # Save current position
-        saved_cursor = text_widget.textCursor()
-        current_pos = saved_cursor.position()
-        
-        # Go through each character and check/clear search highlighting
-        while not cursor.atEnd():
-            cursor.movePosition(QTextCursor.MoveOperation.NextCharacter, QTextCursor.MoveMode.KeepAnchor)
-            fmt = cursor.charFormat()
-            bg = fmt.background().color()
-            
-            # If this character has a search highlight color, clear it
-            if bg == search_all_color or bg == search_current_color:
-                # Create format that only sets background to transparent
-                clear_fmt = QTextCharFormat()
-                clear_fmt.setBackground(QColor(0, 0, 0, 0))  # Transparent
-                cursor.mergeCharFormat(clear_fmt)
-            
-            # Move to next position
-            cursor.movePosition(QTextCursor.MoveOperation.NextCharacter)
-        
-        # Restore original cursor position
-        saved_cursor.setPosition(current_pos)
-        text_widget.setTextCursor(saved_cursor)
+        self.search_mgr.clear_search_highlights(text_widget)
     
     def select_commit_msg_result(self, line_idx, search_text=None, char_pos=None):
         """Navigate to a line in the commit message tab and highlight search text
@@ -1078,165 +774,15 @@ class DiffViewerTabWidget(QMainWindow):
             search_text: Text to search for
             char_pos: Character position of the specific match to highlight bright (optional)
         """
-        # Find the commit message tab
-        commit_msg_widget = None
-        commit_msg_tab_index = None
-        
-        if 'commit_msg' in self.file_to_tab_index:
-            commit_msg_tab_index = self.file_to_tab_index['commit_msg']
-            if 0 <= commit_msg_tab_index < self.tab_widget.count():
-                widget = self.tab_widget.widget(commit_msg_tab_index)
-                if hasattr(widget, 'is_commit_msg') and widget.is_commit_msg:
-                    commit_msg_widget = widget
-        
-        if not commit_msg_widget:
-            # No commit message tab found
-            return
-        
-        # Switch to the commit message tab
-        self.tab_widget.setCurrentIndex(commit_msg_tab_index)
-        
-        # Navigate to the line
-        cursor = commit_msg_widget.textCursor()
-        cursor.movePosition(cursor.MoveOperation.Start)
-        for _ in range(line_idx):
-            cursor.movePosition(cursor.MoveOperation.Down)
-        
-        # If search_text provided, do two-tier highlighting
-        if search_text:
-            from PyQt6.QtGui import QTextCharFormat, QTextCursor
-            import color_palettes
-            
-            palette = color_palettes.get_current_palette()
-            all_color = palette.get_color('search_highlight_all')
-            current_color = palette.get_color('search_highlight_current')
-            
-            # Check if we need to do initial highlighting (search_text changed)
-            if not hasattr(commit_msg_widget, '_last_search_text') or commit_msg_widget._last_search_text != search_text:
-                # First time or new search - clear old and highlight all matches
-                self.clear_commit_msg_tab_highlights(commit_msg_widget)
-                
-                # TIER 1: Highlight ALL matches (ONCE)
-                self.highlight_all_matches_in_commit_msg_tab(commit_msg_widget, search_text, all_color)
-                
-                commit_msg_widget._last_search_text = search_text
-                commit_msg_widget._last_bright_pos = None
-            else:
-                # Same search - just change bright highlight
-                # Change previous bright match back to subtle
-                if hasattr(commit_msg_widget, '_last_bright_pos') and commit_msg_widget._last_bright_pos:
-                    last_line_idx, last_char_pos, last_len = commit_msg_widget._last_bright_pos
-                    block = commit_msg_widget.document().findBlockByNumber(last_line_idx)
-                    if block.isValid():
-                        cursor = commit_msg_widget.textCursor()
-                        cursor.setPosition(block.position() + last_char_pos)
-                        cursor.setPosition(block.position() + last_char_pos + last_len,
-                                         QTextCursor.MoveMode.KeepAnchor)
-                        fmt = QTextCharFormat()
-                        fmt.setBackground(all_color)  # Back to subtle
-                        cursor.mergeCharFormat(fmt)
-            
-            # TIER 2: Highlight current match
-            cursor.movePosition(cursor.MoveOperation.StartOfBlock)
-            block = cursor.block()
-            line_text = block.text()
-            
-            # Use provided char_pos if available, otherwise find first match
-            if char_pos is not None:
-                pos = char_pos
-            else:
-                search_lower = search_text.lower()
-                line_lower = line_text.lower()
-                pos = line_lower.find(search_lower)
-            
-            if pos >= 0 and pos < len(line_text):
-                cursor.setPosition(block.position() + pos)
-                cursor.setPosition(block.position() + pos + len(search_text),
-                                 cursor.MoveMode.KeepAnchor)
-                
-                fmt = QTextCharFormat()
-                fmt.setBackground(current_color)
-                cursor.mergeCharFormat(fmt)
-                
-                # Remember this position
-                commit_msg_widget._last_bright_pos = (line_idx, pos, len(search_text))
-                
-                cursor.setPosition(block.position() + pos)
-                commit_msg_widget.setTextCursor(cursor)
-            else:
-                # Select whole line if not found
-                cursor.movePosition(cursor.MoveOperation.StartOfBlock)
-                cursor.movePosition(cursor.MoveOperation.EndOfBlock,
-                                  cursor.MoveMode.KeepAnchor)
-                commit_msg_widget.setTextCursor(cursor)
-        else:
-            # No search text, just select the line
-            cursor.movePosition(cursor.MoveOperation.StartOfBlock)
-            cursor.movePosition(cursor.MoveOperation.EndOfBlock,
-                              cursor.MoveMode.KeepAnchor)
-            commit_msg_widget.setTextCursor(cursor)
-        
-        commit_msg_widget.centerCursor()
-        commit_msg_widget.setFocus()
+        self.search_mgr.select_commit_msg_result(line_idx, search_text, char_pos)
     
     def highlight_all_matches_in_commit_msg_tab(self, text_widget, search_text, highlight_color):
         """Highlight all matches in commit message tab"""
-        from PyQt6.QtGui import QTextCharFormat, QTextCursor
-        
-        # Get all text
-        all_text = text_widget.toPlainText()
-        search_lower = search_text.lower()
-        all_text_lower = all_text.lower()
-        
-        # Find all positions manually
-        pos = 0
-        while True:
-            pos = all_text_lower.find(search_lower, pos)
-            if pos < 0:
-                break
-            
-            # Create cursor at this position and select the match
-            cursor = text_widget.textCursor()
-            cursor.setPosition(pos)
-            cursor.setPosition(pos + len(search_text), QTextCursor.MoveMode.KeepAnchor)
-            
-            # Apply highlight format
-            fmt = QTextCharFormat()
-            fmt.setBackground(highlight_color)
-            cursor.mergeCharFormat(fmt)
-            
-            # Move to next potential match
-            pos += len(search_text)
+        self.search_mgr.highlight_all_matches_in_commit_msg_tab(text_widget, search_text, highlight_color)
     
     def clear_commit_msg_tab_highlights(self, text_widget):
         """Clear search highlights from commit message tab"""
-        from PyQt6.QtGui import QTextCharFormat, QTextCursor
-        import color_palettes
-        
-        palette = color_palettes.get_current_palette()
-        search_all_color = palette.get_color('search_highlight_all')
-        search_current_color = palette.get_color('search_highlight_current')
-        
-        cursor = QTextCursor(text_widget.document())
-        cursor.movePosition(QTextCursor.MoveOperation.Start)
-        
-        saved_cursor = text_widget.textCursor()
-        current_pos = saved_cursor.position()
-        
-        while not cursor.atEnd():
-            cursor.movePosition(QTextCursor.MoveOperation.NextCharacter, QTextCursor.MoveMode.KeepAnchor)
-            fmt = cursor.charFormat()
-            bg = fmt.background().color()
-            
-            if bg == search_all_color or bg == search_current_color:
-                clear_fmt = QTextCharFormat()
-                clear_fmt.setBackground(QColor(0, 0, 0, 0))
-                cursor.mergeCharFormat(clear_fmt)
-            
-            cursor.movePosition(QTextCursor.MoveOperation.NextCharacter)
-        
-        saved_cursor.setPosition(current_pos)
-        text_widget.setTextCursor(saved_cursor)
+        self.search_mgr.clear_commit_msg_tab_highlights(text_widget)
     
     # Methods to support SearchResultDialog (which expects a viewer-like interface)
     @property
@@ -1320,55 +866,8 @@ class DiffViewerTabWidget(QMainWindow):
                 tab_index = self.file_to_tab_index['commit_msg']
                 is_active = (tab_index == current_tab_index)
             
-            # Update commit message button style based on state
-            if is_active:
-                # Currently selected - bright highlight
-                self.commit_msg_button.setStyleSheet("""
-                    QPushButton {
-                        text-align: left;
-                        padding: 8px 8px 8px 20px;
-                        border: none;
-                        background-color: #ffd699;
-                        border-left: 6px solid #ff9800;
-                        font-weight: bold;
-                        color: #e65100;
-                    }
-                    QPushButton:hover {
-                        background-color: #ffcc80;
-                    }
-                """)
-            elif is_open:
-                # Open but not selected - subtle highlight
-                self.commit_msg_button.setStyleSheet("""
-                    QPushButton {
-                        text-align: left;
-                        padding: 8px 8px 8px 20px;
-                        border: none;
-                        background-color: #ffe0b2;
-                        border-left: 4px solid #ff9800;
-                        font-weight: bold;
-                        color: #e65100;
-                    }
-                    QPushButton:hover {
-                        background-color: #ffcc80;
-                    }
-                """)
-            else:
-                # Closed - no highlight
-                self.commit_msg_button.setStyleSheet("""
-                    QPushButton {
-                        text-align: left;
-                        padding: 8px 8px 8px 20px;
-                        border: none;
-                        background-color: #fff4e6;
-                        border-left: 4px solid transparent;
-                        font-weight: bold;
-                        color: #e65100;
-                    }
-                    QPushButton:hover {
-                        background-color: #ffe0b2;
-                    }
-                """)
+            # Update commit message button style
+            self.commit_msg_mgr.update_button_state(is_open, is_active)
     
     def get_all_viewers(self):
         """
@@ -1422,18 +921,9 @@ class DiffViewerTabWidget(QMainWindow):
                 self.cleanup_file_watcher(widget)
             
             # Clean up bookmarks for this tab
-            keys_to_remove = [key for key in self.global_bookmarks if key[0] == index]
-            for key in keys_to_remove:
-                del self.global_bookmarks[key]
-            
-            # Update bookmark keys for tabs after this one (decrement tab_index)
-            updated_bookmarks = {}
-            for (tab_idx, line_idx), value in self.global_bookmarks.items():
-                if tab_idx > index:
-                    updated_bookmarks[(tab_idx - 1, line_idx)] = value
-                else:
-                    updated_bookmarks[(tab_idx, line_idx)] = value
-            self.global_bookmarks = updated_bookmarks
+            self.bookmark_mgr.cleanup_tab_bookmarks(index)
+            # Update local reference
+            self.global_bookmarks = self.bookmark_mgr.global_bookmarks
             
             # Check if this is the commit message tab
             if hasattr(widget, 'is_commit_msg') and widget.is_commit_msg:
@@ -1505,35 +995,24 @@ class DiffViewerTabWidget(QMainWindow):
     
     def toggle_diff_map(self):
         """Toggle diff map in all viewers"""
-        self.diff_map_visible = not self.diff_map_visible
-        viewers = self.get_all_viewers()
-        for viewer in viewers:
-            if viewer.diff_map_visible != self.diff_map_visible:
-                viewer.toggle_diff_map()
-        
-        # Update checkbox state
-        self.show_diff_map_action.setChecked(self.diff_map_visible)
+        self.view_state_mgr.toggle_diff_map()
+        # Sync local state
+        self.diff_map_visible = self.view_state_mgr.diff_map_visible
     
     def toggle_line_numbers(self):
         """Toggle line numbers in all viewers"""
-        self.line_numbers_visible = not self.line_numbers_visible
-        viewers = self.get_all_viewers()
-        for viewer in viewers:
-            if viewer.line_numbers_visible != self.line_numbers_visible:
-                viewer.toggle_line_numbers()
-        
-        # Update checkbox state
-        self.show_line_numbers_action.setChecked(self.line_numbers_visible)
+        self.view_state_mgr.toggle_line_numbers()
+        # Sync local state
+        self.line_numbers_visible = self.view_state_mgr.line_numbers_visible
     
     def toggle_auto_reload(self):
         """Toggle auto-reload preference"""
-        self.auto_reload_enabled = self.auto_reload_action.isChecked()
-        
-        # If turning on, immediately reload any files that have changed
-        if self.auto_reload_enabled:
-            for viewer in list(self.changed_files.keys()):
-                if viewer in self.changed_files and self.changed_files[viewer]:
-                    self.reload_viewer(viewer)
+        # Get the checkbox state first
+        checked = self.auto_reload_action.isChecked()
+        # Update file watcher manager
+        self.file_watcher_mgr.auto_reload_enabled = checked
+        # Let it handle the toggle logic
+        self.auto_reload_enabled = self.file_watcher_mgr.toggle_auto_reload()
     
     def increase_font_size(self):
         """Increase font size in current tab"""
@@ -1564,234 +1043,49 @@ class DiffViewerTabWidget(QMainWindow):
     
     def navigate_to_next_bookmark(self):
         """Navigate to next bookmark across all tabs"""
-        if not self.global_bookmarks:
-            return
-        
-        current_tab = self.tab_widget.currentIndex()
-        viewer = self.get_current_viewer()
-        if not viewer:
-            return
-        
-        # Get current line
-        if viewer.base_text.hasFocus():
-            current_line = viewer.base_text.textCursor().blockNumber()
-        elif viewer.modified_text.hasFocus():
-            current_line = viewer.modified_text.textCursor().blockNumber()
-        else:
-            current_line = 0
-        
-        # Sort all bookmarks
-        sorted_bookmarks = sorted(self.global_bookmarks.keys())
-        
-        # Find next bookmark
-        for tab_idx, line_idx in sorted_bookmarks:
-            if tab_idx > current_tab or (tab_idx == current_tab and line_idx > current_line):
-                self._jump_to_bookmark(tab_idx, line_idx)
-                return
-        
-        # Wrap around to first bookmark
-        if sorted_bookmarks:
-            tab_idx, line_idx = sorted_bookmarks[0]
-            self._jump_to_bookmark(tab_idx, line_idx)
+        self.bookmark_mgr.navigate_to_next_bookmark()
     
     def navigate_to_prev_bookmark(self):
         """Navigate to previous bookmark across all tabs"""
-        if not self.global_bookmarks:
-            return
-        
-        current_tab = self.tab_widget.currentIndex()
-        viewer = self.get_current_viewer()
-        if not viewer:
-            return
-        
-        # Get current line
-        if viewer.base_text.hasFocus():
-            current_line = viewer.base_text.textCursor().blockNumber()
-        elif viewer.modified_text.hasFocus():
-            current_line = viewer.modified_text.textCursor().blockNumber()
-        else:
-            current_line = 0
-        
-        # Sort all bookmarks in reverse
-        sorted_bookmarks = sorted(self.global_bookmarks.keys(), reverse=True)
-        
-        # Find previous bookmark
-        for tab_idx, line_idx in sorted_bookmarks:
-            if tab_idx < current_tab or (tab_idx == current_tab and line_idx < current_line):
-                self._jump_to_bookmark(tab_idx, line_idx)
-                return
-        
-        # Wrap around to last bookmark
-        if sorted_bookmarks:
-            tab_idx, line_idx = sorted_bookmarks[0]
-            self._jump_to_bookmark(tab_idx, line_idx)
+        self.bookmark_mgr.navigate_to_prev_bookmark()
     
     def _jump_to_bookmark(self, tab_idx, line_idx):
         """Jump to a specific bookmark"""
-        # Switch to tab
-        self.tab_widget.setCurrentIndex(tab_idx)
-        
-        # Get viewer
-        viewer = self.get_viewer_at_index(tab_idx)
-        if not viewer:
-            return
-        
-        # Center on line
-        viewer.center_on_line(line_idx)
-        
-        # Set focus to base text (arbitrary choice)
-        viewer.base_text.setFocus()
+        self.bookmark_mgr._jump_to_bookmark(tab_idx, line_idx)
     
     def toggle_tab_visibility(self):
         """Toggle tab character visibility in all viewers"""
-        self.ignore_tab = not self.show_tab_action.isChecked()
-        # Update current viewer immediately
-        viewer = self.get_current_viewer()
-        if viewer:
-            viewer.ignore_tab = self.ignore_tab
-            viewer.restart_highlighting()
-        # Mark all other viewers as needing update
-        for v in self.get_all_viewers():
-            if v != viewer:
-                v.ignore_tab = self.ignore_tab
-                v._needs_highlighting_update = True
+        self.view_state_mgr.toggle_tab_visibility()
+        # Sync local state
+        self.ignore_tab = self.view_state_mgr.ignore_tab
     
     def toggle_trailing_ws_visibility(self):
         """Toggle trailing whitespace visibility in all viewers"""
-        self.ignore_trailing_ws = not self.show_trailing_ws_action.isChecked()
-        # Update current viewer immediately
-        viewer = self.get_current_viewer()
-        if viewer:
-            viewer.ignore_trailing_ws = self.ignore_trailing_ws
-            viewer.restart_highlighting()
-        # Mark all other viewers as needing update
-        for v in self.get_all_viewers():
-            if v != viewer:
-                v.ignore_trailing_ws = self.ignore_trailing_ws
-                v._needs_highlighting_update = True
+        self.view_state_mgr.toggle_trailing_ws_visibility()
+        # Sync local state
+        self.ignore_trailing_ws = self.view_state_mgr.ignore_trailing_ws
     
     def toggle_intraline_visibility(self):
         """Toggle intraline changes visibility in all viewers"""
-        self.ignore_intraline = not self.show_intraline_action.isChecked()
-        # Update current viewer immediately
-        viewer = self.get_current_viewer()
-        if viewer:
-            viewer.ignore_intraline = self.ignore_intraline
-            viewer.restart_highlighting()
-        # Mark all other viewers as needing update
-        for v in self.get_all_viewers():
-            if v != viewer:
-                v.ignore_intraline = self.ignore_intraline
-                v._needs_highlighting_update = True
+        self.view_state_mgr.toggle_intraline_visibility()
+        # Sync local state
+        self.ignore_intraline = self.view_state_mgr.ignore_intraline
     
     def setup_file_watcher(self, viewer):
         """Set up file system watching for a viewer's files"""
-        watcher = QFileSystemWatcher()
-        
-        # Watch base and modified files
-        files_to_watch = []
-        if viewer.base_file:
-            files_to_watch.append(viewer.base_file)
-        if viewer.modified_file:
-            files_to_watch.append(viewer.modified_file)
-        
-        if files_to_watch:
-            watcher.addPaths(files_to_watch)
-            watcher.fileChanged.connect(lambda path: self.on_file_changed(viewer, path))
-            self.file_watchers[viewer] = watcher
-            self.changed_files[viewer] = set()
-            
-            # Create debounce timer
-            timer = QTimer()
-            timer.setSingleShot(True)
-            timer.timeout.connect(lambda: self.process_file_changes(viewer))
-            self.reload_timers[viewer] = timer
+        self.file_watcher_mgr.setup_file_watcher(viewer)
     
     def on_file_changed(self, viewer, path):
         """Handle file change notification"""
-        # Add to changed files set
-        if viewer not in self.changed_files:
-            self.changed_files[viewer] = set()
-        self.changed_files[viewer].add(path)
-        
-        # Mark tab as changed (visual indicator)
-        self.mark_tab_changed(viewer, True)
-        
-        # Restart debounce timer
-        if viewer in self.reload_timers:
-            self.reload_timers[viewer].stop()
-            self.reload_timers[viewer].start(500)  # 500ms debounce
+        self.file_watcher_mgr.on_file_changed(viewer, path)
     
     def process_file_changes(self, viewer):
         """Process accumulated file changes after debounce period"""
-        if self.auto_reload_enabled and viewer in self.changed_files:
-            self.reload_viewer(viewer)
+        self.file_watcher_mgr.process_file_changes(viewer)
     
     def mark_tab_changed(self, viewer, changed):
         """Mark a viewer as having changed files by updating sidebar button color"""
-        # Find the file_class for this viewer
-        # The viewer is a DiffViewer, we need to find its tab widget
-        file_class = None
-        for i in range(self.tab_widget.count()):
-            widget = self.tab_widget.widget(i)
-            if hasattr(widget, 'diff_viewer') and widget.diff_viewer == viewer:
-                if hasattr(widget, 'file_class'):
-                    file_class = widget.file_class
-                break
-        
-        if not file_class:
-            return
-        
-        # Find the corresponding button in the sidebar
-        for button in self.file_buttons:
-            if button.file_class == file_class:
-                if changed:
-                    # File has changed - use special "changed" styling
-                    import color_palettes
-                    palette = color_palettes.get_current_palette()
-                    color = palette.get_color('base_changed_bg')
-                    
-                    # Check if this is the currently active tab
-                    tab_index = self.file_to_tab_index.get(file_class, -1)
-                    is_active = (tab_index == self.tab_widget.currentIndex())
-                    
-                    if is_active:
-                        # Changed AND active - bright changed color with thick border
-                        button.setStyleSheet(f"""
-                            QPushButton {{
-                                text-align: left;
-                                padding: 8px 8px 8px 20px;
-                                border: none;
-                                background-color: {color.name()};
-                                border-left: 6px solid #ff6600;
-                                font-weight: bold;
-                            }}
-                            QPushButton:hover {{
-                                background-color: {color.darker(110).name()};
-                            }}
-                        """)
-                    else:
-                        # Changed but not active - changed color with normal border
-                        button.setStyleSheet(f"""
-                            QPushButton {{
-                                text-align: left;
-                                padding: 8px 8px 8px 20px;
-                                border: none;
-                                background-color: {color.name()};
-                                border-left: 4px solid #ff6600;
-                            }}
-                            QPushButton:hover {{
-                                background-color: {color.darker(110).name()};
-                            }}
-                        """)
-                else:
-                    # File no longer changed - restore normal state
-                    # Determine if tab is open and active
-                    tab_index = self.file_to_tab_index.get(file_class, -1)
-                    is_open = (0 <= tab_index < self.tab_widget.count())
-                    is_active = is_open and (tab_index == self.tab_widget.currentIndex())
-                    button.set_state(is_open, is_active)
-                break
+        self.file_watcher_mgr.mark_tab_changed(viewer, changed)
     
     def reload_viewer(self, viewer):
         """Reload a viewer's diff data"""
@@ -1845,25 +1139,13 @@ class DiffViewerTabWidget(QMainWindow):
             viewer.modified_text.horizontalScrollBar().setValue(h_scroll_pos)
             
             # Clear changed files for this viewer
-            if viewer in self.changed_files:
-                self.changed_files[viewer].clear()
+            self.file_watcher_mgr.clear_changed_files(viewer)
             
             # Remove changed indicator from tab
             self.mark_tab_changed(viewer, False)
             
             # Re-add files to watcher (they may have been removed by some editors)
-            if viewer in self.file_watchers:
-                watcher = self.file_watchers[viewer]
-                watched = watcher.files()
-                
-                files_to_watch = []
-                if viewer.base_file and viewer.base_file not in watched:
-                    files_to_watch.append(viewer.base_file)
-                if viewer.modified_file and viewer.modified_file not in watched:
-                    files_to_watch.append(viewer.modified_file)
-                
-                if files_to_watch:
-                    watcher.addPaths(files_to_watch)
+            self.file_watcher_mgr.re_add_watched_files(viewer)
             
             # Show brief notification
             self.statusBar().showMessage("File reloaded", 2000)  # 2 second message
@@ -1873,19 +1155,17 @@ class DiffViewerTabWidget(QMainWindow):
     
     def cleanup_file_watcher(self, viewer):
         """Clean up file watcher for a viewer being closed"""
-        if viewer in self.file_watchers:
-            self.file_watchers[viewer].deleteLater()
-            del self.file_watchers[viewer]
-        if viewer in self.reload_timers:
-            self.reload_timers[viewer].stop()
-            del self.reload_timers[viewer]
-        if viewer in self.changed_files:
-            del self.changed_files[viewer]
+        self.file_watcher_mgr.cleanup_file_watcher(viewer)
     
     def show_help(self):
         """Show help dialog"""
         help_dialog = HelpDialog(self)
         help_dialog.show()
+    
+    def show_shortcuts(self):
+        """Show keyboard shortcuts reference"""
+        shortcuts_dialog = ShortcutsDialog(self)
+        shortcuts_dialog.show()  # Non-modal, not stay-on-top
     
     def switch_palette(self, palette_name):
         """Switch to a different color palette and refresh all viewers"""
@@ -1901,25 +1181,11 @@ class DiffViewerTabWidget(QMainWindow):
     
     def _change_commit_msg_font_size(self, text_widget, delta):
         """Change font size for commit message tab"""
-        if not hasattr(text_widget, 'current_font_size'):
-            text_widget.current_font_size = 12  # Initialize if not set
-        
-        new_size = text_widget.current_font_size + delta
-        # Clamp to range [6, 24]
-        new_size = max(6, min(24, new_size))
-        
-        if new_size != text_widget.current_font_size:
-            text_widget.current_font_size = new_size
-            font = QFont("Courier", new_size, QFont.Weight.Bold)
-            text_widget.setFont(font)
-            text_widget.viewport().update()
+        self.commit_msg_mgr.change_commit_msg_font_size(text_widget, delta)
     
     def _reset_commit_msg_font_size(self, text_widget):
         """Reset font size for commit message tab to default (12pt)"""
-        text_widget.current_font_size = 12
-        font = QFont("Courier", 12, QFont.Weight.Bold)
-        text_widget.setFont(font)
-        text_widget.viewport().update()
+        self.commit_msg_mgr.reset_commit_msg_font_size(text_widget)
     
     def keyPressEvent(self, event):
         """Handle key press events"""
@@ -1958,6 +1224,12 @@ class DiffViewerTabWidget(QMainWindow):
         # Get current viewer for most commands
         viewer = self.get_current_viewer()
         
+        # F1 or Ctrl+? - Show keyboard shortcuts
+        if key == Qt.Key.Key_F1 or (key == Qt.Key.Key_Question and 
+                                      modifiers & Qt.KeyboardModifier.ControlModifier):
+            self.show_shortcuts()
+            return
+        
         # Escape closes the entire application
         if key == Qt.Key.Key_Escape:
             self.close()
@@ -1980,9 +1252,20 @@ class DiffViewerTabWidget(QMainWindow):
             self.toggle_line_numbers()
             return
         
-        # Ctrl+S - Search
-        if key == Qt.Key.Key_S and modifiers & Qt.KeyboardModifier.ControlModifier:
+        # Ctrl+S or Ctrl+F - Search
+        if ((key == Qt.Key.Key_S or key == Qt.Key.Key_F) and 
+            modifiers & Qt.KeyboardModifier.ControlModifier):
             self.show_search_dialog()
+            return
+        
+        # F3 - Find Next
+        if key == Qt.Key.Key_F3 and not (modifiers & Qt.KeyboardModifier.ShiftModifier):
+            self.search_mgr.find_next()
+            return
+        
+        # Shift+F3 - Find Previous
+        if key == Qt.Key.Key_F3 and modifiers & Qt.KeyboardModifier.ShiftModifier:
+            self.search_mgr.find_previous()
             return
         
         # F5 - Manual reload
@@ -2060,9 +1343,10 @@ class DiffViewerTabWidget(QMainWindow):
             # Check if this is the commit message widget
             is_commit_msg = hasattr(obj, 'is_commit_msg') and obj.is_commit_msg
             
-            # Ctrl+S - Search (works for both commit message and diff viewers)
-            if key == Qt.Key.Key_S and (modifiers & Qt.KeyboardModifier.ControlModifier or
-                                          modifiers & Qt.KeyboardModifier.MetaModifier):
+            # Ctrl+S or Ctrl+F - Search (works for both commit message and diff viewers)
+            if ((key == Qt.Key.Key_S or key == Qt.Key.Key_F) and 
+                (modifiers & Qt.KeyboardModifier.ControlModifier or
+                 modifiers & Qt.KeyboardModifier.MetaModifier)):
                 self.show_search_dialog()
                 return True
             

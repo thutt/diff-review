@@ -37,6 +37,8 @@ class HelpDialog(QDialog):
         return """
         <h2>Diff Viewer - User Guide</h2>
         
+        <p><strong>Tip:</strong> Press <b>F1</b> or <b>Ctrl+?</b> for a quick keyboard shortcuts reference card!</p>
+        
         <h3>Overview</h3>
         <p>This diff viewer displays side-by-side comparison of files with synchronized scrolling and highlighting of changes. Multiple diffs can be opened in tabs with a sidebar for file navigation.</p>
         
@@ -133,14 +135,17 @@ class HelpDialog(QDialog):
         
         <h3>Search Functionality</h3>
         <ul>
-            <li><b>Ctrl+S:</b> Open search dialog to search across base, modified, and commit message files</li>
+            <li><b>Ctrl+F or Ctrl+S:</b> Open search dialog to search across base, modified, and commit message files</li>
+            <li><b>F3:</b> Find next match (after performing a search)</li>
+            <li><b>Shift+F3:</b> Find previous match (after performing a search)</li>
             <li><b>Right-click &rarr; Search:</b> Search for currently selected text</li>
             <li><b>Case Sensitive:</b> Toggle case sensitivity in search dialog</li>
             <li><b>Regular Expression:</b> Enable regex pattern matching in search</li>
             <li><b>Search All Tabs:</b> When enabled, searches across all open tabs instead of just the current one</li>
             <li><b>Two-tier Highlighting:</b> All matches shown in subtle yellow, current match in bright yellow</li>
-            <li><b>Navigation:</b> Use Previous/Next buttons or double-click results to jump to matches</li>
+            <li><b>Navigation:</b> Use Previous/Next buttons, F3/Shift+F3, or double-click results to jump to matches</li>
             <li><b>Live Results:</b> Search results dialog stays open for easy navigation between matches</li>
+            <li><b>Match Count:</b> Status bar shows current match position and total count (e.g., "Search: 3 of 47 matches")</li>
         </ul>
         
         <h3>Note Taking</h3>
