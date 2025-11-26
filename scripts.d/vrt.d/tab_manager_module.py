@@ -23,6 +23,7 @@ import color_palettes
 import view_state_manager
 import bookmark_manager
 import file_watcher
+import commit_msg_handler
 
 
 class FileButton(QPushButton):
@@ -123,8 +124,6 @@ class DiffViewerTabWidget(QMainWindow):
         self.file_to_tab_index = {}  # Maps file_class to tab index
         self.current_file_class = None  # Track which file is being added
         self.sidebar_visible = True
-        self.commit_msg_rel_path_ = None  # Track commit message file (internal)
-        self.commit_msg_button = None  # Track commit message button
         self.search_result_dialogs = []  # Track search result dialogs
         
         # Global view state for all tabs
@@ -158,6 +157,13 @@ class DiffViewerTabWidget(QMainWindow):
         self.file_watchers = self.file_watcher_mgr.file_watchers
         self.reload_timers = self.file_watcher_mgr.reload_timers
         self.changed_files = self.file_watcher_mgr.changed_files
+        
+        # Create commit message handler
+        self.commit_msg_mgr = commit_msg_handler.CommitMsgHandler(self)
+        
+        # Keep references for compatibility
+        self.commit_msg_rel_path_ = self.commit_msg_mgr.commit_msg_rel_path
+        self.commit_msg_button = self.commit_msg_mgr.commit_msg_button
         
         # Create main layout
         central = QWidget()
@@ -374,91 +380,19 @@ class DiffViewerTabWidget(QMainWindow):
         self.resize(total_width, total_height)
     
     def add_commit_msg(self, commit_msg_rel_path):
-        """
-        Add commit message to the sidebar as the first item.
-        
-        Args:
-            commit_msg_rel_path: Path to the commit message file
-        """
-        self.commit_msg_rel_path_ = commit_msg_rel_path
-        
-        # Create a special button for commit message
-        self.commit_msg_button = QPushButton("Commit Message")
-        self.commit_msg_button.clicked.connect(self.on_commit_msg_clicked)
-        self.commit_msg_button.setStyleSheet("""
-            QPushButton {
-                text-align: left;
-                padding: 8px 8px 8px 20px;
-                border: none;
-                background-color: #fff4e6;
-                border-left: 4px solid transparent;
-                font-weight: bold;
-                color: #e65100;
-            }
-            QPushButton:hover {
-                background-color: #ffe0b2;
-            }
-        """)
-        
-        # Insert after "Open All" button (position 1)
-        self.button_layout.insertWidget(1, self.commit_msg_button)
+        """Add commit message to the sidebar as the first item"""
+        self.commit_msg_mgr.add_commit_msg(commit_msg_rel_path)
+        # Sync references
+        self.commit_msg_rel_path_ = self.commit_msg_mgr.commit_msg_rel_path
+        self.commit_msg_button = self.commit_msg_mgr.commit_msg_button
     
     def on_commit_msg_clicked(self):
         """Handle commit message button click"""
-        # Check if tab already exists
-        if 'commit_msg' in self.file_to_tab_index:
-            tab_index = self.file_to_tab_index['commit_msg']
-            if 0 <= tab_index < self.tab_widget.count():
-                self.tab_widget.setCurrentIndex(tab_index)
-                return
-            # Tab was closed, remove from mapping
-            del self.file_to_tab_index['commit_msg']
-        
-        # Create new commit message tab
-        self.create_commit_msg_tab()
+        self.commit_msg_mgr.on_commit_msg_clicked()
     
     def create_commit_msg_tab(self):
         """Create a tab displaying the commit message"""
-        commit_msg_text = self.afr_.read(self.commit_msg_rel_path_)
-
-        # The afr_.read() will return the lines as an array of
-        # non-'\n' strings.  The setPlainText() function seems to need
-        # a single string.  So, for this special case, put the lines
-        # back together.
-        commit_msg_text = '\n'.join(commit_msg_text)
-        
-        # Create text widget
-        text_widget = QPlainTextEdit()
-        text_widget.setReadOnly(True)
-        text_widget.setPlainText(commit_msg_text)
-        text_widget.setFont(QFont("Courier", 12, QFont.Weight.Bold))
-        
-        # Style commit message with subtle sepia tone
-        text_widget.setStyleSheet("""
-            QPlainTextEdit {
-                background-color: #fdf6e3;
-                color: #5c4a3a;
-            }
-        """)
-        
-        # Set up context menu
-        text_widget.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        text_widget.customContextMenuRequested.connect(
-            lambda pos: self.show_commit_msg_context_menu(pos, text_widget))
-        
-        # Install event filter for keyboard shortcuts
-        text_widget.installEventFilter(self)
-        
-        # Store reference to tab widget for later use
-        text_widget.is_commit_msg = True
-        
-        # Add to tabs
-        index = self.tab_widget.addTab(text_widget, "Commit Message")
-        self.file_to_tab_index['commit_msg'] = index
-        self.tab_widget.setCurrentIndex(index)
-        
-        # Update button state
-        self.update_button_states()
+        self.commit_msg_mgr.create_commit_msg_tab()
     
     def show_search_dialog(self):
         """Show search dialog for current tab"""
@@ -507,76 +441,11 @@ class DiffViewerTabWidget(QMainWindow):
     
     def show_commit_msg_context_menu(self, pos, text_widget):
         """Show context menu for commit message"""
-        menu = QMenu(self)
-        cursor = text_widget.textCursor()
-        has_selection = cursor.hasSelection()
-        
-        search_action = QAction("Search", self)
-        search_action.setEnabled(has_selection)
-        if has_selection:
-            search_action.triggered.connect(lambda: self.search_selected_text(text_widget))
-        menu.addAction(search_action)
-        
-        menu.addSeparator()
-        
-        # Note taking - need to check if any viewer has a note file
-        note_file = self.get_note_file()
-        if has_selection and note_file:
-            note_action = QAction("Take Note", self)
-            note_action.triggered.connect(
-                lambda: self.take_commit_msg_note(text_widget, note_file))
-            menu.addAction(note_action)
-        else:
-            note_action = QAction("Take Note (no selection)" if note_file else 
-                               "Take Note (no file supplied)", self)
-            note_action.setEnabled(False)
-            menu.addAction(note_action)
-        
-        menu.exec(text_widget.mapToGlobal(pos))
+        self.commit_msg_mgr.show_commit_msg_context_menu(pos, text_widget)
     
     def take_commit_msg_note(self, text_widget, note_file):
         """Take note from commit message"""
-        cursor = text_widget.textCursor()
-        if not cursor.hasSelection():
-            return
-        
-        # Save selection range before doing anything
-        selection_start = cursor.selectionStart()
-        selection_end = cursor.selectionEnd()
-        
-        selected_text = cursor.selectedText()
-        selected_text = selected_text.replace('\u2029', '\n')
-        
-        try:
-            with open(note_file, 'a') as f:
-                f.write("> (commit_msg): Commit Message\n")
-                for line in selected_text.split('\n'):
-                    f.write(f">   {line}\n")
-                f.write('>\n\n\n')
-            
-            # Apply permanent yellow background to noted text
-            from PyQt6.QtGui import QTextCharFormat, QColor
-            
-            # Create new cursor with saved selection
-            highlight_cursor = text_widget.textCursor()
-            highlight_cursor.setPosition(selection_start)
-            highlight_cursor.setPosition(selection_end, highlight_cursor.MoveMode.KeepAnchor)
-            
-            # Create yellow highlight format (match DiffViewer color)
-            highlight_format = QTextCharFormat()
-            highlight_format.setBackground(QColor(255, 255, 200))  # Light yellow like DiffViewer
-            
-            # Apply permanent yellow highlight
-            highlight_cursor.mergeCharFormat(highlight_format)
-            
-            # Update note count in current viewer if it exists
-            viewer = self.get_current_viewer()
-            if viewer:
-                viewer.note_count += 1
-                viewer.update_status()
-        except Exception as e:
-            QMessageBox.warning(self, 'Error Taking Note',
-                              f'Could not write to note file:\n{e}')
+        self.commit_msg_mgr.take_commit_msg_note(text_widget, note_file)
     
     def get_note_file(self):
         """Get note file - prefer global, fallback to any viewer"""
@@ -1329,55 +1198,8 @@ class DiffViewerTabWidget(QMainWindow):
                 tab_index = self.file_to_tab_index['commit_msg']
                 is_active = (tab_index == current_tab_index)
             
-            # Update commit message button style based on state
-            if is_active:
-                # Currently selected - bright highlight
-                self.commit_msg_button.setStyleSheet("""
-                    QPushButton {
-                        text-align: left;
-                        padding: 8px 8px 8px 20px;
-                        border: none;
-                        background-color: #ffd699;
-                        border-left: 6px solid #ff9800;
-                        font-weight: bold;
-                        color: #e65100;
-                    }
-                    QPushButton:hover {
-                        background-color: #ffcc80;
-                    }
-                """)
-            elif is_open:
-                # Open but not selected - subtle highlight
-                self.commit_msg_button.setStyleSheet("""
-                    QPushButton {
-                        text-align: left;
-                        padding: 8px 8px 8px 20px;
-                        border: none;
-                        background-color: #ffe0b2;
-                        border-left: 4px solid #ff9800;
-                        font-weight: bold;
-                        color: #e65100;
-                    }
-                    QPushButton:hover {
-                        background-color: #ffcc80;
-                    }
-                """)
-            else:
-                # Closed - no highlight
-                self.commit_msg_button.setStyleSheet("""
-                    QPushButton {
-                        text-align: left;
-                        padding: 8px 8px 8px 20px;
-                        border: none;
-                        background-color: #fff4e6;
-                        border-left: 4px solid transparent;
-                        font-weight: bold;
-                        color: #e65100;
-                    }
-                    QPushButton:hover {
-                        background-color: #ffe0b2;
-                    }
-                """)
+            # Update commit message button style
+            self.commit_msg_mgr.update_button_state(is_open, is_active)
     
     def get_all_viewers(self):
         """
@@ -1686,25 +1508,11 @@ class DiffViewerTabWidget(QMainWindow):
     
     def _change_commit_msg_font_size(self, text_widget, delta):
         """Change font size for commit message tab"""
-        if not hasattr(text_widget, 'current_font_size'):
-            text_widget.current_font_size = 12  # Initialize if not set
-        
-        new_size = text_widget.current_font_size + delta
-        # Clamp to range [6, 24]
-        new_size = max(6, min(24, new_size))
-        
-        if new_size != text_widget.current_font_size:
-            text_widget.current_font_size = new_size
-            font = QFont("Courier", new_size, QFont.Weight.Bold)
-            text_widget.setFont(font)
-            text_widget.viewport().update()
+        self.commit_msg_mgr.change_commit_msg_font_size(text_widget, delta)
     
     def _reset_commit_msg_font_size(self, text_widget):
         """Reset font size for commit message tab to default (12pt)"""
-        text_widget.current_font_size = 12
-        font = QFont("Courier", 12, QFont.Weight.Bold)
-        text_widget.setFont(font)
-        text_widget.viewport().update()
+        self.commit_msg_mgr.reset_commit_msg_font_size(text_widget)
     
     def keyPressEvent(self, event):
         """Handle key press events"""
