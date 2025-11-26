@@ -1234,9 +1234,20 @@ class DiffViewerTabWidget(QMainWindow):
             self.toggle_line_numbers()
             return
         
-        # Ctrl+S - Search
-        if key == Qt.Key.Key_S and modifiers & Qt.KeyboardModifier.ControlModifier:
+        # Ctrl+S or Ctrl+F - Search
+        if ((key == Qt.Key.Key_S or key == Qt.Key.Key_F) and 
+            modifiers & Qt.KeyboardModifier.ControlModifier):
             self.show_search_dialog()
+            return
+        
+        # F3 - Find Next
+        if key == Qt.Key.Key_F3 and not (modifiers & Qt.KeyboardModifier.ShiftModifier):
+            self.search_mgr.find_next()
+            return
+        
+        # Shift+F3 - Find Previous
+        if key == Qt.Key.Key_F3 and modifiers & Qt.KeyboardModifier.ShiftModifier:
+            self.search_mgr.find_previous()
             return
         
         # F5 - Manual reload
@@ -1314,9 +1325,10 @@ class DiffViewerTabWidget(QMainWindow):
             # Check if this is the commit message widget
             is_commit_msg = hasattr(obj, 'is_commit_msg') and obj.is_commit_msg
             
-            # Ctrl+S - Search (works for both commit message and diff viewers)
-            if key == Qt.Key.Key_S and (modifiers & Qt.KeyboardModifier.ControlModifier or
-                                          modifiers & Qt.KeyboardModifier.MetaModifier):
+            # Ctrl+S or Ctrl+F - Search (works for both commit message and diff viewers)
+            if ((key == Qt.Key.Key_S or key == Qt.Key.Key_F) and 
+                (modifiers & Qt.KeyboardModifier.ControlModifier or
+                 modifiers & Qt.KeyboardModifier.MetaModifier)):
                 self.show_search_dialog()
                 return True
             

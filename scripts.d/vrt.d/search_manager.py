@@ -32,6 +32,13 @@ class SearchManager:
         """
         self.tab_widget = tab_widget
         self.search_result_dialogs = []  # Track search result dialogs
+        
+        # State for Find Next/Previous
+        self.current_search_text = None
+        self.current_search_case_sensitive = False
+        self.current_search_use_regex = False
+        self.current_search_results = []  # List of (tab_index, source_type, line_num, line_idx, char_pos)
+        self.current_result_index = -1
     
     def show_search_dialog(self):
         """Show search dialog for current tab"""
@@ -40,6 +47,11 @@ class SearchManager:
         
         dialog = SearchDialog(self.tab_widget)
         if dialog.exec() == dialog.DialogCode.Accepted and dialog.search_text:
+            # Update current search state
+            self.current_search_text = dialog.search_text
+            self.current_search_case_sensitive = dialog.case_sensitive
+            self.current_search_use_regex = dialog.use_regex
+            
             # Pass tab_widget as parent so search results can navigate properly
             results_dialog = SearchResultDialog(
                 search_text=dialog.search_text,
@@ -50,12 +62,19 @@ class SearchManager:
                 search_all_tabs=dialog.search_all_tabs,
                 use_regex=dialog.use_regex
             )
+            
+            # Capture search results for Find Next/Previous
+            self._capture_search_results(results_dialog)
+            
             # Store reference to prevent garbage collection
             self.search_result_dialogs.append(results_dialog)
             # Connect destroyed signal to clean up reference
             results_dialog.destroyed.connect(lambda: self.search_result_dialogs.remove(results_dialog) 
                                             if results_dialog in self.search_result_dialogs else None)
             results_dialog.show()  # Show as modeless, not modal
+            
+            # Update status bar with match count
+            self._update_status_bar()
     
     def search_selected_text(self, text_widget):
         """Search for selected text from any text widget"""
@@ -65,18 +84,95 @@ class SearchManager:
         
         search_text = cursor.selectedText()
         
+        # Update current search state
+        self.current_search_text = search_text
+        self.current_search_case_sensitive = False
+        self.current_search_use_regex = False
+        
         # Default to searching all tabs if multiple tabs are open
         search_all_tabs = self.tab_widget.tab_widget.count() > 1
         
         dialog = SearchResultDialog(search_text, self.tab_widget, case_sensitive=False,
                                    search_base=True, search_modi=True,
                                    search_all_tabs=search_all_tabs)
+        
+        # Capture search results for Find Next/Previous
+        self._capture_search_results(dialog)
+        
         # Store reference to prevent garbage collection
         self.search_result_dialogs.append(dialog)
         # Connect destroyed signal to clean up reference
         dialog.destroyed.connect(lambda: self.search_result_dialogs.remove(dialog) 
                                 if dialog in self.search_result_dialogs else None)
         dialog.show()  # Show as modeless, not modal
+        
+        # Update status bar with match count
+        self._update_status_bar()
+    
+    def _capture_search_results(self, results_dialog):
+        """Capture search results from dialog for Find Next/Previous navigation"""
+        self.current_search_results = []
+        
+        # Extract results from the dialog's result_list
+        for i in range(results_dialog.result_list.count()):
+            item = results_dialog.result_list.item(i)
+            result_data = item.data(Qt.ItemDataRole.UserRole)
+            if result_data:
+                self.current_search_results.append(result_data)
+        
+        # Initialize to first result
+        self.current_result_index = 0 if self.current_search_results else -1
+    
+    def _update_status_bar(self):
+        """Update status bar with current search match count"""
+        if self.current_search_results:
+            total = len(self.current_search_results)
+            current = self.current_result_index + 1 if self.current_result_index >= 0 else 0
+            self.tab_widget.statusBar().showMessage(
+                f"Search: {current} of {total} matches for '{self.current_search_text}'", 
+                5000)  # 5 second message
+        else:
+            self.tab_widget.statusBar().showMessage(
+                f"Search: No matches found for '{self.current_search_text}'", 
+                3000)  # 3 second message
+    
+    def find_next(self):
+        """Navigate to next search result"""
+        if not self.current_search_results:
+            self.tab_widget.statusBar().showMessage("No active search. Press Ctrl+F to search.", 2000)
+            return
+        
+        # Move to next result (wrap around)
+        self.current_result_index = (self.current_result_index + 1) % len(self.current_search_results)
+        self._navigate_to_current_result()
+        self._update_status_bar()
+    
+    def find_previous(self):
+        """Navigate to previous search result"""
+        if not self.current_search_results:
+            self.tab_widget.statusBar().showMessage("No active search. Press Ctrl+F to search.", 2000)
+            return
+        
+        # Move to previous result (wrap around)
+        self.current_result_index = (self.current_result_index - 1) % len(self.current_search_results)
+        self._navigate_to_current_result()
+        self._update_status_bar()
+    
+    def _navigate_to_current_result(self):
+        """Navigate to the current search result"""
+        if self.current_result_index < 0 or self.current_result_index >= len(self.current_search_results):
+            return
+        
+        tab_index, source_type, line_num, line_idx, char_pos = self.current_search_results[self.current_result_index]
+        
+        # Switch to the appropriate tab
+        self.tab_widget.tab_widget.setCurrentIndex(tab_index)
+        
+        # Navigate within that tab, passing char_pos
+        if source_type == 'commit_msg':
+            self.select_commit_msg_result(line_idx, self.current_search_text, char_pos)
+        else:
+            self.select_search_result(source_type, line_idx, self.current_search_text, char_pos)
     
     def show_diff_context_menu(self, pos, text_widget, side):
         """Show context menu for diff viewer text widgets"""
