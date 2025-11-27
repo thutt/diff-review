@@ -4,6 +4,7 @@
 #
 import argparse
 import os
+import posixpath
 import PyQt6
 import subprocess
 import signal
@@ -36,14 +37,21 @@ class FileButton (object):
         else:
             root_path = self.root_path_
 
-        base   = os.path.join(root_path, "base.d", self.base_rel_path_)
-        modi   = os.path.join(root_path, "modi.d", self.modi_rel_path_)
+        # Using posixpath here because:
+        #
+        #  Internally, Windows can use '/'.
+        #  These relative pathnames can be converted into a URL, which
+        #  requires '/'.
+        #
+        base   = posixpath.join(root_path, "base.d", self.base_rel_path_)
+        modi   = posixpath.join(root_path, "modi.d", self.modi_rel_path_)
         viewer = make_viewer(self.options_, base, modi,
                              self.options_.arg_note)
         tab_widget.add_viewer(viewer)
 
 
 def rsync_and_rerun(options):
+    # This rsync system is not supported on Windows.
     parent_dir = os.path.abspath(os.path.join(os.path.dirname(sys.argv[0]),
                                               "..", ".."))
 

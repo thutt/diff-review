@@ -30,7 +30,7 @@ On MacOS, and Windows <code>cmd.exe</code>, this can be satisfied with:
 
  - Linux
  - MacOS
- - Windows (--url not yet supported)
+ - Windows
 
 # Viewer Managers
 
