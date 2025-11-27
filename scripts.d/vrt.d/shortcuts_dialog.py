@@ -9,7 +9,32 @@ This module contains a compact, scannable cheat sheet of all keyboard shortcuts.
 """
 from PyQt6.QtWidgets import QDialog, QVBoxLayout, QTextEdit, QPushButton, QHBoxLayout
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QFont
+from PyQt6.QtGui import QFont, QPalette
+import color_palettes
+
+
+def is_dark_mode(palette):
+    """
+    Detect if the system is in dark mode by checking palette brightness.
+    
+    Args:
+        palette: QPalette to check
+        
+    Returns:
+        True if dark mode is detected, False otherwise
+    """
+    # First check macOS dark mode
+    if color_palettes.is_macos_dark_mode():
+        return True
+    
+    # For other platforms, check window background brightness
+    bg_color = palette.color(QPalette.ColorRole.Window)
+    # Calculate perceived brightness (0-255)
+    brightness = (0.299 * bg_color.red() + 
+                  0.587 * bg_color.green() + 
+                  0.114 * bg_color.blue())
+    # If brightness is less than 128, consider it dark mode
+    return brightness < 128
 
 
 class ShortcutsDialog(QDialog):
@@ -24,7 +49,10 @@ class ShortcutsDialog(QDialog):
         
         shortcuts_text = QTextEdit()
         shortcuts_text.setReadOnly(True)
-        shortcuts_text.setHtml(self.get_shortcuts_html())
+        
+        # Detect dark mode and generate appropriate HTML
+        is_dark = is_dark_mode(self.palette())
+        shortcuts_text.setHtml(self.get_shortcuts_html(is_dark))
         
         font = QFont()
         font.setPointSize(10)
@@ -65,18 +93,86 @@ class ShortcutsDialog(QDialog):
             self.shortcuts_text.document().print(printer)
     
     @staticmethod
-    def get_shortcuts_html():
-        """Returns the HTML content for the shortcuts reference"""
-        return """
+    def get_shortcuts_html(is_dark):
+        """
+        Returns the HTML content for the shortcuts reference.
+        
+        Args:
+            is_dark: True if dark mode is detected, False for light mode
+            
+        Returns:
+            HTML string with appropriate color scheme
+        """
+        if is_dark:
+            # Dark mode colors
+            bg_color = "#2b2b2b"
+            text_color = "#e0e0e0"
+            header_color = "#6ba3d8"
+            header_border = "#4a7ba7"
+            table_header_bg = "#3a3a3a"
+            table_border = "#555555"
+            cell_border = "#444444"
+            shortcut_bg = "#404040"
+            shortcut_text = "#ffffff"
+            note_color = "#a0a0a0"
+        else:
+            # Light mode colors
+            bg_color = "#ffffff"
+            text_color = "#000000"
+            header_color = "#2c5aa0"
+            header_border = "#2c5aa0"
+            table_header_bg = "#e8f0f8"
+            table_border = "#cccccc"
+            cell_border = "#dddddd"
+            shortcut_bg = "#f5f5f5"
+            shortcut_text = "#000000"
+            note_color = "#666666"
+        
+        return f"""
         <style>
-            body { font-family: Arial, sans-serif; }
-            h2 { color: #2c5aa0; border-bottom: 2px solid #2c5aa0; padding-bottom: 5px; margin-top: 20px; }
-            table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
-            th { background-color: #e8f0f8; text-align: left; padding: 8px; font-weight: bold; border: 1px solid #ccc; }
-            td { padding: 6px 8px; border: 1px solid #ddd; }
-            .shortcut { font-family: 'Courier New', monospace; background-color: #f5f5f5; 
-                       padding: 2px 6px; border-radius: 3px; white-space: nowrap; font-weight: bold; }
-            .mac-note { color: #666; font-style: italic; font-size: 0.9em; margin-top: 5px; }
+            body {{ 
+                font-family: Arial, sans-serif; 
+                background-color: {bg_color};
+                color: {text_color};
+            }}
+            h2 {{ 
+                color: {header_color}; 
+                border-bottom: 2px solid {header_border}; 
+                padding-bottom: 5px; 
+                margin-top: 20px; 
+            }}
+            table {{ 
+                width: 100%; 
+                border-collapse: collapse; 
+                margin-bottom: 15px; 
+            }}
+            th {{ 
+                background-color: {table_header_bg}; 
+                text-align: left; 
+                padding: 8px; 
+                font-weight: bold; 
+                border: 1px solid {table_border}; 
+                color: {text_color};
+            }}
+            td {{ 
+                padding: 6px 8px; 
+                border: 1px solid {cell_border}; 
+            }}
+            .shortcut {{ 
+                font-family: 'Courier New', monospace; 
+                background-color: {shortcut_bg}; 
+                color: {shortcut_text};
+                padding: 2px 6px; 
+                border-radius: 3px; 
+                white-space: nowrap; 
+                font-weight: bold; 
+            }}
+            .mac-note {{ 
+                color: {note_color}; 
+                font-style: italic; 
+                font-size: 0.9em; 
+                margin-top: 5px; 
+            }}
         </style>
         
         <h2>Essential Shortcuts</h2>
@@ -202,7 +298,7 @@ class ShortcutsDialog(QDialog):
                 <td>Take note of selected text</td>
             </tr>
             <tr>
-                <td><span class="shortcut">Right-click → Take Note</span></td>
+                <td><span class="shortcut">Right-click -> Take Note</span></td>
                 <td>Add selected text to notes file</td>
             </tr>
         </table>
@@ -262,7 +358,7 @@ class ShortcutsDialog(QDialog):
                 <td>Find previous match</td>
             </tr>
             <tr>
-                <td><span class="shortcut">Right-click → Search</span></td>
+                <td><span class="shortcut">Right-click -> Search</span></td>
                 <td>Search for selected text</td>
             </tr>
         </table>
