@@ -725,6 +725,11 @@ class DiffViewerTabWidget(QMainWindow):
         # Apply global note file if set
         if self.global_note_file:
             diff_viewer.note_file = self.global_note_file
+        elif diff_viewer.note_file:
+            # Viewer has a note file (from --note-file) but global doesn't know about it
+            # Notify NoteManager to create button and set up file watching
+            self.note_mgr.set_note_file(diff_viewer.note_file)
+            self.global_note_file = diff_viewer.note_file
         
         # Set up file watching for this viewer
         self.setup_file_watcher(diff_viewer)

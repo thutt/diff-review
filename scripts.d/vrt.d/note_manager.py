@@ -399,6 +399,7 @@ class NoteManager:
         # Search for header line containing this file and line number
         lines = content.split('\n')
         found_line_idx = None
+        note_end_idx = None
         
         for i, line in enumerate(lines):
             if line.startswith(f"> {prefix}: {clean_filename}:"):
@@ -409,12 +410,17 @@ class NoteManager:
                         start, end = map(int, range_part.split(','))
                         if start <= line_num < end:
                             found_line_idx = i
+                            # Find the end of this note (blank line with just '>')
+                            for j in range(i + 1, len(lines)):
+                                if lines[j].strip() == '>':
+                                    note_end_idx = j
+                                    break
                             break
                     except (ValueError, IndexError):
                         continue
         
         if found_line_idx is not None:
-            # Note found - open/switch to Review Notes tab and center on it
+            # Note found - open/switch to Review Notes tab and highlight it
             self.on_notes_clicked()  # This will open or switch to the tab
             
             # Get the Review Notes tab widget
@@ -423,11 +429,25 @@ class NoteManager:
                 text_widget = self.tab_widget.tab_widget.widget(tab_index)
                 
                 if hasattr(text_widget, 'is_review_notes') and text_widget.is_review_notes:
-                    # Move cursor to the found line
+                    # Select the entire note for visual feedback
                     cursor = text_widget.textCursor()
+                    
+                    # Move to start of note header
                     cursor.movePosition(QTextCursor.MoveOperation.Start)
                     for _ in range(found_line_idx):
                         cursor.movePosition(QTextCursor.MoveOperation.Down)
+                    
+                    # Select to end of note (or end of doc if no end found)
+                    cursor.movePosition(QTextCursor.MoveOperation.StartOfLine)
+                    if note_end_idx:
+                        for _ in range(found_line_idx, note_end_idx + 1):
+                            cursor.movePosition(QTextCursor.MoveOperation.Down, 
+                                              QTextCursor.MoveMode.KeepAnchor)
+                    else:
+                        # No end found, select just the header and first few lines
+                        for _ in range(5):  # Select ~5 lines
+                            cursor.movePosition(QTextCursor.MoveOperation.Down,
+                                              QTextCursor.MoveMode.KeepAnchor)
                     
                     text_widget.setTextCursor(cursor)
                     text_widget.centerCursor()
