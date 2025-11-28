@@ -133,24 +133,29 @@ class CommitMsgHandler:
         
         menu.addSeparator()
         
-        # Note taking - need to check if any viewer has a note file
-        note_file = self.tab_widget.get_note_file()
-        if has_selection and note_file:
+        # Note taking - always enable if there's a selection
+        if has_selection:
             note_action = menu.addAction("Take Note")
             note_action.triggered.connect(
-                lambda: self.take_commit_msg_note(text_widget, note_file))
+                lambda: self.take_commit_msg_note(text_widget))
         else:
-            note_action = menu.addAction("Take Note (no selection)" if note_file else 
-                               "Take Note (no file supplied)")
+            note_action = menu.addAction("Take Note (no selection)")
             note_action.setEnabled(False)
         
         menu.exec(text_widget.mapToGlobal(pos))
     
-    def take_commit_msg_note(self, text_widget, note_file):
+    def take_commit_msg_note(self, text_widget):
         """Take note from commit message"""
         cursor = text_widget.textCursor()
         if not cursor.hasSelection():
             return
+        
+        # Get note file - prompt if not configured
+        note_file = self.tab_widget.get_note_file()
+        if not note_file:
+            note_file = self.prompt_for_note_file()
+            if not note_file:
+                return
         
         # Save selection range before doing anything
         selection_start = cursor.selectionStart()
@@ -160,7 +165,7 @@ class CommitMsgHandler:
         selected_text = selected_text.replace('\u2029', '\n')
         
         try:
-            with open(note_file, 'a') as f:
+            with open(note_file, 'a', encoding='utf-8') as f:
                 f.write("> (commit_msg): Commit Message\n")
                 for line in selected_text.split('\n'):
                     f.write(f">   {line}\n")
@@ -187,6 +192,36 @@ class CommitMsgHandler:
         except Exception as e:
             QMessageBox.warning(self.tab_widget, 'Error Taking Note',
                               f'Could not write to note file:\n{e}')
+    
+    def prompt_for_note_file(self):
+        """
+        Prompt user to select a note file.
+        Returns the file path if selected, None if cancelled.
+        Also sets the global note file in tab_widget.
+        """
+        from PyQt6.QtWidgets import QFileDialog
+        
+        file_dialog = QFileDialog(self.tab_widget)
+        file_dialog.setWindowTitle("Select Note File")
+        file_dialog.setNameFilter("Text Files (*.txt);;All Files (*)")
+        file_dialog.setFileMode(QFileDialog.FileMode.AnyFile)
+        file_dialog.setAcceptMode(QFileDialog.AcceptMode.AcceptOpen)
+        file_dialog.setOption(QFileDialog.Option.DontConfirmOverwrite, True)
+        file_dialog.setOption(QFileDialog.Option.DontUseNativeDialog, True)
+        
+        if file_dialog.exec() == QFileDialog.DialogCode.Accepted:
+            files = file_dialog.selectedFiles()
+            if files:
+                note_file = files[0]
+                # Set global note file
+                self.tab_widget.global_note_file = note_file
+                # Update all existing viewers
+                for viewer in self.tab_widget.get_all_viewers():
+                    viewer.note_file = note_file
+                    viewer.update_status()
+                return note_file
+        
+        return None
     
     def change_commit_msg_font_size(self, text_widget, delta):
         """Change font size for commit message tab"""

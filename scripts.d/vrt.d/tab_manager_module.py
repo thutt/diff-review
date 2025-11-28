@@ -420,9 +420,9 @@ class DiffViewerTabWidget(QMainWindow):
         """Show context menu for commit message"""
         self.commit_msg_mgr.show_commit_msg_context_menu(pos, text_widget)
     
-    def take_commit_msg_note(self, text_widget, note_file):
+    def take_commit_msg_note(self, text_widget):
         """Take note from commit message"""
-        self.commit_msg_mgr.take_commit_msg_note(text_widget, note_file)
+        self.commit_msg_mgr.take_commit_msg_note(text_widget)
     
     def get_note_file(self):
         """Get note file - prefer global, fallback to any viewer"""
@@ -1354,9 +1354,7 @@ class DiffViewerTabWidget(QMainWindow):
             if key == Qt.Key.Key_N and (modifiers & Qt.KeyboardModifier.ControlModifier or
                                           modifiers & Qt.KeyboardModifier.MetaModifier):
                 if is_commit_msg:
-                    note_file = self.get_note_file()
-                    if note_file:
-                        self.take_commit_msg_note(obj, note_file)
+                    self.take_commit_msg_note(obj)
                     return True
                 elif viewer:
                     if obj == viewer.base_text:

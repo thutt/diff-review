@@ -171,6 +171,7 @@ class DiffViewer(QMainWindow):
         self.highlighting_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.bookmarks_label = QLabel("Bookmarks: 0")
         self.notes_label = QLabel("Notes: 0")
+        self.note_file_label = QLabel("")
         
         status_layout.addWidget(self.region_label)
         status_layout.addStretch()
@@ -178,6 +179,7 @@ class DiffViewer(QMainWindow):
         status_layout.addStretch()
         status_layout.addWidget(self.bookmarks_label)
         status_layout.addWidget(self.notes_label)
+        status_layout.addWidget(self.note_file_label)
         status_frame = QFrame()
         status_frame.setFrameStyle(QFrame.Shape.Panel | QFrame.Shadow.Sunken)
         status_frame.setLayout(status_layout)
@@ -676,10 +678,10 @@ class DiffViewer(QMainWindow):
                 return
     
     def on_double_click(self, event, side):
+        # Prompt for note file if not configured
         if not self.note_file:
-            QMessageBox.information(self, 'Note Taking Disabled',
-                                  'No note file supplied.')
-            return
+            if not self.prompt_for_note_file():
+                return
         
         text_widget = self.base_text if side == 'base' else self.modified_text
         line_nums = self.base_line_nums if side == 'base' else self.modified_line_nums
@@ -692,21 +694,25 @@ class DiffViewer(QMainWindow):
         if line_idx >= len(line_nums) or line_nums[line_idx] is None:
             return
         
-        with open(self.note_file, 'a') as f:
-            prefix = '(base): ' if side == 'base' else '(modi): '
-            clean_filename = extract_display_path(filename)
-            f.write(f"> {prefix}{clean_filename}\n")
-            f.write(f">   {line_nums[line_idx]}: {display_lines[line_idx]}\n>\n\n\n")
-        
-        self.mark_noted_line(side, line_nums[line_idx])
-        self.note_count += 1
-        self.update_status()
+        try:
+            with open(self.note_file, 'a', encoding='utf-8') as f:
+                prefix = '(base): ' if side == 'base' else '(modi): '
+                clean_filename = extract_display_path(filename)
+                f.write(f"> {prefix}{clean_filename}\n")
+                f.write(f">   {line_nums[line_idx]}: {display_lines[line_idx]}\n>\n\n\n")
+            
+            self.mark_noted_line(side, line_nums[line_idx])
+            self.note_count += 1
+            self.update_status()
+        except Exception as e:
+            QMessageBox.warning(self, 'Error Taking Note',
+                              f'Could not write to note file:\n{e}')
     
     def take_note(self, side):
+        # Prompt for note file if not configured
         if not self.note_file:
-            QMessageBox.information(self, 'Note Taking Disabled',
-                                  'No note file supplied.')
-            return
+            if not self.prompt_for_note_file():
+                return
         
         text_widget = self.base_text if side == 'base' else self.modified_text
         line_nums = self.base_line_nums if side == 'base' else self.modified_line_nums
@@ -730,22 +736,60 @@ class DiffViewer(QMainWindow):
         if selection_end == end_block.position():
             end_block_num -= 1
         
-        with open(self.note_file, 'a') as f:
-            prefix = '(base): ' if side == 'base' else '(modi): '
-            clean_filename = extract_display_path(filename)
-            f.write(f"> {prefix}{clean_filename}\n")
+        try:
+            with open(self.note_file, 'a', encoding='utf-8') as f:
+                prefix = '(base): ' if side == 'base' else '(modi): '
+                clean_filename = extract_display_path(filename)
+                f.write(f"> {prefix}{clean_filename}\n")
+                
+                for i in range(start_block_num, end_block_num + 1):
+                    if i < len(line_nums) and line_nums[i] is not None:
+                        f.write(f">   {line_nums[i]}: {display_lines[i]}\n")
+                        self.mark_noted_line(side, line_nums[i])
+                f.write('>\n\n\n')
             
-            for i in range(start_block_num, end_block_num + 1):
-                if i < len(line_nums) and line_nums[i] is not None:
-                    f.write(f">   {line_nums[i]}: {display_lines[i]}\n")
-                    self.mark_noted_line(side, line_nums[i])
-            f.write('>\n\n\n')
-        
-        self.note_count += 1
-        self.update_status()
+            self.note_count += 1
+            self.update_status()
+        except Exception as e:
+            QMessageBox.warning(self, 'Error Taking Note',
+                              f'Could not write to note file:\n{e}')
     
     def take_note_from_widget(self, side):
         self.take_note(side)
+    
+    def prompt_for_note_file(self):
+        """
+        Prompt user to select a note file if none is configured.
+        Returns True if file was set, False if user cancelled.
+        """
+        from PyQt6.QtWidgets import QFileDialog
+        
+        file_dialog = QFileDialog(self)
+        file_dialog.setWindowTitle("Select Note File")
+        file_dialog.setNameFilter("Text Files (*.txt);;All Files (*)")
+        file_dialog.setFileMode(QFileDialog.FileMode.AnyFile)
+        file_dialog.setAcceptMode(QFileDialog.AcceptMode.AcceptOpen)
+        file_dialog.setOption(QFileDialog.Option.DontConfirmOverwrite, True)
+        file_dialog.setOption(QFileDialog.Option.DontUseNativeDialog, True)
+        
+        if file_dialog.exec() == QFileDialog.DialogCode.Accepted:
+            files = file_dialog.selectedFiles()
+            if files:
+                self.note_file = files[0]
+                
+                # Also update tab_manager global note file if we have a reference
+                if hasattr(self, 'tab_manager') and self.tab_manager:
+                    self.tab_manager.global_note_file = self.note_file
+                    # Update all other viewers too
+                    for viewer in self.tab_manager.get_all_viewers():
+                        if viewer != self:
+                            viewer.note_file = self.note_file
+                            viewer.update_status()
+                
+                self.update_status()
+                return True
+        
+        return False
     
     def mark_noted_line(self, side, line_num):
         if side == 'base':
@@ -911,6 +955,16 @@ class DiffViewer(QMainWindow):
         self.region_label.setText(f"Region: {current} of {total}")
         self.bookmarks_label.setText(f"Bookmarks: {len(self.bookmarked_lines)}")
         self.notes_label.setText(f"Notes: {self.note_count}")
+        
+        # Update note file label
+        if self.note_file:
+            import os
+            short_path = os.path.basename(self.note_file)
+            self.note_file_label.setText(f" -> {short_path}")
+            self.note_file_label.setToolTip(self.note_file)
+        else:
+            self.note_file_label.setText("")
+            self.note_file_label.setToolTip("")
     
     def toggle_diff_map(self):
         if self.diff_map_visible:

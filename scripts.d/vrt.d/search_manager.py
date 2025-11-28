@@ -190,12 +190,11 @@ class SearchManager:
         
         menu.addSeparator()
         
-        if has_selection and viewer.note_file:
+        if has_selection:
             note_action = menu.addAction("Take Note")
             note_action.triggered.connect(lambda: viewer.take_note(side))
         else:
-            note_action = menu.addAction("Take Note (no selection)" if viewer.note_file else 
-                           "Take Note (no file supplied)")
+            note_action = menu.addAction("Take Note (no selection)")
             note_action.setEnabled(False)
         
         menu.addAction(search_action)
