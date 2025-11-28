@@ -150,12 +150,8 @@ class CommitMsgHandler:
         if not cursor.hasSelection():
             return
         
-        # Get note file - prompt if not configured
-        note_file = self.tab_widget.get_note_file()
-        if not note_file:
-            note_file = self.prompt_for_note_file()
-            if not note_file:
-                return
+        # Get NoteManager
+        note_mgr = self.tab_widget.note_mgr
         
         # Save selection range before doing anything
         selection_start = cursor.selectionStart()
@@ -164,13 +160,11 @@ class CommitMsgHandler:
         selected_text = cursor.selectedText()
         selected_text = selected_text.replace('\u2029', '\n')
         
-        try:
-            with open(note_file, 'a', encoding='utf-8') as f:
-                f.write("> (commit_msg): Commit Message\n")
-                for line in selected_text.split('\n'):
-                    f.write(f">   {line}\n")
-                f.write('>\n\n\n')
-            
+        # Split into lines for note taking
+        line_texts = selected_text.split('\n')
+        
+        # Take note using NoteManager
+        if note_mgr.take_note("Commit Message", 'commit_msg', None, line_texts, is_commit_msg=True):
             # Apply permanent yellow background to noted text
             # Create new cursor with saved selection
             highlight_cursor = text_widget.textCursor()
@@ -189,39 +183,6 @@ class CommitMsgHandler:
             if viewer:
                 viewer.note_count += 1
                 viewer.update_status()
-        except Exception as e:
-            QMessageBox.warning(self.tab_widget, 'Error Taking Note',
-                              f'Could not write to note file:\n{e}')
-    
-    def prompt_for_note_file(self):
-        """
-        Prompt user to select a note file.
-        Returns the file path if selected, None if cancelled.
-        Also sets the global note file in tab_widget.
-        """
-        from PyQt6.QtWidgets import QFileDialog
-        
-        file_dialog = QFileDialog(self.tab_widget)
-        file_dialog.setWindowTitle("Select Note File")
-        file_dialog.setNameFilter("Text Files (*.txt);;All Files (*)")
-        file_dialog.setFileMode(QFileDialog.FileMode.AnyFile)
-        file_dialog.setAcceptMode(QFileDialog.AcceptMode.AcceptOpen)
-        file_dialog.setOption(QFileDialog.Option.DontConfirmOverwrite, True)
-        file_dialog.setOption(QFileDialog.Option.DontUseNativeDialog, True)
-        
-        if file_dialog.exec() == QFileDialog.DialogCode.Accepted:
-            files = file_dialog.selectedFiles()
-            if files:
-                note_file = files[0]
-                # Set global note file
-                self.tab_widget.global_note_file = note_file
-                # Update all existing viewers
-                for viewer in self.tab_widget.get_all_viewers():
-                    viewer.note_file = note_file
-                    viewer.update_status()
-                return note_file
-        
-        return None
     
     def change_commit_msg_font_size(self, text_widget, delta):
         """Change font size for commit message tab"""

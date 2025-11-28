@@ -154,8 +154,13 @@ class HelpDialog(QDialog):
             <li><b>Right-click &rarr; Take Note:</b> Add selected text to notes file</li>
             <li><b>Ctrl+N / Cmd+N:</b> Take note of selected text (works in commit message view too)</li>
             <li><b>Yellow background:</b> Lines where notes have been taken are highlighted permanently</li>
+            <li><b>Right-click on yellow line &rarr; Jump to Note:</b> Opens Review Notes tab and navigates to that note</li>
+            <li><b>Review Notes tab:</b> Appears in sidebar after first note is taken; displays all notes in read-only view</li>
+            <li><b>Auto-reload:</b> Review Notes tab automatically reloads when note file changes on disk</li>
+            <li><b>Note file prompting:</b> If no note file is configured, you'll be prompted to choose one when taking a note</li>
             <li><b>File &rarr; Open Note:</b> Set or change the notes file for the current session</li>
-            <li>All notes are appended to the notes file (created if it does not exist)</li>
+            <li><b>Status bar:</b> Shows note file name (hover for full path)</li>
+            <li>All notes are appended to the notes file in standardized format with file:line references</li>
         </ul>
         
         <h3>Bookmarks</h3>

@@ -197,6 +197,13 @@ class SearchManager:
             note_action = menu.addAction("Take Note (no selection)")
             note_action.setEnabled(False)
         
+        # Add "Jump to Note" if this line has a note
+        jump_action_func = self.tab_widget.note_mgr.show_jump_to_note_menu(pos, text_widget, side, viewer)
+        if jump_action_func:
+            menu.addSeparator()
+            jump_action = menu.addAction("Jump to Note")
+            jump_action.triggered.connect(jump_action_func)
+        
         menu.addAction(search_action)
         menu.addAction(note_action)
         menu.exec(text_widget.mapToGlobal(pos))

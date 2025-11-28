@@ -678,10 +678,11 @@ class DiffViewer(QMainWindow):
                 return
     
     def on_double_click(self, event, side):
-        # Prompt for note file if not configured
-        if not self.note_file:
-            if not self.prompt_for_note_file():
-                return
+        # Use NoteManager to take note
+        if not hasattr(self, 'tab_manager') or not self.tab_manager:
+            return
+        
+        note_mgr = self.tab_manager.note_mgr
         
         text_widget = self.base_text if side == 'base' else self.modified_text
         line_nums = self.base_line_nums if side == 'base' else self.modified_line_nums
@@ -694,25 +695,21 @@ class DiffViewer(QMainWindow):
         if line_idx >= len(line_nums) or line_nums[line_idx] is None:
             return
         
-        try:
-            with open(self.note_file, 'a', encoding='utf-8') as f:
-                prefix = '(base): ' if side == 'base' else '(modi): '
-                clean_filename = extract_display_path(filename)
-                f.write(f"> {prefix}{clean_filename}\n")
-                f.write(f">   {line_nums[line_idx]}: {display_lines[line_idx]}\n>\n\n\n")
-            
-            self.mark_noted_line(side, line_nums[line_idx])
+        # Take note using NoteManager
+        line_number = line_nums[line_idx]
+        line_text = display_lines[line_idx]
+        
+        if note_mgr.take_note(filename, side, [line_number], [line_text], is_commit_msg=False):
+            self.mark_noted_line(side, line_number)
             self.note_count += 1
             self.update_status()
-        except Exception as e:
-            QMessageBox.warning(self, 'Error Taking Note',
-                              f'Could not write to note file:\n{e}')
     
     def take_note(self, side):
-        # Prompt for note file if not configured
-        if not self.note_file:
-            if not self.prompt_for_note_file():
-                return
+        # Use NoteManager to take note
+        if not hasattr(self, 'tab_manager') or not self.tab_manager:
+            return
+        
+        note_mgr = self.tab_manager.note_mgr
         
         text_widget = self.base_text if side == 'base' else self.modified_text
         line_nums = self.base_line_nums if side == 'base' else self.modified_line_nums
@@ -736,60 +733,27 @@ class DiffViewer(QMainWindow):
         if selection_end == end_block.position():
             end_block_num -= 1
         
-        try:
-            with open(self.note_file, 'a', encoding='utf-8') as f:
-                prefix = '(base): ' if side == 'base' else '(modi): '
-                clean_filename = extract_display_path(filename)
-                f.write(f"> {prefix}{clean_filename}\n")
-                
-                for i in range(start_block_num, end_block_num + 1):
-                    if i < len(line_nums) and line_nums[i] is not None:
-                        f.write(f">   {line_nums[i]}: {display_lines[i]}\n")
-                        self.mark_noted_line(side, line_nums[i])
-                f.write('>\n\n\n')
-            
+        # Collect line numbers and texts
+        selected_line_nums = []
+        selected_line_texts = []
+        
+        for i in range(start_block_num, end_block_num + 1):
+            if i < len(line_nums) and line_nums[i] is not None:
+                selected_line_nums.append(line_nums[i])
+                selected_line_texts.append(display_lines[i])
+        
+        if not selected_line_nums:
+            return
+        
+        # Take note using NoteManager
+        if note_mgr.take_note(filename, side, selected_line_nums, selected_line_texts, is_commit_msg=False):
+            for line_num in selected_line_nums:
+                self.mark_noted_line(side, line_num)
             self.note_count += 1
             self.update_status()
-        except Exception as e:
-            QMessageBox.warning(self, 'Error Taking Note',
-                              f'Could not write to note file:\n{e}')
     
     def take_note_from_widget(self, side):
         self.take_note(side)
-    
-    def prompt_for_note_file(self):
-        """
-        Prompt user to select a note file if none is configured.
-        Returns True if file was set, False if user cancelled.
-        """
-        from PyQt6.QtWidgets import QFileDialog
-        
-        file_dialog = QFileDialog(self)
-        file_dialog.setWindowTitle("Select Note File")
-        file_dialog.setNameFilter("Text Files (*.txt);;All Files (*)")
-        file_dialog.setFileMode(QFileDialog.FileMode.AnyFile)
-        file_dialog.setAcceptMode(QFileDialog.AcceptMode.AcceptOpen)
-        file_dialog.setOption(QFileDialog.Option.DontConfirmOverwrite, True)
-        file_dialog.setOption(QFileDialog.Option.DontUseNativeDialog, True)
-        
-        if file_dialog.exec() == QFileDialog.DialogCode.Accepted:
-            files = file_dialog.selectedFiles()
-            if files:
-                self.note_file = files[0]
-                
-                # Also update tab_manager global note file if we have a reference
-                if hasattr(self, 'tab_manager') and self.tab_manager:
-                    self.tab_manager.global_note_file = self.note_file
-                    # Update all other viewers too
-                    for viewer in self.tab_manager.get_all_viewers():
-                        if viewer != self:
-                            viewer.note_file = self.note_file
-                            viewer.update_status()
-                
-                self.update_status()
-                return True
-        
-        return False
     
     def mark_noted_line(self, side, line_num):
         if side == 'base':

@@ -166,6 +166,10 @@ class DiffViewerTabWidget(QMainWindow):
         self.commit_msg_rel_path_ = self.commit_msg_mgr.commit_msg_rel_path
         self.commit_msg_button = self.commit_msg_mgr.commit_msg_button
         
+        # Create note manager
+        import note_manager
+        self.note_mgr = note_manager.NoteManager(self)
+        
         # Create search manager
         self.search_mgr = search_manager.SearchManager(self)
         
@@ -868,6 +872,22 @@ class DiffViewerTabWidget(QMainWindow):
             
             # Update commit message button style
             self.commit_msg_mgr.update_button_state(is_open, is_active)
+        
+        # Update Review Notes button if it exists
+        if self.note_mgr.notes_button:
+            is_open = 'review_notes' in self.file_to_tab_index
+            if is_open:
+                tab_index = self.file_to_tab_index['review_notes']
+                if not (0 <= tab_index < self.tab_widget.count()):
+                    is_open = False
+            
+            is_active = False
+            if is_open:
+                tab_index = self.file_to_tab_index['review_notes']
+                is_active = (tab_index == current_tab_index)
+            
+            # Update Review Notes button style
+            self.note_mgr.update_button_state(is_open, is_active)
     
     def get_all_viewers(self):
         """
