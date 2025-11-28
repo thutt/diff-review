@@ -171,7 +171,6 @@ class DiffViewer(QMainWindow):
         self.highlighting_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.bookmarks_label = QLabel("Bookmarks: 0")
         self.notes_label = QLabel("Notes: 0")
-        self.note_file_label = QLabel("")
         
         status_layout.addWidget(self.region_label)
         status_layout.addStretch()
@@ -179,7 +178,6 @@ class DiffViewer(QMainWindow):
         status_layout.addStretch()
         status_layout.addWidget(self.bookmarks_label)
         status_layout.addWidget(self.notes_label)
-        status_layout.addWidget(self.note_file_label)
         status_frame = QFrame()
         status_frame.setFrameStyle(QFrame.Shape.Panel | QFrame.Shadow.Sunken)
         status_frame.setLayout(status_layout)
@@ -919,16 +917,6 @@ class DiffViewer(QMainWindow):
         self.region_label.setText(f"Region: {current} of {total}")
         self.bookmarks_label.setText(f"Bookmarks: {len(self.bookmarked_lines)}")
         self.notes_label.setText(f"Notes: {self.note_count}")
-        
-        # Update note file label
-        if self.note_file:
-            import os
-            short_path = os.path.basename(self.note_file)
-            self.note_file_label.setText(f" -> {short_path}")
-            self.note_file_label.setToolTip(self.note_file)
-        else:
-            self.note_file_label.setText("")
-            self.note_file_label.setToolTip("")
     
     def toggle_diff_map(self):
         if self.diff_map_visible:

@@ -163,8 +163,8 @@ class NoteManager:
         # Store reference to tab widget for later use
         text_widget.is_review_notes = True
         
-        # Add to tabs
-        index = self.tab_widget.tab_widget.addTab(text_widget, "Review Notes")
+        # Add to tabs with note file path as title
+        index = self.tab_widget.tab_widget.addTab(text_widget, note_file)
         self.tab_widget.file_to_tab_index['review_notes'] = index
         self.tab_widget.tab_widget.setCurrentIndex(index)
         
