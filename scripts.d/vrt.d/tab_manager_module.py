@@ -135,10 +135,6 @@ class DiffViewerTabWidget(QMainWindow):
         # Global bookmarks: maps (tab_index, line_idx) -> True
         self.global_bookmarks = {}
         
-        # Loading animation state
-        self.loading_buttons = {}  # Maps button -> (original_text, timer, dot_count)
-        self.loading_file_class = None  # Track which file is currently loading
-        
         # Create view state manager
         self.view_state_mgr = view_state_manager.ViewStateManager(
             self, show_diff_map, show_line_numbers,
@@ -536,18 +532,40 @@ class DiffViewerTabWidget(QMainWindow):
             if progress.wasCanceled():
                 break
             
-            # Update progress
-            progress.setValue(current_index)
+            # Find the button for this file/commit_msg and change it to "Loading..."
+            button = None
             if item_type == 'commit_msg':
+                button = self.commit_msg_button
+                original_text = button.text() if button else None
+                if button:
+                    button.setText("Loading...")
+                    QApplication.processEvents()  # Force UI update
                 progress.setLabelText("Loading Commit Message...")
             else:
+                for btn in self.file_buttons:
+                    if btn.file_class == item_data:
+                        button = btn
+                        break
+                original_text = button.text() if button else None
+                if button:
+                    button.setText("Loading...")
+                    QApplication.processEvents()  # Force UI update
                 progress.setLabelText(f"Loading {item_data.button_label()}...")
+            
+            progress.setValue(current_index)
             QApplication.processEvents()  # Keep UI responsive
             
+            # Load the file
             if item_type == 'commit_msg':
                 self.on_commit_msg_clicked()
             else:
                 self.on_file_clicked(item_data)
+            
+            # Restore original button text
+            if button and original_text:
+                button.setText(original_text)
+                QApplication.processEvents()  # Force UI update
+            
             current_index += 1
         
         progress.setValue(len(files_to_open))
@@ -572,88 +590,17 @@ class DiffViewerTabWidget(QMainWindow):
             # Verify tab still exists (might have been closed)
             if 0 <= tab_index < self.tab_widget.count():
                 widget = self.tab_widget.widget(tab_index)
-                if hasattr(widget, 'file_class') and widget.file_class == file_class:
+                if widget.file_class == file_class:
                     # Tab exists, switch to it
                     self.tab_widget.setCurrentIndex(tab_index)
                     return
             # Tab was closed, remove from mapping
             del self.file_to_tab_index[file_class]
         
-        # Find the button for this file
-        button = None
-        for btn in self.file_buttons:
-            if btn.file_class == file_class:
-                button = btn
-                break
-        
-        if button:
-            # Start loading animation
-            self.start_loading_animation(button, file_class)
-            
-            # Defer the heavy work to allow UI to repaint
-            QTimer.singleShot(50, lambda: self.load_file_deferred(file_class))
-        else:
-            # No button found, load immediately (shouldn't happen)
-            self.load_file_deferred(file_class)
-    
-    def start_loading_animation(self, button, file_class):
-        """Start an animated loading indicator on a button"""
-        original_text = button.text()
-        
-        # Change button style to show loading state
-        button.setStyleSheet("""
-            QPushButton {
-                text-align: left;
-                padding: 8px 8px 8px 20px;
-                border: none;
-                border-left: 4px solid #2196F3;
-                background-color: #E3F2FD;
-                font-style: italic;
-                color: #1976D2;
-            }
-        """)
-        
-        # Create animation timer
-        timer = QTimer()
-        dot_count = [0]  # Use list to allow modification in nested function
-        
-        def update_dots():
-            dot_count[0] = (dot_count[0] + 1) % 4
-            dots = '.' * dot_count[0]
-            button.setText(f"Loading{dots}")
-        
-        timer.timeout.connect(update_dots)
-        timer.start(400)  # Update every 400ms
-        update_dots()  # Set initial text
-        
-        # Store state for cleanup
-        self.loading_buttons[button] = (original_text, timer, dot_count)
-        self.loading_file_class = file_class
-    
-    def stop_loading_animation(self, button):
-        """Stop loading animation and restore button state"""
-        if button in self.loading_buttons:
-            original_text, timer, dot_count = self.loading_buttons[button]
-            timer.stop()
-            button.setText(original_text)
-            del self.loading_buttons[button]
-        
-        self.loading_file_class = None
-        # Button style will be restored by update_button_states()
-    
-    def load_file_deferred(self, file_class):
-        """Load a file after UI has had a chance to repaint"""
-        try:
-            # No existing tab, create new one
-            self.current_file_class = file_class  # Store for add_viewer to use
-            file_class.add_viewer(self)
-            self.current_file_class = None  # Clear after use
-        finally:
-            # Stop loading animation
-            for btn in self.file_buttons:
-                if btn.file_class == file_class:
-                    self.stop_loading_animation(btn)
-                    break
+        # No existing tab, create new one
+        self.current_file_class = file_class  # Store for add_viewer to use
+        file_class.add_viewer(self)
+        self.current_file_class = None  # Clear after use
     
     def add_viewer(self, diff_viewer, tab_title=None):
         """
