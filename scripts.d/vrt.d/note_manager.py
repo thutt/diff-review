@@ -138,9 +138,9 @@ class NoteManager:
         except Exception as e:
             notes_text = f"# Error reading note file:\n# {e}\n"
         
-        # Create text widget
+        # Create text widget - EDITABLE
         text_widget = QPlainTextEdit()
-        text_widget.setReadOnly(True)
+        text_widget.setReadOnly(False)
         text_widget.setPlainText(notes_text)
         text_widget.setFont(QFont("Courier", 12, QFont.Weight.Bold))
         
@@ -157,11 +157,22 @@ class NoteManager:
         text_widget.customContextMenuRequested.connect(
             lambda pos: self.show_notes_context_menu(pos, text_widget))
         
-        # Install event filter for keyboard shortcuts
+        # Install event filter for keyboard shortcuts AND ASCII filtering
         text_widget.installEventFilter(self.tab_widget)
         
         # Store reference to tab widget for later use
         text_widget.is_review_notes = True
+        text_widget.has_unsaved_changes = False
+        text_widget.original_content = notes_text
+        
+        # Create auto-save timer
+        save_timer = QTimer()
+        save_timer.setSingleShot(True)
+        save_timer.timeout.connect(lambda: self.save_notes_content(text_widget))
+        text_widget.save_timer = save_timer
+        
+        # Connect text changes to auto-save timer
+        text_widget.textChanged.connect(lambda: self.on_notes_text_changed(text_widget))
         
         # Add to tabs with note file path as title
         index = self.tab_widget.tab_widget.addTab(text_widget, note_file)
@@ -185,6 +196,84 @@ class NoteManager:
                 lambda: self.tab_widget.search_selected_text(text_widget))
         
         menu.exec(text_widget.mapToGlobal(pos))
+    
+    def on_notes_text_changed(self, text_widget):
+        """Handle text changes in Review Notes tab"""
+        # Filter out non-ASCII characters
+        cursor_pos = text_widget.textCursor().position()
+        text = text_widget.toPlainText()
+        
+        # Filter to ASCII only
+        filtered_text = ''.join(char for char in text if ord(char) < 128)
+        
+        if filtered_text != text:
+            # Non-ASCII characters were present - replace text
+            text_widget.blockSignals(True)
+            text_widget.setPlainText(filtered_text)
+            # Restore cursor position (adjusted for removed chars)
+            new_cursor = text_widget.textCursor()
+            new_cursor.setPosition(min(cursor_pos, len(filtered_text)))
+            text_widget.setTextCursor(new_cursor)
+            text_widget.blockSignals(False)
+        
+        # Mark as having unsaved changes
+        if not text_widget.has_unsaved_changes:
+            text_widget.has_unsaved_changes = True
+            self.update_notes_tab_title(text_widget, dirty=True)
+        
+        # Restart auto-save timer (2.5 seconds)
+        text_widget.save_timer.stop()
+        text_widget.save_timer.start(2500)
+    
+    def save_notes_content(self, text_widget):
+        """Save the notes content to file"""
+        note_file = self.get_note_file()
+        if not note_file:
+            return
+        
+        try:
+            content = text_widget.toPlainText()
+            
+            # Temporarily disable file watcher to avoid triggering reload
+            if self.note_file_watcher:
+                self.note_file_watcher.blockSignals(True)
+            
+            # Write to file
+            with open(note_file, 'w', encoding='utf-8') as f:
+                f.write(content)
+            
+            # Update tracking
+            text_widget.has_unsaved_changes = False
+            text_widget.original_content = content
+            self.update_notes_tab_title(text_widget, dirty=False)
+            
+            # Re-enable file watcher
+            if self.note_file_watcher:
+                self.note_file_watcher.blockSignals(False)
+            
+        except Exception as e:
+            QMessageBox.warning(self.tab_widget, 'Save Error',
+                              f'Could not save notes file:\n{e}')
+    
+    def update_notes_tab_title(self, text_widget, dirty):
+        """Update the tab title to show dirty state"""
+        note_file = self.get_note_file()
+        if not note_file:
+            return
+        
+        # Find the tab index
+        if 'review_notes' not in self.tab_widget.file_to_tab_index:
+            return
+        
+        tab_index = self.tab_widget.file_to_tab_index['review_notes']
+        if not (0 <= tab_index < self.tab_widget.tab_widget.count()):
+            return
+        
+        # Update title with asterisk if dirty
+        if dirty:
+            self.tab_widget.tab_widget.setTabText(tab_index, f"*{note_file}")
+        else:
+            self.tab_widget.tab_widget.setTabText(tab_index, note_file)
     
     def setup_note_file_watcher(self, note_file):
         """Set up file system watching for the note file"""
@@ -265,6 +354,22 @@ class NoteManager:
         if not (hasattr(text_widget, 'is_review_notes') and text_widget.is_review_notes):
             return
         
+        # Check if there are unsaved changes
+        if text_widget.has_unsaved_changes:
+            # Show conflict dialog
+            reply = QMessageBox.question(
+                self.tab_widget,
+                'File Changed Externally',
+                'The note file has changed on disk, but you have unsaved edits.\n\n'
+                'Do you want to reload from disk (losing your changes) or keep editing?',
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No
+            )
+            
+            if reply == QMessageBox.StandardButton.No:
+                # User wants to keep editing - don't reload
+                return
+        
         # Save scroll position
         v_scroll_pos = text_widget.verticalScrollBar().value()
         
@@ -272,14 +377,25 @@ class NoteManager:
         try:
             with open(note_file, 'r', encoding='utf-8') as f:
                 notes_text = f.read()
+            
+            # Block signals to avoid triggering auto-save
+            text_widget.blockSignals(True)
             text_widget.setPlainText(notes_text)
+            text_widget.blockSignals(False)
+            
+            # Update tracking
+            text_widget.has_unsaved_changes = False
+            text_widget.original_content = notes_text
+            self.update_notes_tab_title(text_widget, dirty=False)
             
             # Restore scroll position
             text_widget.verticalScrollBar().setValue(v_scroll_pos)
             
         except Exception as e:
             # If file doesn't exist or can't be read, show error in the tab
+            text_widget.blockSignals(True)
             text_widget.setPlainText(f"# Error reading note file:\n# {e}\n")
+            text_widget.blockSignals(False)
         
         # Re-add file to watcher (some editors remove and recreate files)
         # This is critical - without it, we lose watching after first edit
