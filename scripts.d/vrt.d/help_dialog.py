@@ -201,6 +201,7 @@ class HelpDialog(QDialog):
             <li><b>Alt+W / Cmd+W:</b> Toggle Trailing Whitespace highlighting</li>
             <li><b>Alt+I / Cmd+I:</b> Toggle Intraline Changes highlighting</li>
             <li><b>Alt+R / Cmd+R:</b> Toggle Auto-reload Files on/off</li>
+            <li><b>Alt+S:</b> Cycle Stats Display - cycles through three modes: None -> Tabs Only -> Sidebar Only. Shows file statistics (line counts, additions, deletions, changes) in tab titles and/or sidebar file buttons. On macOS, use Option+S</li>
         </ul>
         
         <h3>Font Size</h3>
@@ -268,6 +269,8 @@ class HelpDialog(QDialog):
             <li><b>--display-n-chars:</b> Set number of characters per pane in initial window (default: 90)</li>
             <li><b>--max-line-length:</b> Set maximum line length indicator position (default: 80)</li>
             <li><b>--note-file:</b> Specify file for saving notes</li>
+            <li><b>--tab-label-show-stats / --no-tab-label-show-stats:</b> Show/hide file statistics in tab labels (default: show)</li>
+            <li><b>--file-label-show-stats / --no-file-label-show-stats:</b> Show/hide file statistics in sidebar file buttons (default: hide)</li>
         </ul>
         
         <h3>Status Bar</h3>

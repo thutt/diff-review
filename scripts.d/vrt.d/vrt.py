@@ -26,9 +26,79 @@ class FileButton (object):
         self.root_path_     = root_path
         self.base_rel_path_ = base_rel_path
         self.modi_rel_path_ = modi_rel_path
+        self.stats_display_ = True
+        self.desc_          = None
+        self.stats_tab_     = options.arg_tab_label_stats
+        self.stats_file_    = options.arg_file_label_stats
+
+    def set_stats_tab(self, state):
+        assert(isinstance(state, bool))
+        self.stats_tab_ = state
+
+    def set_stats_file(self, state):
+        assert(isinstance(state, bool))
+        self.stats_file_ = state
+
+    def modi_line_count(self):
+        result = 0
+        if self.desc_ is not None:
+            result = self.desc_.modi_line_count()
+        return result
+
+    def add_line_count(self):
+        result = 0
+        if self.desc_ is not None:
+            result = self.desc_.add_line_count()
+        return result
+
+    def del_line_count(self):
+        result = 0
+        if self.desc_ is not None:
+            result = self.desc_.del_line_count()
+        return result
+
+    def chg_line_count(self):
+        result = 0
+        if self.desc_ is not None:
+            result = self.desc_.chg_line_count()
+        return result
+
+    def generate_label(self, enable_stats):
+        if self.desc_ is not None and enable_stats:
+            stats =  ("[%d | A: %d / D: %d / C: %d]" %
+                      (self.modi_line_count(),
+                       self.add_line_count(),
+                       self.del_line_count(),
+                       self.chg_line_count()))
+            label = "%s  %s" % (self.modi_rel_path_, stats)
+        else:
+            label = self.modi_rel_path_
+
+        return label
+
 
     def button_label(self):
-        return self.modi_rel_path_
+        label = self.generate_label(self.stats_file_)
+        return label
+
+    def tab_label(self):
+        label = self.generate_label(self.stats_tab_)
+        return label
+
+    def make_viewer(self, base, modi, note):
+        viewer = diff_viewer.DiffViewer(base, modi, note,
+                                        self.options_.arg_max_line_length,
+                                        show_diff_map(self.options_),
+                                        show_line_numbers(self.options_))
+
+        self.desc_ = diffmgr.create_diff_descriptor(self.options_.afr_,
+                                                    self.options_.arg_verbose,
+                                                    self.options_.intraline_percent_,
+                                                    self.options_.arg_dump_ir,
+                                                    base, modi)
+        add_diff_to_viewer(self.desc_, viewer)
+
+        return viewer
 
     def add_viewer(self, tab_widget):
         url = self.options_.arg_dossier_url
@@ -45,8 +115,7 @@ class FileButton (object):
         #
         base   = posixpath.join(root_path, "base.d", self.base_rel_path_)
         modi   = posixpath.join(root_path, "modi.d", self.modi_rel_path_)
-        viewer = make_viewer(self.options_, base, modi,
-                             self.options_.arg_note)
+        viewer = self.make_viewer(base, modi, self.options_.arg_note)
         tab_widget.add_viewer(viewer)
 
 
@@ -88,21 +157,6 @@ def show_line_numbers(options):
     return options.arg_line_numbers
 
 
-def make_viewer(options, base, modi, note):
-    viewer = diff_viewer.DiffViewer(base, modi, note,
-                                    options.arg_max_line_length,
-                                    show_diff_map(options),
-                                    show_line_numbers(options))
-
-    desc = diffmgr.create_diff_descriptor(options.afr_,
-                                          options.arg_verbose,
-                                          options.intraline_percent_,
-                                          options.arg_dump_ir,
-                                          base, modi)
-    add_diff_to_viewer(desc, viewer)
-
-    return viewer
-
 def generate(options, note):
     tab_widget  = tab_manager_module.DiffViewerTabWidget(options.afr_,
                                                          options.arg_display_n_lines,
@@ -115,8 +169,9 @@ def generate(options, note):
                                                          options.arg_ignore_intraline,
                                                          options.intraline_percent_,
                                                          options.selected_palette_,
-                                                         options.arg_dump_ir)
-
+                                                         options.arg_dump_ir,
+                                                         options.arg_tab_label_stats,
+                                                         options.arg_file_label_stats)
 
     if options.dossier_["commit_msg"] is not None:
         tab_widget.add_commit_msg(options.dossier_["commit_msg"])

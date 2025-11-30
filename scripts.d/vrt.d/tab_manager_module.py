@@ -40,6 +40,10 @@ class FileButton(QPushButton):
         self.setCheckable(False)
         self.setStyleSheet(self._get_stylesheet())
     
+    def update_label(self):
+        """Update button label from file_class (called after stats are loaded)"""
+        self.setText(self.file_class.button_label())
+    
     def set_state(self, is_open, is_active):
         """Set whether this button's tab is open and/or currently active"""
         self.is_open = is_open
@@ -86,17 +90,19 @@ class DiffViewerTabWidget(QMainWindow):
     
     def __init__(self,
                  afr,           # Abstract file reader
-                 display_lines: int,
-                 display_chars: int,
-                 show_diff_map: bool,
-                 show_line_numbers: bool,
-                 auto_reload: bool,
-                 ignore_tab: bool,
+                 display_lines     : int,
+                 display_chars     : int,
+                 show_diff_map     : bool,
+                 show_line_numbers : bool,
+                 auto_reload       : bool,
+                 ignore_tab        : bool,
                  ignore_trailing_ws: bool,
-                 ignore_intraline: bool,
+                 ignore_intraline  : bool,
                  intraline_percent : float,
                  palette           : str,
-                 dump_ir           : bool):
+                 dump_ir           : bool,
+                 tab_label_stats   : bool,
+                 file_label_stats  : bool):
         if QApplication.instance() is None:
             self._app = QApplication(sys.argv)
         else:
@@ -113,6 +119,19 @@ class DiffViewerTabWidget(QMainWindow):
         self.dump_ir = dump_ir
         self.intraline_percent = intraline_percent
         self._bulk_loading = False  # Suppress highlighting during "Open All Files"
+        
+        # Stats display mode: 0=none, 1=tabs only, 2=sidebar only
+        # Determine initial mode from command line args
+        if not tab_label_stats and not file_label_stats:
+            self.stats_display_mode = 0  # No stats
+        elif tab_label_stats and not file_label_stats:
+            self.stats_display_mode = 1  # Tab stats only
+        else:  # not tab_label_stats and file_label_stats
+            self.stats_display_mode = 2  # Sidebar stats only
+        
+        # Store individual flags for compatibility
+        self.tab_label_stats = tab_label_stats
+        self.file_label_stats = file_label_stats
         
         # Apply explicit palette if specified, otherwise use auto-selected default
         if palette is not None:
@@ -321,6 +340,16 @@ class DiffViewerTabWidget(QMainWindow):
         
         view_menu.addSeparator()
         
+        self.cycle_stats_action = QAction("Cycle Stats Display (None -> Tabs -> Sidebar)", self)
+        self.cycle_stats_action.setShortcut(QKeySequence("Alt+S"))
+        self.cycle_stats_action.triggered.connect(self.cycle_stats_display)
+        view_menu.addAction(self.cycle_stats_action)
+        
+        # Set initial menu text with current mode boldfaced
+        self._update_stats_menu_text()
+        
+        view_menu.addSeparator()
+        
         increase_font_action = QAction("Increase Font Size", self)
         increase_font_action.setShortcuts([QKeySequence.StandardKey.ZoomIn])
         increase_font_action.triggered.connect(self.increase_font_size)
@@ -488,6 +517,9 @@ class DiffViewerTabWidget(QMainWindow):
         button = FileButton(file_class, self)
         button.clicked.connect(lambda: self.on_file_clicked(file_class))
         
+        # Store button reference in file_class for label updates
+        file_class.ui_button_ = button
+        
         # Calculate insert position: after "Open All" and commit message (if present)
         insert_position = 1  # After "Open All"
         if self.commit_msg_button:
@@ -536,7 +568,6 @@ class DiffViewerTabWidget(QMainWindow):
             button = None
             if item_type == 'commit_msg':
                 button = self.commit_msg_button
-                original_text = button.text() if button else None
                 if button:
                     button.setText("Loading...")
                     QApplication.processEvents()  # Force UI update
@@ -546,7 +577,6 @@ class DiffViewerTabWidget(QMainWindow):
                     if btn.file_class == item_data:
                         button = btn
                         break
-                original_text = button.text() if button else None
                 if button:
                     button.setText("Loading...")
                     QApplication.processEvents()  # Force UI update
@@ -558,13 +588,13 @@ class DiffViewerTabWidget(QMainWindow):
             # Load the file
             if item_type == 'commit_msg':
                 self.on_commit_msg_clicked()
+                # Restore button text for commit message
+                if button:
+                    button.setText("Commit Message")
+                    QApplication.processEvents()
             else:
                 self.on_file_clicked(item_data)
-            
-            # Restore original button text
-            if button and original_text:
-                button.setText(original_text)
-                QApplication.processEvents()  # Force UI update
+                # Button label already updated in on_file_clicked
             
             current_index += 1
         
@@ -601,6 +631,11 @@ class DiffViewerTabWidget(QMainWindow):
         self.current_file_class = file_class  # Store for add_viewer to use
         file_class.add_viewer(self)
         self.current_file_class = None  # Clear after use
+        
+        # Update button label now that file is loaded and stats are available
+        if file_class.ui_button_:
+            file_class.ui_button_.update_label()
+        self.current_file_class = None  # Clear after use
     
     def add_viewer(self, diff_viewer, tab_title=None):
         """
@@ -609,7 +644,7 @@ class DiffViewerTabWidget(QMainWindow):
         Args:
             diff_viewer: A DiffViewer instance that has been configured
             tab_title: Optional title for the tab. If not provided, uses the 
-                      button_label() from the file_class
+                      tab_label() from the file_class
         
         Returns:
             The index of the newly added tab
@@ -618,8 +653,8 @@ class DiffViewerTabWidget(QMainWindow):
         file_class = self.current_file_class
         
         if tab_title is None and file_class:
-            # Use the button label as the tab title
-            tab_title = file_class.button_label()
+            # Use the tab label as the tab title
+            tab_title = file_class.tab_label()
         elif tab_title is None:
             # Fallback if no file_class
             base_name = diff_viewer.base_file.split('/')[-1]
@@ -985,6 +1020,58 @@ class DiffViewerTabWidget(QMainWindow):
         self.file_watcher_mgr.auto_reload_enabled = checked
         # Let it handle the toggle logic
         self.auto_reload_enabled = self.file_watcher_mgr.toggle_auto_reload()
+    
+    def cycle_stats_display(self):
+        """Cycle through stats display modes: 0=none, 1=tabs, 2=sidebar"""
+        # Increment mode modulo 3
+        self.stats_display_mode = (self.stats_display_mode + 1) % 3
+        
+        # Update individual flags based on mode
+        if self.stats_display_mode == 0:
+            # No stats
+            self.tab_label_stats = False
+            self.file_label_stats = False
+        elif self.stats_display_mode == 1:
+            # Tab stats only
+            self.tab_label_stats = True
+            self.file_label_stats = False
+        else:  # mode == 2
+            # Sidebar stats only
+            self.tab_label_stats = False
+            self.file_label_stats = True
+        
+        # Update all file buttons to use new settings
+        for button in self.file_buttons:
+            button.file_class.set_stats_tab(self.tab_label_stats)
+            button.file_class.set_stats_file(self.file_label_stats)
+            button.update_label()
+        
+        # Re-render all tab labels
+        for file_class, tab_index in self.file_to_tab_index.items():
+            # Skip commit_msg and review_notes - they don't have file_class
+            if isinstance(file_class, str):
+                continue
+            
+            if 0 <= tab_index < self.tab_widget.count():
+                new_label = file_class.tab_label()
+                self.tab_widget.setTabText(tab_index, new_label)
+        
+        # Update menu action text with current mode in bold
+        self._update_stats_menu_text()
+        
+        # Show brief status message
+        mode_names = ["None", "Tabs Only", "Sidebar Only"]
+        self.statusBar().showMessage(f"Stats Display: {mode_names[self.stats_display_mode]}", 2000)
+    
+    def _update_stats_menu_text(self):
+        """Update the Cycle Stats Display menu text with current mode marked by square brackets"""
+        if self.stats_display_mode == 0:
+            text = "Cycle Stats Display ([None] -> Tabs -> Sidebar)"
+        elif self.stats_display_mode == 1:
+            text = "Cycle Stats Display (None -> [Tabs] -> Sidebar)"
+        else:  # mode == 2
+            text = "Cycle Stats Display (None -> Tabs -> [Sidebar])"
+        self.cycle_stats_action.setText(text)
     
     def increase_font_size(self):
         """Increase font size in current tab"""

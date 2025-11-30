@@ -209,6 +209,35 @@ class DiffDesc(object):
         self.base_              = LineInfoDesc()    # Lines in base file.
         self.modi_              = LineInfoDesc()    # Lines in modi file.
 
+    def modi_line_count(self):
+        length = 0
+        # The number of lines in the file is computed using the last region.
+        for rgn in self.modi_.regions_:
+            length = rgn.beg_ + rgn.len_
+        return length
+
+    def add_line_count(self):
+        tot = 0
+        for rgn in self.modi_.regions_:
+            if rgn.kind_ == RegionDesc.ADD:
+                tot += rgn.len_
+        return tot
+
+    def del_line_count(self):
+        tot = 0
+        for rgn in self.base_.regions_:
+            if rgn.kind_ == RegionDesc.DELETE:
+                tot += rgn.len_
+        return tot
+
+    def chg_line_count(self):
+        tot = 0
+        for rgn in self.modi_.regions_:
+            if rgn.kind_ == RegionDesc.CHANGE:
+                tot += rgn.len_
+        return tot
+
+
     def add_base_region(self, kind, r_beg, r_len):
         self.base_.add_region(kind, r_beg, r_len)
 

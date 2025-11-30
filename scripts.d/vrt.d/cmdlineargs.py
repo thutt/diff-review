@@ -292,6 +292,31 @@ Return Code:
                      required = False,
                      dest     = "arg_line_numbers")
 
+    dco.add_argument("--tab-label-show-stats",
+                     help     = ("Show file stats in tab labels."),
+                     action   = "store_true",
+                     default  = True,
+                     required = False,
+                     dest     = "arg_tab_label_stats")
+
+    dco.add_argument("--no-tab-label-show-stats",
+                     help     = ("Do not show file stats in tab labels."),
+                     action   = "store_false",
+                     required = False,
+                     dest     = "arg_tab_label_stats")
+
+    dco.add_argument("--file-label-show-stats",
+                     help     = ("Show stats in file labels in sidebar."),
+                     action   = "store_true",
+                     default  = False,
+                     required = False,
+                     dest     = "arg_file_label_stats")
+
+    dco.add_argument("--no-file-label-show-stats",
+                     help     = ("Do not show stats in file labels in sidebar."),
+                     action   = "store_false",
+                     required = False,
+                     dest     = "arg_file_label_stats")
 
     # Output Options
     oo.add_argument("--dump-ir",
