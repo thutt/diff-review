@@ -627,15 +627,26 @@ class DiffViewerTabWidget(QMainWindow):
             # Tab was closed, remove from mapping
             del self.file_to_tab_index[file_class]
         
+        # Find the button and show Loading...
+        button = None
+        for btn in self.file_buttons:
+            if btn.file_class == file_class:
+                button = btn
+                break
+        
+        if button:
+            button.setText("Loading...")
+            QApplication.processEvents()  # Force UI update
+        
         # No existing tab, create new one
         self.current_file_class = file_class  # Store for add_viewer to use
         file_class.add_viewer(self)
         self.current_file_class = None  # Clear after use
         
         # Update button label now that file is loaded and stats are available
-        if file_class.ui_button_:
-            file_class.ui_button_.update_label()
-        self.current_file_class = None  # Clear after use
+        if button:
+            button.update_label()
+            QApplication.processEvents()  # Force UI update
     
     def add_viewer(self, diff_viewer, tab_title=None):
         """
