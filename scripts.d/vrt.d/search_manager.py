@@ -171,6 +171,8 @@ class SearchManager:
         # Navigate within that tab, passing char_pos
         if source_type == 'commit_msg':
             self.select_commit_msg_result(line_idx, self.current_search_text, char_pos)
+        elif source_type == 'review_notes':
+            self.select_review_notes_result(line_idx, self.current_search_text, char_pos)
         else:
             self.select_search_result(source_type, line_idx, self.current_search_text, char_pos)
     
@@ -363,6 +365,166 @@ class SearchManager:
             cursor.movePosition(QTextCursor.MoveOperation.NextCharacter)
         
         # Restore original cursor position
+        saved_cursor.setPosition(current_pos)
+        text_widget.setTextCursor(saved_cursor)
+    
+    def select_review_notes_result(self, line_idx, search_text=None, char_pos=None):
+        """Navigate to a line in the review notes tab and highlight search text
+        
+        Args:
+            line_idx: Line index in the review notes
+            search_text: Text to search for
+            char_pos: Character position of the specific match to highlight bright (optional)
+        """
+        # Find the review notes tab
+        review_notes_widget = None
+        review_notes_tab_index = None
+        
+        if 'review_notes' in self.tab_widget.file_to_tab_index:
+            review_notes_tab_index = self.tab_widget.file_to_tab_index['review_notes']
+            if 0 <= review_notes_tab_index < self.tab_widget.tab_widget.count():
+                widget = self.tab_widget.tab_widget.widget(review_notes_tab_index)
+                if hasattr(widget, 'is_review_notes') and widget.is_review_notes:
+                    review_notes_widget = widget
+        
+        if not review_notes_widget:
+            # No review notes tab found
+            return
+        
+        # Switch to the review notes tab
+        self.tab_widget.tab_widget.setCurrentIndex(review_notes_tab_index)
+        
+        # Navigate to the line
+        cursor = review_notes_widget.textCursor()
+        cursor.movePosition(cursor.MoveOperation.Start)
+        for _ in range(line_idx):
+            cursor.movePosition(cursor.MoveOperation.Down)
+        
+        # If search_text provided, do two-tier highlighting
+        if search_text:
+            palette = color_palettes.get_current_palette()
+            all_color = palette.get_color('search_highlight_all')
+            current_color = palette.get_color('search_highlight_current')
+            
+            # Check if we need to do initial highlighting (search_text changed)
+            if not hasattr(review_notes_widget, '_last_search_text') or review_notes_widget._last_search_text != search_text:
+                # First time or new search - clear old and highlight all matches
+                self.clear_review_notes_tab_highlights(review_notes_widget)
+                
+                # TIER 1: Highlight ALL matches (ONCE)
+                self.highlight_all_matches_in_review_notes_tab(review_notes_widget, search_text, all_color)
+                
+                review_notes_widget._last_search_text = search_text
+                review_notes_widget._last_bright_pos = None
+            else:
+                # Same search - just change bright highlight
+                # Change previous bright match back to subtle
+                if hasattr(review_notes_widget, '_last_bright_pos') and review_notes_widget._last_bright_pos:
+                    last_line_idx, last_char_pos, last_len = review_notes_widget._last_bright_pos
+                    block = review_notes_widget.document().findBlockByNumber(last_line_idx)
+                    if block.isValid():
+                        cursor = review_notes_widget.textCursor()
+                        cursor.setPosition(block.position() + last_char_pos)
+                        cursor.setPosition(block.position() + last_char_pos + last_len,
+                                         QTextCursor.MoveMode.KeepAnchor)
+                        fmt = QTextCharFormat()
+                        fmt.setBackground(all_color)  # Back to subtle
+                        cursor.mergeCharFormat(fmt)
+            
+            # TIER 2: Highlight current match
+            cursor.movePosition(cursor.MoveOperation.StartOfBlock)
+            block = cursor.block()
+            line_text = block.text()
+            
+            # Use provided char_pos if available, otherwise find first match
+            if char_pos is not None:
+                pos = char_pos
+            else:
+                search_lower = search_text.lower()
+                line_lower = line_text.lower()
+                pos = line_lower.find(search_lower)
+            
+            if pos >= 0 and pos < len(line_text):
+                cursor.setPosition(block.position() + pos)
+                cursor.setPosition(block.position() + pos + len(search_text),
+                                 cursor.MoveMode.KeepAnchor)
+                
+                fmt = QTextCharFormat()
+                fmt.setBackground(current_color)
+                cursor.mergeCharFormat(fmt)
+                
+                # Remember this position
+                review_notes_widget._last_bright_pos = (line_idx, pos, len(search_text))
+                
+                cursor.setPosition(block.position() + pos)
+                review_notes_widget.setTextCursor(cursor)
+            else:
+                # Select whole line if not found
+                cursor.movePosition(cursor.MoveOperation.StartOfBlock)
+                cursor.movePosition(cursor.MoveOperation.EndOfBlock,
+                                  cursor.MoveMode.KeepAnchor)
+                review_notes_widget.setTextCursor(cursor)
+        else:
+            # No search text, just select the line
+            cursor.movePosition(cursor.MoveOperation.StartOfBlock)
+            cursor.movePosition(cursor.MoveOperation.EndOfBlock,
+                              cursor.MoveMode.KeepAnchor)
+            review_notes_widget.setTextCursor(cursor)
+        
+        review_notes_widget.centerCursor()
+        review_notes_widget.setFocus()
+    
+    def highlight_all_matches_in_review_notes_tab(self, text_widget, search_text, highlight_color):
+        """Highlight all matches in review notes tab"""
+        # Get all text
+        all_text = text_widget.toPlainText()
+        search_lower = search_text.lower()
+        all_text_lower = all_text.lower()
+        
+        # Find all positions manually
+        pos = 0
+        while True:
+            pos = all_text_lower.find(search_lower, pos)
+            if pos < 0:
+                break
+            
+            # Create cursor at this position and select the match
+            cursor = text_widget.textCursor()
+            cursor.setPosition(pos)
+            cursor.setPosition(pos + len(search_text), QTextCursor.MoveMode.KeepAnchor)
+            
+            # Apply highlight format
+            fmt = QTextCharFormat()
+            fmt.setBackground(highlight_color)
+            cursor.mergeCharFormat(fmt)
+            
+            # Move to next potential match
+            pos += len(search_text)
+    
+    def clear_review_notes_tab_highlights(self, text_widget):
+        """Clear search highlights from review notes tab"""
+        palette = color_palettes.get_current_palette()
+        search_all_color = palette.get_color('search_highlight_all')
+        search_current_color = palette.get_color('search_highlight_current')
+        
+        cursor = QTextCursor(text_widget.document())
+        cursor.movePosition(QTextCursor.MoveOperation.Start)
+        
+        saved_cursor = text_widget.textCursor()
+        current_pos = saved_cursor.position()
+        
+        while not cursor.atEnd():
+            cursor.movePosition(QTextCursor.MoveOperation.NextCharacter, QTextCursor.MoveMode.KeepAnchor)
+            fmt = cursor.charFormat()
+            bg = fmt.background().color()
+            
+            if bg == search_all_color or bg == search_current_color:
+                clear_fmt = QTextCharFormat()
+                clear_fmt.setBackground(QColor(0, 0, 0, 0))
+                cursor.mergeCharFormat(clear_fmt)
+            
+            cursor.movePosition(QTextCursor.MoveOperation.NextCharacter)
+        
         saved_cursor.setPosition(current_pos)
         text_widget.setTextCursor(saved_cursor)
     

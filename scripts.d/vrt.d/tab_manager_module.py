@@ -530,12 +530,16 @@ class DiffViewerTabWidget(QMainWindow):
         self.file_buttons.append(button)
     
     def open_all_files(self):
-        """Open all files in tabs, including commit message if present"""
+        """Open all files in tabs, including commit message and review notes if present"""
         # Build list of files that need to be opened
         files_to_open = []
         
         if self.commit_msg_rel_path_ and 'commit_msg' not in self.file_to_tab_index:
             files_to_open.append(('commit_msg', None))
+        
+        # Add review notes if note file is configured and not already open
+        if self.global_note_file and 'review_notes' not in self.file_to_tab_index:
+            files_to_open.append(('review_notes', None))
  
         # Check which files aren't open yet
         for file_class in self.file_classes:
@@ -564,7 +568,7 @@ class DiffViewerTabWidget(QMainWindow):
             if progress.wasCanceled():
                 break
             
-            # Find the button for this file/commit_msg and change it to "Loading..."
+            # Find the button for this file/commit_msg/review_notes and change it to "Loading..."
             button = None
             if item_type == 'commit_msg':
                 button = self.commit_msg_button
@@ -572,6 +576,12 @@ class DiffViewerTabWidget(QMainWindow):
                     button.setText("Loading...")
                     QApplication.processEvents()  # Force UI update
                 progress.setLabelText("Loading Commit Message...")
+            elif item_type == 'review_notes':
+                button = self.note_mgr.notes_button
+                if button:
+                    button.setText("Loading...")
+                    QApplication.processEvents()  # Force UI update
+                progress.setLabelText("Loading Review Notes...")
             else:
                 for btn in self.file_buttons:
                     if btn.file_class == item_data:
@@ -591,6 +601,12 @@ class DiffViewerTabWidget(QMainWindow):
                 # Restore button text for commit message
                 if button:
                     button.setText("Commit Message")
+                    QApplication.processEvents()
+            elif item_type == 'review_notes':
+                self.note_mgr.on_notes_clicked()
+                # Restore button text for review notes
+                if button:
+                    button.setText("Review Notes")
                     QApplication.processEvents()
             else:
                 self.on_file_clicked(item_data)

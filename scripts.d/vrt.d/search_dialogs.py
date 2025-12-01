@@ -367,6 +367,16 @@ class SearchResultDialog(QDialog):
                         for char_pos, matched_text in matches:
                             results.append((tab_index, tab_title, 'commit_msg', 
                                           line_num + 1, line_num, line_text, char_pos))
+                # Check if it's a review notes tab
+                elif hasattr(tab_widget, 'is_review_notes') and tab_widget.is_review_notes:
+                    text = tab_widget.toPlainText()
+                    lines = text.split('\n')
+                    for line_num, line_text in enumerate(lines):
+                        # Find ALL matches in this line
+                        matches = self.find_all_matches_in_line(line_text)
+                        for char_pos, matched_text in matches:
+                            results.append((tab_index, tab_title, 'review_notes', 
+                                          line_num + 1, line_num, line_text, char_pos))
                 # Otherwise it's a diff viewer
                 elif hasattr(tab_widget, 'diff_viewer'):
                     viewer = tab_widget.diff_viewer
@@ -408,6 +418,16 @@ class SearchResultDialog(QDialog):
                     for char_pos, matched_text in matches:
                         results.append((tab_index, tab_title, 'commit_msg', 
                                       line_num + 1, line_num, line_text, char_pos))
+            # Check if it's a review notes tab
+            elif hasattr(current_widget, 'is_review_notes') and current_widget.is_review_notes:
+                text = current_widget.toPlainText()
+                lines = text.split('\n')
+                for line_num, line_text in enumerate(lines):
+                    # Find ALL matches in this line
+                    matches = self.find_all_matches_in_line(line_text)
+                    for char_pos, matched_text in matches:
+                        results.append((tab_index, tab_title, 'review_notes', 
+                                      line_num + 1, line_num, line_text, char_pos))
             # Otherwise it's a diff viewer
             elif hasattr(current_widget, 'diff_viewer'):
                 viewer = current_widget.diff_viewer
@@ -446,6 +466,8 @@ class SearchResultDialog(QDialog):
                 color = '#2a70c9'  # Darker blue
             elif source_type == 'modified':
                 color = '#4e9a06'  # Darker green
+            elif source_type == 'review_notes':
+                color = '#6a0dad'  # Purple for review notes
             else:  # commit_msg
                 color = '#8b4513'  # Saddle brown
             
@@ -527,6 +549,8 @@ class SearchResultDialog(QDialog):
             # Navigate within that tab, passing char_pos
             if source_type == 'commit_msg':
                 self.parent_tab_widget.select_commit_msg_result(line_idx, self.search_text, char_pos)
+            elif source_type == 'review_notes':
+                self.parent_tab_widget.select_review_notes_result(line_idx, self.search_text, char_pos)
             else:
                 self.parent_tab_widget.select_search_result(source_type, line_idx, self.search_text, char_pos)
             
