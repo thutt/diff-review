@@ -133,24 +133,25 @@ class CommitMsgHandler:
         
         menu.addSeparator()
         
-        # Note taking - need to check if any viewer has a note file
-        note_file = self.tab_widget.get_note_file()
-        if has_selection and note_file:
+        # Note taking - always enable if there's a selection
+        if has_selection:
             note_action = menu.addAction("Take Note")
             note_action.triggered.connect(
-                lambda: self.take_commit_msg_note(text_widget, note_file))
+                lambda: self.take_commit_msg_note(text_widget))
         else:
-            note_action = menu.addAction("Take Note (no selection)" if note_file else 
-                               "Take Note (no file supplied)")
+            note_action = menu.addAction("Take Note (no selection)")
             note_action.setEnabled(False)
         
         menu.exec(text_widget.mapToGlobal(pos))
     
-    def take_commit_msg_note(self, text_widget, note_file):
+    def take_commit_msg_note(self, text_widget):
         """Take note from commit message"""
         cursor = text_widget.textCursor()
         if not cursor.hasSelection():
             return
+        
+        # Get NoteManager
+        note_mgr = self.tab_widget.note_mgr
         
         # Save selection range before doing anything
         selection_start = cursor.selectionStart()
@@ -159,13 +160,11 @@ class CommitMsgHandler:
         selected_text = cursor.selectedText()
         selected_text = selected_text.replace('\u2029', '\n')
         
-        try:
-            with open(note_file, 'a') as f:
-                f.write("> (commit_msg): Commit Message\n")
-                for line in selected_text.split('\n'):
-                    f.write(f">   {line}\n")
-                f.write('>\n\n\n')
-            
+        # Split into lines for note taking
+        line_texts = selected_text.split('\n')
+        
+        # Take note using NoteManager
+        if note_mgr.take_note("Commit Message", 'commit_msg', None, line_texts, is_commit_msg=True):
             # Apply permanent yellow background to noted text
             # Create new cursor with saved selection
             highlight_cursor = text_widget.textCursor()
@@ -184,9 +183,6 @@ class CommitMsgHandler:
             if viewer:
                 viewer.note_count += 1
                 viewer.update_status()
-        except Exception as e:
-            QMessageBox.warning(self.tab_widget, 'Error Taking Note',
-                              f'Could not write to note file:\n{e}')
     
     def change_commit_msg_font_size(self, text_widget, delta):
         """Change font size for commit message tab"""

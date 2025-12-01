@@ -1,3 +1,17 @@
+# What It Does
+
+This repository presents  is a graphical application for reviewing file
+differences in a side-by-side view. It's designed for systematic code
+review workflows where multiple file diffs need to be examined,
+annotated, and navigated efficiently.  Core Concept
+
+The application displays changes from version control systems - either
+committed changes or in-progress uncommitted modifications. Multiple
+file diffs are organized in a tabbed interface with a file list
+sidebar, allowing reviewers to systematically work through all changes
+in a changeset.
+
+
 # Software Prerequisites
 
 - <code>python3</code>
@@ -32,34 +46,29 @@ On MacOS, and Windows <code>cmd.exe</code>, this can be satisfied with:
  - MacOS
  - Windows
 
-# Viewer Managers
-
-There are two managers that allow viewing of diffs in this package:
-
-1. `view-review-tabs` (`vrt`)
+#  `view-review-tabs` (`vrt`)
 
 This tool shows a single window, with the list of files contained in
 the change -- including the commit message, if one is present -- in
 the sidebar.  Clicking on an element in the sidebar loads it into a
 tab in the view area.
 
-This tool only provides viewing diffs with the built-in diff engine.
-This engine is sufficient, but will be undergoing improvements.
+This tool only provides viewing diffs with the built-in diff engine,
+but the entire UI surrounding the diffs exposes many capabilities that
+give a better holistic approach to reviewing code.
 
-The diff navigation within the tab is identical to `view-review`'s
-`Claude-QT` viewer.
 
-2. `view-review` (`vr`)
+# `view-review` (`vr`)
 
-This tool shows a menu of all the files in the change.  Clicking on an
-element in the list will open the base and modified files in a
-separate window using the selected diff viewer.
+This, older, tool shows a menu of all the files in the change.
+Clicking on an element in the list will open the base and modified
+files in a separate window using the selected diff viewer.
 
 Ultimately, the `Claude-QT` engine will be removed from this diff
 manager, as all of its functionality is now subsumed by
 `view-review-tabs`.
 
-# Supported Viewers
+## Supported Viewers
 
 This system currently supports the following side-by-side diff viewers,
 selectable from the <code>Viewer</code> menu.
@@ -138,7 +147,7 @@ changes</em>, and <em>committed changes</em>.
    purposes of this text, we shall assume it has been placed at `~/diff-review`.
 
 
-2. Load the `aliases` file.
+2. On POSIX-like systems, load the `aliases` file.
 
    This alias file is for Bash users.  Those using some other
    incompatible shell will have to provide their own translation.  Any
@@ -152,6 +161,10 @@ changes</em>, and <em>committed changes</em>.
    bypassing the need to update `${PATH}`.
 
    The examples below will use these aliases.
+
+   On Windows cmd.exe, replace 'dr' with a a full path to
+   'diff-review.cmd', and 'view-review-tabs.cmd', which both reside in
+   the root directory of the repository.
 
 # Examples
 
@@ -191,9 +204,10 @@ diff-review:  /home/thutt/review/default
   modify   src/gmalloc.c
 
 Changes:  committed [2 files, 249 lines]
-Viewer :  vrt -R /home/thutt/review -r default
-Viewer :  vr -R /home/thutt/review -r default
-Elapsed:  0:00:00.106696
+Viewer :  vrt --diff-dir '/home/thutt/review/default'
+Viewer :  vrt --diff-url https://<fqdn>:443/home/thutt/review/default
+Viewer :  vr -R '/home/thutt/review' -r 'default'
+Elapsed:  0:00:00.094165
 ```
 
 The lines beginning with `Viewer` are commands that can be executed
@@ -253,9 +267,10 @@ diff-review:  /home/thutt/review/default
   modify   test/lisp/textmodes/ispell-tests/ispell-tests.el
 
 Changes:  committed [30 files, 378 lines]
-Viewer :  vrt -R /home/thutt/review -r default
-Viewer :  vr -R /home/thutt/review -r default
-Elapsed:  0:00:00.987920
+Viewer :  vrt --diff-dir '/home/thutt/review/default'
+Viewer :  vrt --diff-url https://<fqdn>:443/home/thutt/review/default
+Viewer :  vr -R '/home/thutt/review' -r 'default'
+Elapsed:  0:00:00.397989
 ```
 
 ## View uncommitted changes
@@ -281,10 +296,11 @@ diff-review:  /home/thutt/review/default
      delete   config.bat
   untracked   untracked
 
-Changes:  unstaged [1 files, 130 lines]  staged [1 files  384 lines]
-Viewer :  vrt -R /home/thutt/review -r default
-Viewer :  vr -R /home/thutt/review -r default
-Elapsed:  0:00:00.114457
+Changes:  unstaged [1 files, 130 lines]  staged [1 files  385 lines]
+Viewer :  vrt --diff-dir '/home/thutt/review/default'
+Viewer :  vrt --diff-url https://<fqdn>:443/home/thutt/review/default
+Viewer :  vr -R '/home/thutt/review' -r 'default'
+Elapsed:  0:00:00.190448
 ```
 
 As ever, both `vrt` and `vr` can be used to view the changes.
@@ -305,10 +321,11 @@ diff-review:  /home/thutt/review/default
      delete   config.bat
   untracked   untracked
 
-Changes:  unstaged [0 files, 0 lines]  staged [2 files  514 lines]
-Viewer :  vrt -R /home/thutt/review -r default
-Viewer :  vr -R /home/thutt/review -r default
-Elapsed:  0:00:00.114509
+Changes:  unstaged [0 files, 0 lines]  staged [2 files  515 lines]
+Viewer :  vrt --diff-dir '/home/thutt/review/default'
+Viewer :  vrt --diff-url https://<fqdn>:443/home/thutt/review/default
+Viewer :  vr -R '/home/thutt/review' -r 'default'
+Elapsed:  0:00:00.191670
 ```
 
 Finally, make another modification to `README` to show how its state
@@ -327,10 +344,11 @@ diff-review:  /home/thutt/review/default
      delete   config.bat
   untracked   untracked
 
-Changes:  unstaged [1 files, 274 lines]  staged [2 files  514 lines]
-Viewer :  vrt -R /home/thutt/review -r default
-Viewer :  vr -R /home/thutt/review -r default
-Elapsed:  0:00:00.113634
+Changes:  unstaged [1 files, 274 lines]  staged [2 files  515 lines]
+Viewer :  vrt --diff-dir '/home/thutt/review/default'
+Viewer :  vrt --diff-url https://<fqdn>:443/home/thutt/review/default
+Viewer :  vr -R '/home/thutt/review' -r 'default'
+Elapsed:  0:00:00.190435
 ```
 
 ## Clean up repository

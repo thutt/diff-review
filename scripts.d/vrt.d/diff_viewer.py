@@ -676,10 +676,11 @@ class DiffViewer(QMainWindow):
                 return
     
     def on_double_click(self, event, side):
-        if not self.note_file:
-            QMessageBox.information(self, 'Note Taking Disabled',
-                                  'No note file supplied.')
+        # Use NoteManager to take note
+        if not hasattr(self, 'tab_manager') or not self.tab_manager:
             return
+        
+        note_mgr = self.tab_manager.note_mgr
         
         text_widget = self.base_text if side == 'base' else self.modified_text
         line_nums = self.base_line_nums if side == 'base' else self.modified_line_nums
@@ -692,21 +693,21 @@ class DiffViewer(QMainWindow):
         if line_idx >= len(line_nums) or line_nums[line_idx] is None:
             return
         
-        with open(self.note_file, 'a') as f:
-            prefix = '(base): ' if side == 'base' else '(modi): '
-            clean_filename = extract_display_path(filename)
-            f.write(f"> {prefix}{clean_filename}\n")
-            f.write(f">   {line_nums[line_idx]}: {display_lines[line_idx]}\n>\n\n\n")
+        # Take note using NoteManager
+        line_number = line_nums[line_idx]
+        line_text = display_lines[line_idx]
         
-        self.mark_noted_line(side, line_nums[line_idx])
-        self.note_count += 1
-        self.update_status()
+        if note_mgr.take_note(filename, side, [line_number], [line_text], is_commit_msg=False):
+            self.mark_noted_line(side, line_number)
+            self.note_count += 1
+            self.update_status()
     
     def take_note(self, side):
-        if not self.note_file:
-            QMessageBox.information(self, 'Note Taking Disabled',
-                                  'No note file supplied.')
+        # Use NoteManager to take note
+        if not hasattr(self, 'tab_manager') or not self.tab_manager:
             return
+        
+        note_mgr = self.tab_manager.note_mgr
         
         text_widget = self.base_text if side == 'base' else self.modified_text
         line_nums = self.base_line_nums if side == 'base' else self.modified_line_nums
@@ -730,19 +731,24 @@ class DiffViewer(QMainWindow):
         if selection_end == end_block.position():
             end_block_num -= 1
         
-        with open(self.note_file, 'a') as f:
-            prefix = '(base): ' if side == 'base' else '(modi): '
-            clean_filename = extract_display_path(filename)
-            f.write(f"> {prefix}{clean_filename}\n")
-            
-            for i in range(start_block_num, end_block_num + 1):
-                if i < len(line_nums) and line_nums[i] is not None:
-                    f.write(f">   {line_nums[i]}: {display_lines[i]}\n")
-                    self.mark_noted_line(side, line_nums[i])
-            f.write('>\n\n\n')
+        # Collect line numbers and texts
+        selected_line_nums = []
+        selected_line_texts = []
         
-        self.note_count += 1
-        self.update_status()
+        for i in range(start_block_num, end_block_num + 1):
+            if i < len(line_nums) and line_nums[i] is not None:
+                selected_line_nums.append(line_nums[i])
+                selected_line_texts.append(display_lines[i])
+        
+        if not selected_line_nums:
+            return
+        
+        # Take note using NoteManager
+        if note_mgr.take_note(filename, side, selected_line_nums, selected_line_texts, is_commit_msg=False):
+            for line_num in selected_line_nums:
+                self.mark_noted_line(side, line_num)
+            self.note_count += 1
+            self.update_status()
     
     def take_note_from_widget(self, side):
         self.take_note(side)

@@ -337,6 +337,10 @@ class ShortcutsDialog(QDialog):
                 <td><span class="shortcut">Alt+R</span></td>
                 <td>Toggle auto-reload files</td>
             </tr>
+            <tr>
+                <td><span class="shortcut">Alt+S</span></td>
+                <td>Cycle stats display (None -> Tabs Only -> Sidebar Only)</td>
+            </tr>
         </table>
         
         <h2>Search & Find</h2>

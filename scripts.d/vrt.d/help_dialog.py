@@ -154,8 +154,13 @@ class HelpDialog(QDialog):
             <li><b>Right-click &rarr; Take Note:</b> Add selected text to notes file</li>
             <li><b>Ctrl+N / Cmd+N:</b> Take note of selected text (works in commit message view too)</li>
             <li><b>Yellow background:</b> Lines where notes have been taken are highlighted permanently</li>
+            <li><b>Right-click on yellow line &rarr; Jump to Note:</b> Opens Review Notes tab and navigates to that note</li>
+            <li><b>Review Notes tab:</b> Appears in sidebar after first note is taken; displays all notes in read-only view</li>
+            <li><b>Auto-reload:</b> Review Notes tab automatically reloads when note file changes on disk</li>
+            <li><b>Note file prompting:</b> If no note file is configured, you'll be prompted to choose one when taking a note</li>
             <li><b>File &rarr; Open Note:</b> Set or change the notes file for the current session</li>
-            <li>All notes are appended to the notes file (created if it does not exist)</li>
+            <li><b>Status bar:</b> Shows note file name (hover for full path)</li>
+            <li>All notes are appended to the notes file in standardized format with file:line references</li>
         </ul>
         
         <h3>Bookmarks</h3>
@@ -196,6 +201,7 @@ class HelpDialog(QDialog):
             <li><b>Alt+W / Cmd+W:</b> Toggle Trailing Whitespace highlighting</li>
             <li><b>Alt+I / Cmd+I:</b> Toggle Intraline Changes highlighting</li>
             <li><b>Alt+R / Cmd+R:</b> Toggle Auto-reload Files on/off</li>
+            <li><b>Alt+S:</b> Cycle Stats Display - cycles through three modes: None -> Tabs Only -> Sidebar Only. Shows file statistics (line counts, additions, deletions, changes) in tab titles and/or sidebar file buttons. On macOS, use Option+S</li>
         </ul>
         
         <h3>Font Size</h3>
@@ -263,6 +269,8 @@ class HelpDialog(QDialog):
             <li><b>--display-n-chars:</b> Set number of characters per pane in initial window (default: 90)</li>
             <li><b>--max-line-length:</b> Set maximum line length indicator position (default: 80)</li>
             <li><b>--note-file:</b> Specify file for saving notes</li>
+            <li><b>--tab-label-show-stats / --no-tab-label-show-stats:</b> Show/hide file statistics in tab labels (default: show)</li>
+            <li><b>--file-label-show-stats / --no-file-label-show-stats:</b> Show/hide file statistics in sidebar file buttons (default: hide)</li>
         </ul>
         
         <h3>Status Bar</h3>
