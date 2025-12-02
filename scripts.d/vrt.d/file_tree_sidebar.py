@@ -1,0 +1,359 @@
+# Copyright (c) 2025  Logic Magicians Software (Taylor Hutt).
+# All Rights Reserved.
+# Licensed under Gnu GPL V3.
+#
+"""
+File tree sidebar for diff_review
+
+This module provides a tree view for organizing files by directory structure
+in the sidebar, with collapsible directory nodes.
+"""
+from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QTreeWidget, QTreeWidgetItem, 
+                              QPushButton, QApplication)
+from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QFont
+import color_palettes
+
+
+class FileTreeSidebar(QWidget):
+    """Tree view sidebar that organizes files by directory"""
+    
+    def __init__(self, tab_widget, parent=None):
+        super().__init__(parent)
+        self.tab_widget = tab_widget
+        self.file_items = {}  # Maps file_class -> QTreeWidgetItem
+        self.dir_items = {}   # Maps dir_path -> QTreeWidgetItem
+        self.dir_open_counts = {}  # Maps dir_path -> count of open files
+        
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        
+        # "Open All Files" button at top
+        self.open_all_button = QPushButton("Open All Files")
+        self.open_all_button.clicked.connect(self.tab_widget.open_all_files)
+        self.open_all_button.setStyleSheet("""
+            QPushButton {
+                text-align: left;
+                padding: 10px;
+                border: none;
+                background-color: #e8f4f8;
+                font-weight: bold;
+                color: #0066cc;
+            }
+            QPushButton:hover {
+                background-color: #d0e8f0;
+            }
+        """)
+        layout.addWidget(self.open_all_button)
+        
+        # Tree widget
+        self.tree = QTreeWidget()
+        self.tree.setHeaderHidden(True)
+        self.tree.setIndentation(20)
+        self.tree.setAnimated(True)
+        self.tree.itemClicked.connect(self.on_item_clicked)
+        layout.addWidget(self.tree)
+        
+        # Store special buttons (commit msg, review notes) as list items
+        self.special_items = []  # List of (item_type, widget) tuples
+    
+    def add_commit_msg_button(self, button):
+        """Add commit message button as tree item"""
+        item = QTreeWidgetItem(self.tree)
+        item.setText(0, "Commit Message")
+        item.setData(0, Qt.ItemDataRole.UserRole, ('commit_msg', None))
+        
+        # Style as special item
+        font = QFont()
+        font.setBold(True)
+        item.setFont(0, font)
+        item.setForeground(0, Qt.GlobalColor.darkRed)
+        
+        self.special_items.append(('commit_msg', item))
+        self.tree.insertTopLevelItem(0, item)
+    
+    def add_notes_button(self, button):
+        """Add review notes button as tree item"""
+        item = QTreeWidgetItem(self.tree)
+        item.setText(0, "Review Notes")
+        item.setData(0, Qt.ItemDataRole.UserRole, ('review_notes', None))
+        
+        # Style as special item
+        font = QFont()
+        font.setBold(True)
+        item.setFont(0, font)
+        item.setForeground(0, Qt.GlobalColor.blue)
+        
+        self.special_items.append(('review_notes', item))
+        # Insert after commit msg if it exists
+        insert_pos = 1 if any(t[0] == 'commit_msg' for t in self.special_items) else 0
+        self.tree.insertTopLevelItem(insert_pos, item)
+    
+    def add_file(self, file_class):
+        """
+        Add a file to the tree, organized by directory structure
+        
+        Args:
+            file_class: File class object with modi_rel_path_ attribute
+        """
+        file_path = file_class.modi_rel_path_
+        
+        # Split path into components
+        parts = file_path.split('/')
+        
+        # If file is in root (no directory), add directly to tree
+        if len(parts) == 1:
+            item = QTreeWidgetItem(self.tree)
+            item.setText(0, parts[0])
+            item.setData(0, Qt.ItemDataRole.UserRole, ('file', file_class))
+            self.file_items[file_class] = item
+            self.tree.addTopLevelItem(item)
+            return
+        
+        # File is in a directory - get or create top-level directory node
+        top_dir = parts[0]
+        
+        if top_dir not in self.dir_items:
+            # Create directory node
+            dir_item = QTreeWidgetItem(self.tree)
+            dir_item.setText(0, top_dir)
+            dir_item.setData(0, Qt.ItemDataRole.UserRole, ('directory', top_dir))
+            
+            # Style directory nodes
+            font = QFont()
+            font.setBold(True)
+            dir_item.setFont(0, font)
+            
+            self.dir_items[top_dir] = dir_item
+            self.tree.addTopLevelItem(dir_item)
+            
+            # Expand by default
+            dir_item.setExpanded(True)
+        
+        dir_item = self.dir_items[top_dir]
+        
+        # Add file as child of directory
+        # Show relative path from top directory
+        relative_path = '/'.join(parts[1:])
+        file_item = QTreeWidgetItem(dir_item)
+        file_item.setText(0, relative_path)
+        file_item.setData(0, Qt.ItemDataRole.UserRole, ('file', file_class))
+        
+        self.file_items[file_class] = file_item
+    
+    def begin_batch_update(self):
+        """Begin a batch update - defer all directory indicator updates"""
+        self._batch_mode = True
+        self._pending_dir_updates.clear()
+    
+    def end_batch_update(self):
+        """End batch update - process all deferred directory indicator updates"""
+        self._batch_mode = False
+        self._process_pending_directory_updates()
+    
+    def _update_directory_label(self, dir_item, dir_path):
+        """Update directory label to show open file count"""
+        count = self.dir_open_counts.get(dir_path, 0)
+        
+        if count > 0:
+            dir_item.setText(0, f"{dir_path} ({count})")
+        else:
+            dir_item.setText(0, dir_path)
+    
+    def on_item_clicked(self, item, column):
+        """Handle tree item click"""
+        data = item.data(0, Qt.ItemDataRole.UserRole)
+        if not data:
+            return
+        
+        item_type, item_data = data
+        
+        if item_type == 'commit_msg':
+            self.tab_widget.on_commit_msg_clicked()
+        elif item_type == 'review_notes':
+            self.tab_widget.note_mgr.on_notes_clicked()
+        elif item_type == 'file':
+            file_class = item_data
+            self.tab_widget.on_file_clicked(file_class)
+        elif item_type == 'directory':
+            # Toggle expand/collapse on directory click
+            item.setExpanded(not item.isExpanded())
+    
+    def update_file_state(self, file_class, is_open, is_active):
+        """Update visual state of a file item"""
+        if file_class not in self.file_items:
+            return
+        
+        item = self.file_items[file_class]
+        parent = item.parent()
+        
+        # Track previous open state to update directory counter
+        was_open = item.text(0).startswith('• ')
+        
+        # Update visual indicator
+        if is_active:
+            # Currently selected - bold with blue color
+            font = QFont()
+            font.setBold(True)
+            item.setFont(0, font)
+            item.setForeground(0, Qt.GlobalColor.blue)
+            # Add bullet indicator
+            text = item.text(0)
+            if not text.startswith('• '):
+                item.setText(0, '• ' + text)
+        elif is_open:
+            # Open but not active - normal with blue color
+            font = QFont()
+            item.setFont(0, font)
+            item.setForeground(0, Qt.GlobalColor.blue)
+            # Add bullet indicator
+            text = item.text(0)
+            if not text.startswith('• '):
+                item.setText(0, '• ' + text)
+        else:
+            # Closed - normal black text
+            font = QFont()
+            item.setFont(0, font)
+            item.setForeground(0, Qt.GlobalColor.black)
+            # Remove bullet indicator
+            text = item.text(0)
+            if text.startswith('• '):
+                item.setText(0, text[2:])
+        
+        # Update directory counter if file has a parent directory
+        if parent:
+            dir_path = parent.data(0, Qt.ItemDataRole.UserRole)[1]
+            
+            # Initialize counter if needed
+            if dir_path not in self.dir_open_counts:
+                self.dir_open_counts[dir_path] = 0
+            
+            # Update counter based on state change
+            if is_open and not was_open:
+                # File just opened - increment
+                self.dir_open_counts[dir_path] += 1
+            elif not is_open and was_open:
+                # File just closed - decrement
+                self.dir_open_counts[dir_path] -= 1
+            
+            # Update directory label
+            self._update_directory_label(parent, dir_path)
+    
+    def update_commit_msg_state(self, is_open, is_active):
+        """Update visual state of commit message item"""
+        for item_type, item in self.special_items:
+            if item_type == 'commit_msg':
+                font = QFont()
+                font.setBold(True)
+                item.setFont(0, font)
+                
+                if is_active:
+                    item.setForeground(0, Qt.GlobalColor.darkRed)
+                    text = item.text(0)
+                    if not text.startswith('• '):
+                        item.setText(0, '• ' + text)
+                elif is_open:
+                    item.setForeground(0, Qt.GlobalColor.darkRed)
+                    text = item.text(0)
+                    if not text.startswith('• '):
+                        item.setText(0, '• ' + text)
+                else:
+                    item.setForeground(0, Qt.GlobalColor.darkRed)
+                    text = item.text(0)
+                    if text.startswith('• '):
+                        item.setText(0, text[2:])
+                break
+    
+    def update_notes_state(self, is_open, is_active):
+        """Update visual state of review notes item"""
+        for item_type, item in self.special_items:
+            if item_type == 'review_notes':
+                font = QFont()
+                font.setBold(True)
+                item.setFont(0, font)
+                
+                if is_active:
+                    item.setForeground(0, Qt.GlobalColor.blue)
+                    text = item.text(0)
+                    if not text.startswith('• '):
+                        item.setText(0, '• ' + text)
+                elif is_open:
+                    item.setForeground(0, Qt.GlobalColor.blue)
+                    text = item.text(0)
+                    if not text.startswith('• '):
+                        item.setText(0, '• ' + text)
+                else:
+                    item.setForeground(0, Qt.GlobalColor.blue)
+                    text = item.text(0)
+                    if text.startswith('• '):
+                        item.setText(0, text[2:])
+                break
+    
+    def update_file_label(self, file_class):
+        """Update file label (e.g., after stats are loaded)"""
+        if file_class not in self.file_items:
+            return
+        
+        item = self.file_items[file_class]
+        
+        # Get the base filename (without bullet)
+        text = item.text(0)
+        has_bullet = text.startswith('• ')
+        if has_bullet:
+            text = text[2:]
+        
+        # Generate new label from file_class
+        file_path = file_class.modi_rel_path_
+        parts = file_path.split('/')
+        
+        # Update text with stats if enabled
+        if file_class.stats_file_:
+            # Extract just the filename part for display
+            if len(parts) > 1:
+                relative_path = '/'.join(parts[1:])
+            else:
+                relative_path = parts[0]
+            
+            # Add stats
+            if file_class.desc_:
+                stats = ("[%d | A: %d / D: %d / C: %d]" %
+                        (file_class.modi_line_count(),
+                         file_class.add_line_count(),
+                         file_class.del_line_count(),
+                         file_class.chg_line_count()))
+                new_text = "%s  %s" % (relative_path, stats)
+            else:
+                new_text = relative_path
+        else:
+            if len(parts) > 1:
+                new_text = '/'.join(parts[1:])
+            else:
+                new_text = parts[0]
+        
+        # Restore bullet if it was there
+        if has_bullet:
+            new_text = '• ' + new_text
+        
+        item.setText(0, new_text)
+    
+    def mark_file_changed(self, file_class, changed):
+        """Mark a file as changed (for file watcher integration)"""
+        if file_class not in self.file_items:
+            return
+        
+        item = self.file_items[file_class]
+        palette = color_palettes.get_current_palette()
+        
+        if changed:
+            # Use orange color for changed files
+            item.setForeground(0, Qt.GlobalColor.darkYellow)
+        else:
+            # Restore normal state based on open/active
+            # We'll need to call update_file_state with current state
+            # For now, just reset to black
+            item.setForeground(0, Qt.GlobalColor.black)
+    
+    def update_open_all_text(self, total_files):
+        """Update the Open All button text"""
+        self.open_all_button.setText(f"Open All ({total_files}) Files")

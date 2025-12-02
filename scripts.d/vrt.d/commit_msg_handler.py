@@ -60,7 +60,7 @@ class CommitMsgHandler:
         """)
         
         # Insert after "Open All" button (position 1)
-        self.tab_widget.button_layout.insertWidget(1, self.commit_msg_button)
+        self.tab_widget.sidebar_widget.add_commit_msg_button(self.commit_msg_button)
     
     def on_commit_msg_clicked(self):
         """Handle commit message button click"""

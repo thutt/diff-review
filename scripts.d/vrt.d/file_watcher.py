@@ -76,7 +76,7 @@ class FileWatcherManager:
             self.tab_widget.reload_viewer(viewer)
     
     def mark_tab_changed(self, viewer, changed):
-        """Mark a viewer as having changed files by updating sidebar button color"""
+        """Mark a viewer as having changed files by updating sidebar tree item color"""
         # Find the file_class for this viewer
         # The viewer is a DiffViewer, we need to find its tab widget
         file_class = None
@@ -90,55 +90,8 @@ class FileWatcherManager:
         if not file_class:
             return
         
-        # Find the corresponding button in the sidebar
-        for button in self.tab_widget.file_buttons:
-            if button.file_class == file_class:
-                if changed:
-                    # File has changed - use special "changed" styling
-                    palette = color_palettes.get_current_palette()
-                    color = palette.get_color('base_changed_bg')
-                    
-                    # Check if this is the currently active tab
-                    tab_index = self.tab_widget.file_to_tab_index.get(file_class, -1)
-                    is_active = (tab_index == self.tab_widget.tab_widget.currentIndex())
-                    
-                    if is_active:
-                        # Changed AND active - bright changed color with thick border
-                        button.setStyleSheet(f"""
-                            QPushButton {{
-                                text-align: left;
-                                padding: 8px 8px 8px 20px;
-                                border: none;
-                                background-color: {color.name()};
-                                border-left: 6px solid #ff6600;
-                                font-weight: bold;
-                            }}
-                            QPushButton:hover {{
-                                background-color: {color.darker(110).name()};
-                            }}
-                        """)
-                    else:
-                        # Changed but not active - changed color with normal border
-                        button.setStyleSheet(f"""
-                            QPushButton {{
-                                text-align: left;
-                                padding: 8px 8px 8px 20px;
-                                border: none;
-                                background-color: {color.name()};
-                                border-left: 4px solid #ff6600;
-                            }}
-                            QPushButton:hover {{
-                                background-color: {color.darker(110).name()};
-                            }}
-                        """)
-                else:
-                    # File no longer changed - restore normal state
-                    # Determine if tab is open and active
-                    tab_index = self.tab_widget.file_to_tab_index.get(file_class, -1)
-                    is_open = (0 <= tab_index < self.tab_widget.tab_widget.count())
-                    is_active = is_open and (tab_index == self.tab_widget.tab_widget.currentIndex())
-                    button.set_state(is_open, is_active)
-                break
+        # Update tree item styling
+        self.tab_widget.sidebar_widget.mark_file_changed(file_class, changed)
     
     def cleanup_file_watcher(self, viewer):
         """Clean up file watcher for a viewer being closed"""

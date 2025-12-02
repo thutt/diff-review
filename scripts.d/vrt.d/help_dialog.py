@@ -44,10 +44,13 @@ class HelpDialog(QDialog):
         
         <h3>Sidebar</h3>
         <ul>
+            <li><b>Tree View:</b> Files organized by top-level directory with collapsible nodes</li>
+            <li><b>Directory Nodes:</b> Click to expand/collapse; shows open file count when collapsed (e.g., "src (3)" means 3 open files)</li>
             <li><b>File List:</b> Click any file to open it in a new tab (or switch to existing tab)</li>
-            <li><b>Open All Files:</b> Button at top opens all files at once</li>
-            <li><b>Blue Mark:</b> Indicates which files have open tabs</li>
-            <li><b>Orange Mark:</b> Indicates file has changed on disk (with auto-reload enabled, reloads automatically)</li>
+            <li><b>Open All Files:</b> Button at top opens all files at once (shows total count)</li>
+            <li><b>Bullet (•) Indicator:</b> Shows which files have open tabs</li>
+            <li><b>Blue Text:</b> Active tab (bold) or open tabs (normal weight)</li>
+            <li><b>Orange Background:</b> File has changed on disk (with auto-reload enabled, reloads automatically)</li>
             <li><b>Ctrl+B / Cmd+B:</b> Toggle sidebar visibility</li>
             <li><b>Resizable:</b> Drag the divider to resize the sidebar</li>
         </ul>
