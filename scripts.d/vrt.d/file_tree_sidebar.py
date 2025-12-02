@@ -11,7 +11,7 @@ in the sidebar, with collapsible directory nodes.
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QTreeWidget, QTreeWidgetItem, 
                               QPushButton, QApplication)
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QFont
+from PyQt6.QtGui import QFont, QColor
 import color_palettes
 
 
@@ -53,6 +53,14 @@ class FileTreeSidebar(QWidget):
         self.tree.setIndentation(20)
         self.tree.setAnimated(True)
         self.tree.itemClicked.connect(self.on_item_clicked)
+        
+        # Set up context menu for right-click to focus tree
+        self.tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.tree.customContextMenuRequested.connect(self.on_tree_right_click)
+        
+        # Install event filter to intercept spacebar
+        self.tree.installEventFilter(self)
+        
         layout.addWidget(self.tree)
         
         # Store special buttons (commit msg, review notes) as list items
@@ -161,6 +169,10 @@ class FileTreeSidebar(QWidget):
         else:
             dir_item.setText(0, dir_path)
     
+    def on_tree_right_click(self, pos):
+        """Handle right-click on tree - gives focus to tree for keyboard navigation"""
+        self.tree.setFocus()
+    
     def on_item_clicked(self, item, column):
         """Handle tree item click"""
         data = item.data(0, Qt.ItemDataRole.UserRole)
@@ -171,14 +183,45 @@ class FileTreeSidebar(QWidget):
         
         if item_type == 'commit_msg':
             self.tab_widget.on_commit_msg_clicked()
+            # Focus the text widget in the commit message tab
+            self._focus_current_tab_widget()
         elif item_type == 'review_notes':
             self.tab_widget.note_mgr.on_notes_clicked()
+            # Focus the text widget in the review notes tab
+            self._focus_current_tab_widget()
         elif item_type == 'file':
             file_class = item_data
             self.tab_widget.on_file_clicked(file_class)
+            # Focus the diff viewer
+            self._focus_current_diff_viewer()
         elif item_type == 'directory':
             # Toggle expand/collapse on directory click
             item.setExpanded(not item.isExpanded())
+    
+    def _focus_current_diff_viewer(self):
+        """Set focus to the base text widget of the current diff viewer"""
+        viewer = self.tab_widget.get_current_viewer()
+        if viewer:
+            viewer.base_text.setFocus()
+    
+    def _focus_current_tab_widget(self):
+        """Set focus to the current tab's main widget (commit msg or review notes)"""
+        current_widget = self.tab_widget.tab_widget.currentWidget()
+        if current_widget:
+            current_widget.setFocus()
+    
+    def eventFilter(self, obj, event):
+        """Filter events from tree widget to handle spacebar"""
+        if obj == self.tree and event.type() == event.Type.KeyPress:
+            if event.key() == Qt.Key.Key_Space:
+                current_item = self.tree.currentItem()
+                if current_item:
+                    # Trigger the item as if it was clicked
+                    self.on_item_clicked(current_item, 0)
+                    return True  # Event handled
+        
+        # Let default handling proceed
+        return super().eventFilter(obj, event)
     
     def update_file_state(self, file_class, is_open, is_active):
         """Update visual state of a file item"""
@@ -188,38 +231,27 @@ class FileTreeSidebar(QWidget):
         item = self.file_items[file_class]
         parent = item.parent()
         
-        # Track previous open state to update directory counter
-        was_open = item.text(0).startswith('• ')
+        # Track previous open state to update directory counter (check color instead of prefix)
+        current_color = item.foreground(0).color()
+        was_open = current_color == Qt.GlobalColor.blue or current_color == QColor(0, 0, 255)
         
-        # Update visual indicator
+        # Update visual indicator - use color only, no prefix
         if is_active:
             # Currently selected - bold with blue color
             font = QFont()
             font.setBold(True)
             item.setFont(0, font)
             item.setForeground(0, Qt.GlobalColor.blue)
-            # Add bullet indicator
-            text = item.text(0)
-            if not text.startswith('• '):
-                item.setText(0, '• ' + text)
         elif is_open:
             # Open but not active - normal with blue color
             font = QFont()
             item.setFont(0, font)
             item.setForeground(0, Qt.GlobalColor.blue)
-            # Add bullet indicator
-            text = item.text(0)
-            if not text.startswith('• '):
-                item.setText(0, '• ' + text)
         else:
             # Closed - normal black text
             font = QFont()
             item.setFont(0, font)
             item.setForeground(0, Qt.GlobalColor.black)
-            # Remove bullet indicator
-            text = item.text(0)
-            if text.startswith('• '):
-                item.setText(0, text[2:])
         
         # Update directory counter if file has a parent directory
         if parent:
@@ -250,19 +282,10 @@ class FileTreeSidebar(QWidget):
                 
                 if is_active:
                     item.setForeground(0, Qt.GlobalColor.darkRed)
-                    text = item.text(0)
-                    if not text.startswith('• '):
-                        item.setText(0, '• ' + text)
                 elif is_open:
                     item.setForeground(0, Qt.GlobalColor.darkRed)
-                    text = item.text(0)
-                    if not text.startswith('• '):
-                        item.setText(0, '• ' + text)
                 else:
                     item.setForeground(0, Qt.GlobalColor.darkRed)
-                    text = item.text(0)
-                    if text.startswith('• '):
-                        item.setText(0, text[2:])
                 break
     
     def update_notes_state(self, is_open, is_active):
@@ -275,19 +298,10 @@ class FileTreeSidebar(QWidget):
                 
                 if is_active:
                     item.setForeground(0, Qt.GlobalColor.blue)
-                    text = item.text(0)
-                    if not text.startswith('• '):
-                        item.setText(0, '• ' + text)
                 elif is_open:
                     item.setForeground(0, Qt.GlobalColor.blue)
-                    text = item.text(0)
-                    if not text.startswith('• '):
-                        item.setText(0, '• ' + text)
                 else:
                     item.setForeground(0, Qt.GlobalColor.blue)
-                    text = item.text(0)
-                    if text.startswith('• '):
-                        item.setText(0, text[2:])
                 break
     
     def update_file_label(self, file_class):
@@ -297,11 +311,8 @@ class FileTreeSidebar(QWidget):
         
         item = self.file_items[file_class]
         
-        # Get the base filename (without bullet)
+        # Get the current text
         text = item.text(0)
-        has_bullet = text.startswith('• ')
-        if has_bullet:
-            text = text[2:]
         
         # Generate new label from file_class
         file_path = file_class.modi_rel_path_
@@ -330,10 +341,6 @@ class FileTreeSidebar(QWidget):
                 new_text = '/'.join(parts[1:])
             else:
                 new_text = parts[0]
-        
-        # Restore bullet if it was there
-        if has_bullet:
-            new_text = '• ' + new_text
         
         item.setText(0, new_text)
     
