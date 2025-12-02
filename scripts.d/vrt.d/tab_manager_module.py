@@ -427,6 +427,9 @@ class DiffViewerTabWidget(QMainWindow):
         # Sync references
         self.commit_msg_rel_path_ = self.commit_msg_mgr.commit_msg_rel_path
         self.commit_msg_button = self.commit_msg_mgr.commit_msg_button
+        
+        # Update "Open All Files" count to include commit message
+        self.update_open_all_button_text()
     
     def on_commit_msg_clicked(self):
         """Handle commit message button click"""
@@ -482,13 +485,8 @@ class DiffViewerTabWidget(QMainWindow):
             
             file_path = files[0]
             
-            # Set global note file
-            self.global_note_file = file_path
-            
-            # Set the note file for all existing viewers
-            viewers = self.get_all_viewers()
-            for viewer in viewers:
-                viewer.note_file = file_path
+            # Use NoteManager to set the note file - this creates button and updates count
+            self.note_mgr.set_note_file(file_path)
             
             # Check if file exists to customize message
             import os
@@ -528,6 +526,23 @@ class DiffViewerTabWidget(QMainWindow):
         
         self.button_layout.insertWidget(insert_position, button)
         self.file_buttons.append(button)
+        
+        # Update "Open All Files" button text with current file count
+        self.update_open_all_button_text()
+    
+    def update_open_all_button_text(self):
+        """Update the 'Open All Files' button text to show file count"""
+        total_files = len(self.file_classes)
+        
+        # Add commit message if present
+        if self.commit_msg_button:
+            total_files += 1
+        
+        # Add review notes if present
+        if self.note_mgr.notes_button:
+            total_files += 1
+        
+        self.open_all_button.setText(f"Open All ({total_files}) Files")
     
     def open_all_files(self):
         """Open all files in tabs, including commit message and review notes if present"""

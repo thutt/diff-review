@@ -106,6 +106,9 @@ class NoteManager:
         
         # Insert at position 1 (after "Open All Files" which is at position 0)
         self.tab_widget.button_layout.insertWidget(1, self.notes_button)
+        
+        # Update "Open All Files" count to include review notes
+        self.tab_widget.update_open_all_button_text()
     
     def on_notes_clicked(self):
         """Handle Review Notes button click"""
