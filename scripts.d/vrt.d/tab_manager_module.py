@@ -948,13 +948,14 @@ class DiffViewerTabWidget(QMainWindow):
             # Sidebar stats only
             self.tab_label_stats = False
             self.file_label_stats = True
-        
+
         # Update all file buttons to use new settings
-        for button in self.file_buttons:
-            button.file_class.set_stats_tab(self.tab_label_stats)
-            button.file_class.set_stats_file(self.file_label_stats)
-            button.update_label()
-        
+        for file_class in self.file_buttons:
+            file_class.set_stats_tab(self.tab_label_stats)
+            file_class.set_stats_file(self.file_label_stats)
+            self.sidebar_widget.update_file_label(file_class)
+
+
         # Re-render all tab labels
         for file_class, tab_index in self.file_to_tab_index.items():
             # Skip commit_msg and review_notes - they don't have file_class
