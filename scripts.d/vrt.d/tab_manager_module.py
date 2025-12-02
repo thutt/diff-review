@@ -11,7 +11,7 @@ with a sidebar for file selection.
 import os
 import sys
 from PyQt6.QtWidgets import (QApplication, QTabWidget, QMainWindow, QHBoxLayout, 
-                              QVBoxLayout, QWidget, QPushButton, QScrollArea, QSplitter,
+                              QVBoxLayout, QWidget, QPushButton, QSplitter,
                               QPlainTextEdit, QMenu, QMessageBox, QProgressDialog, QFileDialog)
 from PyQt6.QtCore import Qt, QFileSystemWatcher, QTimer
 from PyQt6.QtGui import (QAction, QFont, QKeySequence, QActionGroup, QFontMetrics, 
@@ -26,63 +26,7 @@ import bookmark_manager
 import file_watcher
 import commit_msg_handler
 import search_manager
-
-
-class FileButton(QPushButton):
-    """Custom button for file selection in sidebar"""
-    
-    def __init__(self, file_class, parent=None):
-        super().__init__(parent)
-        self.file_class = file_class
-        self.is_open = False       # Tab exists for this file
-        self.is_active = False     # This tab is currently selected
-        self.setText(file_class.button_label())
-        self.setCheckable(False)
-        self.setStyleSheet(self._get_stylesheet())
-    
-    def update_label(self):
-        """Update button label from file_class (called after stats are loaded)"""
-        self.setText(self.file_class.button_label())
-    
-    def set_state(self, is_open, is_active):
-        """Set whether this button's tab is open and/or currently active"""
-        self.is_open = is_open
-        self.is_active = is_active
-        self.setStyleSheet(self._get_stylesheet())
-    
-    def _get_stylesheet(self):
-        """Generate stylesheet based on open/active state"""
-        if self.is_active:
-            # Currently selected tab - thick border only
-            return """
-                QPushButton {
-                    text-align: left;
-                    padding: 8px 8px 8px 20px;
-                    border: none;
-                    border-left: 6px solid #0066cc;
-                    font-weight: bold;
-                }
-            """
-        elif self.is_open:
-            # Tab is open but not selected - normal border
-            return """
-                QPushButton {
-                    text-align: left;
-                    padding: 8px 8px 8px 20px;
-                    border: none;
-                    border-left: 4px solid #0066cc;
-                }
-            """
-        else:
-            # Tab is closed - no border
-            return """
-                QPushButton {
-                    text-align: left;
-                    padding: 8px 8px 8px 20px;
-                    border: none;
-                    border-left: 4px solid transparent;
-                }
-            """
+import file_tree_sidebar
 
 
 class DiffViewerTabWidget(QMainWindow):
@@ -200,44 +144,13 @@ class DiffViewerTabWidget(QMainWindow):
         # Create splitter for resizable sidebar
         self.splitter = QSplitter(Qt.Orientation.Horizontal)
         
-        # Create sidebar
-        self.sidebar_widget = QWidget()
-        sidebar_layout = QVBoxLayout(self.sidebar_widget)
-        sidebar_layout.setContentsMargins(0, 0, 0, 0)
-        sidebar_layout.setSpacing(0)
+        # Create sidebar with tree view
+        self.sidebar_widget = file_tree_sidebar.FileTreeSidebar(self)
         
-        # Scroll area for buttons
-        scroll_area = QScrollArea()
-        scroll_area.setWidgetResizable(True)
-        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        
-        self.button_container = QWidget()
-        self.button_layout = QVBoxLayout(self.button_container)
-        self.button_layout.setContentsMargins(0, 0, 0, 0)
-        self.button_layout.setSpacing(0)
-        
-        # Add "Open All" button at the top
-        self.open_all_button = QPushButton("Open All Files")
-        self.open_all_button.clicked.connect(self.open_all_files)
-        self.open_all_button.setStyleSheet("""
-            QPushButton {
-                text-align: left;
-                padding: 10px;
-                border: none;
-                background-color: #e8f4f8;
-                font-weight: bold;
-                color: #0066cc;
-            }
-            QPushButton:hover {
-                background-color: #d0e8f0;
-            }
-        """)
-        self.button_layout.addWidget(self.open_all_button)
-        
-        self.button_layout.addStretch()
-        
-        scroll_area.setWidget(self.button_container)
-        sidebar_layout.addWidget(scroll_area)
+        # Keep references for backward compatibility
+        self.open_all_button = self.sidebar_widget.open_all_button
+        self.button_layout = None  # No longer used
+        self.button_container = None  # No longer used
         
         # Add sidebar and tab widget to splitter
         self.splitter.addWidget(self.sidebar_widget)
@@ -427,6 +340,9 @@ class DiffViewerTabWidget(QMainWindow):
         # Sync references
         self.commit_msg_rel_path_ = self.commit_msg_mgr.commit_msg_rel_path
         self.commit_msg_button = self.commit_msg_mgr.commit_msg_button
+        
+        # Update "Open All Files" count to include commit message
+        self.update_open_all_button_text()
     
     def on_commit_msg_clicked(self):
         """Handle commit message button click"""
@@ -482,13 +398,8 @@ class DiffViewerTabWidget(QMainWindow):
             
             file_path = files[0]
             
-            # Set global note file
-            self.global_note_file = file_path
-            
-            # Set the note file for all existing viewers
-            viewers = self.get_all_viewers()
-            for viewer in viewers:
-                viewer.note_file = file_path
+            # Use NoteManager to set the note file - this creates button and updates count
+            self.note_mgr.set_note_file(file_path)
             
             # Check if file exists to customize message
             import os
@@ -513,29 +424,44 @@ class DiffViewerTabWidget(QMainWindow):
         """
         self.file_classes.append(file_class)
         
-        # Create button
-        button = FileButton(file_class, self)
-        button.clicked.connect(lambda: self.on_file_clicked(file_class))
+        # Add to tree view
+        self.sidebar_widget.add_file(file_class)
         
-        # Store button reference in file_class for label updates
-        file_class.ui_button_ = button
+        # Store reference in file_class for later updates
+        file_class.ui_button_ = None  # No longer a button
         
-        # Calculate insert position: after "Open All" and commit message (if present)
-        insert_position = 1  # After "Open All"
+        # Keep file_buttons list for compatibility, though items are no longer buttons
+        # Instead, we'll track file_classes directly
+        self.file_buttons.append(file_class)  # Store file_class for compatibility
+        
+        # Update "Open All Files" button text with current file count
+        self.update_open_all_button_text()
+    
+    def update_open_all_button_text(self):
+        """Update the 'Open All Files' button text to show file count"""
+        total_files = len(self.file_classes)
+        
+        # Add commit message if present
         if self.commit_msg_button:
-            insert_position = 2  # After "Open All" and "Commit Message"
-        insert_position += len(self.file_buttons)  # After existing file buttons
+            total_files += 1
         
-        self.button_layout.insertWidget(insert_position, button)
-        self.file_buttons.append(button)
+        # Add review notes if present
+        if self.note_mgr.notes_button:
+            total_files += 1
+        
+        self.sidebar_widget.update_open_all_text(total_files)
     
     def open_all_files(self):
-        """Open all files in tabs, including commit message if present"""
+        """Open all files in tabs, including commit message and review notes if present"""
         # Build list of files that need to be opened
         files_to_open = []
         
         if self.commit_msg_rel_path_ and 'commit_msg' not in self.file_to_tab_index:
             files_to_open.append(('commit_msg', None))
+        
+        # Add review notes if note file is configured and not already open
+        if self.global_note_file and 'review_notes' not in self.file_to_tab_index:
+            files_to_open.append(('review_notes', None))
  
         # Check which files aren't open yet
         for file_class in self.file_classes:
@@ -564,22 +490,12 @@ class DiffViewerTabWidget(QMainWindow):
             if progress.wasCanceled():
                 break
             
-            # Find the button for this file/commit_msg and change it to "Loading..."
-            button = None
+            # Update progress text
             if item_type == 'commit_msg':
-                button = self.commit_msg_button
-                if button:
-                    button.setText("Loading...")
-                    QApplication.processEvents()  # Force UI update
                 progress.setLabelText("Loading Commit Message...")
+            elif item_type == 'review_notes':
+                progress.setLabelText("Loading Review Notes...")
             else:
-                for btn in self.file_buttons:
-                    if btn.file_class == item_data:
-                        button = btn
-                        break
-                if button:
-                    button.setText("Loading...")
-                    QApplication.processEvents()  # Force UI update
                 progress.setLabelText(f"Loading {item_data.button_label()}...")
             
             progress.setValue(current_index)
@@ -588,13 +504,10 @@ class DiffViewerTabWidget(QMainWindow):
             # Load the file
             if item_type == 'commit_msg':
                 self.on_commit_msg_clicked()
-                # Restore button text for commit message
-                if button:
-                    button.setText("Commit Message")
-                    QApplication.processEvents()
+            elif item_type == 'review_notes':
+                self.note_mgr.on_notes_clicked()
             else:
                 self.on_file_clicked(item_data)
-                # Button label already updated in on_file_clicked
             
             current_index += 1
         
@@ -627,26 +540,13 @@ class DiffViewerTabWidget(QMainWindow):
             # Tab was closed, remove from mapping
             del self.file_to_tab_index[file_class]
         
-        # Find the button and show Loading...
-        button = None
-        for btn in self.file_buttons:
-            if btn.file_class == file_class:
-                button = btn
-                break
-        
-        if button:
-            button.setText("Loading...")
-            QApplication.processEvents()  # Force UI update
-        
         # No existing tab, create new one
         self.current_file_class = file_class  # Store for add_viewer to use
         file_class.add_viewer(self)
         self.current_file_class = None  # Clear after use
         
-        # Update button label now that file is loaded and stats are available
-        if button:
-            button.update_label()
-            QApplication.processEvents()  # Force UI update
+        # Update tree item label now that file is loaded and stats are available
+        self.sidebar_widget.update_file_label(file_class)
     
     def add_viewer(self, diff_viewer, tab_title=None):
         """
@@ -833,13 +733,11 @@ class DiffViewerTabWidget(QMainWindow):
                 viewer._needs_color_refresh = False
     
     def update_button_states(self):
-        """Update all button states based on open tabs and currently selected tab"""
+        """Update all item states in tree view based on open tabs and currently selected tab"""
         current_tab_index = self.tab_widget.currentIndex()
         
-        # Update file buttons
-        for button in self.file_buttons:
-            file_class = button.file_class
-            
+        # Update file items in tree view
+        for file_class in self.file_classes:
             # Check if tab is open
             is_open = file_class in self.file_to_tab_index
             if is_open:
@@ -853,9 +751,9 @@ class DiffViewerTabWidget(QMainWindow):
                 tab_index = self.file_to_tab_index[file_class]
                 is_active = (tab_index == current_tab_index)
             
-            button.set_state(is_open, is_active)
+            self.sidebar_widget.update_file_state(file_class, is_open, is_active)
         
-        # Update commit message button if it exists
+        # Update commit message item if it exists
         if self.commit_msg_button:
             is_open = 'commit_msg' in self.file_to_tab_index
             if is_open:
@@ -868,10 +766,10 @@ class DiffViewerTabWidget(QMainWindow):
                 tab_index = self.file_to_tab_index['commit_msg']
                 is_active = (tab_index == current_tab_index)
             
-            # Update commit message button style
-            self.commit_msg_mgr.update_button_state(is_open, is_active)
+            # Update commit message item style in tree
+            self.sidebar_widget.update_commit_msg_state(is_open, is_active)
         
-        # Update Review Notes button if it exists
+        # Update Review Notes item if it exists
         if self.note_mgr.notes_button:
             is_open = 'review_notes' in self.file_to_tab_index
             if is_open:
@@ -884,8 +782,8 @@ class DiffViewerTabWidget(QMainWindow):
                 tab_index = self.file_to_tab_index['review_notes']
                 is_active = (tab_index == current_tab_index)
             
-            # Update Review Notes button style
-            self.note_mgr.update_button_state(is_open, is_active)
+            # Update Review Notes item style in tree
+            self.sidebar_widget.update_notes_state(is_open, is_active)
     
     def get_all_viewers(self):
         """
