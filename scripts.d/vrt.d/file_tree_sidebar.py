@@ -84,7 +84,7 @@ class FileTreeSidebar(QWidget):
     def add_notes_button(self, button):
         """Add review notes button as tree item"""
         item = QTreeWidgetItem(self.tree)
-        item.setText(0, "Review Notes")
+        item.setText(0, "Review Notes in vrt")
         item.setData(0, Qt.ItemDataRole.UserRole, ('review_notes', None))
         
         # Style as special item
@@ -100,8 +100,10 @@ class FileTreeSidebar(QWidget):
     
     def add_terminal_editor_button(self, button):
         """Add terminal editor button as tree item"""
+        import os
+        editor = os.environ.get('EDITOR', 'EDITOR')
         item = QTreeWidgetItem(self.tree)
-        item.setText(0, "Edit Notes in Terminal")
+        item.setText(0, f"Review Notes using {editor}")
         item.setData(0, Qt.ItemDataRole.UserRole, ('terminal_editor', None))
         
         # Style as special item
@@ -202,11 +204,11 @@ class FileTreeSidebar(QWidget):
         """Update directory label to show open file count"""
         count = self.dir_open_counts.get(dir_path, 0)
         
-        # Extract just the directory name (last component of path)
-        dir_name = dir_path.split('/')[-1]
+        # Extract original directory name (without count)
+        dir_name = dir_item.data(0, Qt.ItemDataRole.UserRole)[1].split('/')[-1]
         
         if count > 0:
-            dir_item.setText(0, f"{dir_name} ({count})")
+            dir_item.setText(0, "%s [%d]" % (dir_name, count))
         else:
             dir_item.setText(0, dir_name)
     
