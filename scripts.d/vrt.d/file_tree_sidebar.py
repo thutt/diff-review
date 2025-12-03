@@ -98,6 +98,29 @@ class FileTreeSidebar(QWidget):
         insert_pos = 1 if any(t[0] == 'commit_msg' for t in self.special_items) else 0
         self.tree.insertTopLevelItem(insert_pos, item)
     
+    def add_terminal_editor_button(self, button):
+        """Add terminal editor button as tree item"""
+        item = QTreeWidgetItem(self.tree)
+        item.setText(0, "Edit Notes in Terminal")
+        item.setData(0, Qt.ItemDataRole.UserRole, ('terminal_editor', None))
+        
+        # Style as special item
+        font = QFont()
+        font.setBold(True)
+        item.setFont(0, font)
+        item.setForeground(0, Qt.GlobalColor.darkGreen)
+        
+        self.special_items.append(('terminal_editor', item))
+        # Insert after review notes if it exists, otherwise after commit msg
+        insert_pos = 0
+        for i, (item_type, _) in enumerate(self.special_items):
+            if item_type == 'review_notes':
+                insert_pos = i + 1
+                break
+            elif item_type == 'commit_msg':
+                insert_pos = i + 1
+        self.tree.insertTopLevelItem(insert_pos, item)
+    
     def add_file(self, file_class):
         """
         Add a file to the tree, organized by full directory hierarchy
@@ -206,6 +229,10 @@ class FileTreeSidebar(QWidget):
         elif item_type == 'review_notes':
             self.tab_widget.note_mgr.on_notes_clicked()
             # Focus the text widget in the review notes tab
+            self._focus_current_tab_widget()
+        elif item_type == 'terminal_editor':
+            self.tab_widget.note_mgr.on_terminal_editor_clicked()
+            # Terminal widget will handle its own focus
             self._focus_current_tab_widget()
         elif item_type == 'file':
             file_class = item_data

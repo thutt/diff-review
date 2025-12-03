@@ -11,7 +11,9 @@ This module manages all note-taking functionality:
 - Note taking with standardized format
 - Jump to Note functionality
 - Yellow highlighting coordination
+- Terminal editor integration
 """
+import os
 from PyQt6.QtWidgets import (QPlainTextEdit, QPushButton, QMessageBox, QMenu,
                               QFileDialog)
 from PyQt6.QtCore import Qt, QFileSystemWatcher, QTimer
@@ -32,6 +34,7 @@ class NoteManager:
         """
         self.tab_widget = tab_widget
         self.notes_button = None
+        self.terminal_editor_button = None
         self.note_file_watcher = None
         self.reload_timer = None
     
@@ -84,6 +87,10 @@ class NoteManager:
         # Show the Review Notes button if not already visible
         if not self.notes_button:
             self.create_notes_button()
+        
+        # Show the Terminal Editor button if not already visible
+        if not self.terminal_editor_button:
+            self.create_terminal_editor_button()
     
     def create_notes_button(self):
         """Create the Review Notes button in the sidebar (after Open All Files)"""
@@ -109,6 +116,122 @@ class NoteManager:
         
         # Update "Open All Files" count to include review notes
         self.tab_widget.update_open_all_button_text()
+    
+    def create_terminal_editor_button(self):
+        """Create the Terminal Editor button in the sidebar (after Review Notes)"""
+        self.terminal_editor_button = QPushButton("Edit Notes in Terminal")
+        self.terminal_editor_button.clicked.connect(self.on_terminal_editor_clicked)
+        self.terminal_editor_button.setStyleSheet("""
+            QPushButton {
+                text-align: left;
+                padding: 8px 8px 8px 20px;
+                border: none;
+                background-color: #f0fff0;
+                border-left: 4px solid transparent;
+                font-weight: bold;
+                color: #228b22;
+            }
+            QPushButton:hover {
+                background-color: #e0ffe0;
+            }
+        """)
+        
+        # This will be inserted after Review Notes button
+        self.tab_widget.sidebar_widget.add_terminal_editor_button(self.terminal_editor_button)
+        
+        # Update "Open All Files" count to include terminal editor
+        self.tab_widget.update_open_all_button_text()
+    
+    def on_terminal_editor_clicked(self):
+        """Handle Terminal Editor button click - opens editor in external terminal"""
+        # Just open the editor externally - no tab management needed
+        self.create_terminal_editor_tab()
+    
+    def create_terminal_editor_tab(self):
+        """Open the note file in ${EDITOR} in an external terminal window"""
+        note_file = self.get_note_file()
+        if not note_file:
+            QMessageBox.information(self.tab_widget, 'No Note File',
+                                  'No note file has been configured yet.')
+            return
+        
+        # Get editor from environment, fallback to existing Review Notes functionality
+        editor = os.environ.get('EDITOR')
+        
+        if not editor:
+            # No EDITOR set - just open regular Review Notes tab
+            QMessageBox.information(
+                self.tab_widget,
+                'No EDITOR Set',
+                'The EDITOR environment variable is not set.\n\n'
+                'Opening the built-in Review Notes editor instead.'
+            )
+            self.on_notes_clicked()
+            return
+        
+        # Determine which terminal to use based on platform
+        import subprocess
+        import sys
+        
+        try:
+            if sys.platform == 'darwin':
+                # macOS - use Terminal.app
+                # AppleScript to open Terminal with editor
+                script = f'tell application "Terminal" to do script "{editor} {note_file}"'
+                subprocess.Popen(['osascript', '-e', script])
+            elif sys.platform.startswith('linux'):
+                # Linux - try common terminals in order
+                terminals = [
+                    ['gnome-terminal', '--', editor, note_file],
+                    ['konsole', '-e', editor, note_file],
+                    ['xterm', '-e', editor, note_file],
+                    ['x-terminal-emulator', '-e', editor, note_file],
+                ]
+                
+                launched = False
+                for term_cmd in terminals:
+                    try:
+                        subprocess.Popen(term_cmd)
+                        launched = True
+                        break
+                    except FileNotFoundError:
+                        continue
+                
+                if not launched:
+                    QMessageBox.warning(
+                        self.tab_widget,
+                        'No Terminal Found',
+                        'Could not find a terminal emulator.\n\n'
+                        'Opening the built-in Review Notes editor instead.'
+                    )
+                    self.on_notes_clicked()
+                    return
+            else:
+                # Windows or unknown platform
+                QMessageBox.information(
+                    self.tab_widget,
+                    'Platform Not Supported',
+                    'External terminal editor is not supported on this platform.\n\n'
+                    'Opening the built-in Review Notes editor instead.'
+                )
+                self.on_notes_clicked()
+                return
+            
+            # Show brief message
+            self.tab_widget.statusBar().showMessage(
+                f'Opened {os.path.basename(note_file)} in {editor}', 
+                3000
+            )
+            
+        except Exception as e:
+            QMessageBox.warning(
+                self.tab_widget,
+                'Error Opening Editor',
+                f'Could not open external editor:\n{e}\n\n'
+                'Opening the built-in Review Notes editor instead.'
+            )
+            self.on_notes_clicked()
+
     
     def on_notes_clicked(self):
         """Handle Review Notes button click"""
