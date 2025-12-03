@@ -14,9 +14,6 @@ This module manages all note-taking functionality:
 - Terminal editor integration
 """
 import os
-import subprocess
-import sys
-import signal
 from PyQt6.QtWidgets import (QPlainTextEdit, QPushButton, QMessageBox, QMenu,
                               QFileDialog)
 from PyQt6.QtCore import Qt, QFileSystemWatcher, QTimer
@@ -40,7 +37,6 @@ class NoteManager:
         self.terminal_editor_button = None
         self.note_file_watcher = None
         self.reload_timer = None
-        self.terminal_process = None
     
     def get_note_file(self):
         """Get the current note file path"""
@@ -98,7 +94,7 @@ class NoteManager:
     
     def create_notes_button(self):
         """Create the Review Notes button in the sidebar (after Open All Files)"""
-        self.notes_button = QPushButton("Review Notes in vrt")
+        self.notes_button = QPushButton("Review Notes")
         self.notes_button.clicked.connect(self.on_notes_clicked)
         self.notes_button.setStyleSheet("""
             QPushButton {
@@ -123,8 +119,7 @@ class NoteManager:
     
     def create_terminal_editor_button(self):
         """Create the Terminal Editor button in the sidebar (after Review Notes)"""
-        editor = os.environ.get('EDITOR', 'EDITOR')
-        self.terminal_editor_button = QPushButton(f"Review Notes using {editor}")
+        self.terminal_editor_button = QPushButton("Edit Notes in Terminal")
         self.terminal_editor_button.clicked.connect(self.on_terminal_editor_clicked)
         self.terminal_editor_button.setStyleSheet("""
             QPushButton {
@@ -147,35 +142,9 @@ class NoteManager:
         # Update "Open All Files" count to include terminal editor
         self.tab_widget.update_open_all_button_text()
     
-    def cleanup_terminal_process(self):
-        """Kill terminal subprocess and its children"""
-        if self.terminal_process is None:
-            return
-        
-        try:
-            if sys.platform.startswith('linux') or sys.platform == 'darwin':
-                # Get the process group and kill all processes in it
-                try:
-                    pgid = os.getpgid(self.terminal_process.pid)
-                    os.killpg(pgid, signal.SIGTERM)
-                except ProcessLookupError:
-                    pass
-            
-            # Also try direct termination
-            try:
-                self.terminal_process.terminate()
-                self.terminal_process.wait(timeout=2)
-            except subprocess.TimeoutExpired:
-                self.terminal_process.kill()
-            except ProcessLookupError:
-                pass
-        except Exception:
-            pass
-        
-        self.terminal_process = None
-    
     def on_terminal_editor_clicked(self):
         """Handle Terminal Editor button click - opens editor in external terminal"""
+        # Just open the editor externally - no tab management needed
         self.create_terminal_editor_tab()
     
     def create_terminal_editor_tab(self):
@@ -200,41 +169,29 @@ class NoteManager:
             self.on_notes_clicked()
             return
         
-        # Clean up any existing terminal process
-        self.cleanup_terminal_process()
+        # Determine which terminal to use based on platform
+        import subprocess
+        import sys
         
         try:
             if sys.platform == 'darwin':
-                # macOS - use Terminal.app, create minimized window
-                script = f'''tell application "Terminal"
-    do script "{editor} {note_file}"
-    tell front window
-        set miniaturized to true
-    end tell
-end tell'''
-                proc = subprocess.Popen(['osascript', '-e', script],
-                                      start_new_session=True,
-                                      stdout=subprocess.DEVNULL,
-                                      stderr=subprocess.DEVNULL)
-                self.terminal_process = proc
+                # macOS - use Terminal.app
+                # AppleScript to open Terminal with editor
+                script = f'tell application "Terminal" to do script "{editor} {note_file}"'
+                subprocess.Popen(['osascript', '-e', script])
             elif sys.platform.startswith('linux'):
                 # Linux - try common terminals in order
-                # Use xterm with -iconic which actually works
                 terminals = [
-                    ['xterm', '-iconic', '-e', editor, note_file],
                     ['gnome-terminal', '--', editor, note_file],
                     ['konsole', '-e', editor, note_file],
+                    ['xterm', '-e', editor, note_file],
                     ['x-terminal-emulator', '-e', editor, note_file],
                 ]
                 
                 launched = False
                 for term_cmd in terminals:
                     try:
-                        proc = subprocess.Popen(term_cmd,
-                                              start_new_session=True,
-                                              stdout=subprocess.DEVNULL,
-                                              stderr=subprocess.DEVNULL)
-                        self.terminal_process = proc
+                        subprocess.Popen(term_cmd)
                         launched = True
                         break
                     except FileNotFoundError:
@@ -291,108 +248,291 @@ end tell'''
         self.create_notes_tab()
     
     def create_notes_tab(self):
-        """Create a new Review Notes tab"""
+        """Create a tab displaying the review notes"""
         note_file = self.get_note_file()
         if not note_file:
-            note_file = self.prompt_for_note_file()
-            if not note_file:
-                return
+            QMessageBox.information(self.tab_widget, 'No Note File',
+                                  'No note file has been configured yet.')
+            return
         
-        # Create text widget for notes
+        # Read note file content
+        try:
+            with open(note_file, 'r', encoding='utf-8') as f:
+                notes_text = f.read()
+        except FileNotFoundError:
+            notes_text = "# No notes yet\n"
+        except Exception as e:
+            notes_text = f"# Error reading note file:\n# {e}\n"
+        
+        # Create text widget - EDITABLE
         text_widget = QPlainTextEdit()
-        text_widget.setReadOnly(True)
+        text_widget.setReadOnly(False)
+        text_widget.setPlainText(notes_text)
+        text_widget.setFont(QFont("Courier", 12, QFont.Weight.Bold))
+        
+        # Style with light blue tone
+        text_widget.setStyleSheet("""
+            QPlainTextEdit {
+                background-color: #f5f9ff;
+                color: #2c3e50;
+            }
+        """)
+        
+        # Set up context menu
+        text_widget.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        text_widget.customContextMenuRequested.connect(
+            lambda pos: self.show_notes_context_menu(pos, text_widget))
+        
+        # Install event filter for keyboard shortcuts AND ASCII filtering
+        text_widget.installEventFilter(self.tab_widget)
+        
+        # Store reference to tab widget for later use
         text_widget.is_review_notes = True
+        text_widget.has_unsaved_changes = False
+        text_widget.original_content = notes_text
         
-        font = QFont("Courier", 10)
-        text_widget.setFont(font)
+        # Create auto-save timer
+        save_timer = QTimer()
+        save_timer.setSingleShot(True)
+        save_timer.timeout.connect(lambda: self.save_notes_content(text_widget))
+        text_widget.save_timer = save_timer
         
-        # Load content
-        if os.path.exists(note_file):
-            try:
-                with open(note_file, 'r', encoding='utf-8') as f:
-                    content = f.read()
-                text_widget.setPlainText(content)
-            except Exception as e:
-                text_widget.setPlainText(f"Error loading note file: {e}")
+        # Connect text changes to auto-save timer
+        text_widget.textChanged.connect(lambda: self.on_notes_text_changed(text_widget))
+        
+        # Add to tabs with note file path as title
+        index = self.tab_widget.tab_widget.addTab(text_widget, note_file)
+        self.tab_widget.file_to_tab_index['review_notes'] = index
+        self.tab_widget.tab_widget.setCurrentIndex(index)
+        
+        # Update button state
+        self.tab_widget.update_button_states()
+    
+    def show_notes_context_menu(self, pos, text_widget):
+        """Show context menu for review notes tab"""
+        menu = QMenu(self.tab_widget)
+        
+        cursor = text_widget.textCursor()
+        has_selection = cursor.hasSelection()
+        
+        search_action = menu.addAction("Search")
+        search_action.setEnabled(has_selection)
+        if has_selection:
+            search_action.triggered.connect(
+                lambda: self.tab_widget.search_selected_text(text_widget))
+        
+        menu.exec(text_widget.mapToGlobal(pos))
+    
+    def on_notes_text_changed(self, text_widget):
+        """Handle text changes in Review Notes tab"""
+        # Filter out non-ASCII characters
+        cursor_pos = text_widget.textCursor().position()
+        text = text_widget.toPlainText()
+        
+        # Filter to ASCII only
+        filtered_text = ''.join(char for char in text if ord(char) < 128)
+        
+        if filtered_text != text:
+            # Non-ASCII characters were present - replace text
+            text_widget.blockSignals(True)
+            text_widget.setPlainText(filtered_text)
+            # Restore cursor position (adjusted for removed chars)
+            new_cursor = text_widget.textCursor()
+            new_cursor.setPosition(min(cursor_pos, len(filtered_text)))
+            text_widget.setTextCursor(new_cursor)
+            text_widget.blockSignals(False)
+        
+        # Mark as having unsaved changes
+        if not text_widget.has_unsaved_changes:
+            text_widget.has_unsaved_changes = True
+            self.update_notes_tab_title(text_widget, dirty=True)
+        
+        # Restart auto-save timer (2.5 seconds)
+        text_widget.save_timer.stop()
+        text_widget.save_timer.start(2500)
+    
+    def save_notes_content(self, text_widget):
+        """Save the notes content to file"""
+        note_file = self.get_note_file()
+        if not note_file:
+            return
+        
+        try:
+            content = text_widget.toPlainText()
+            
+            # Temporarily disable file watcher to avoid triggering reload
+            if self.note_file_watcher:
+                self.note_file_watcher.blockSignals(True)
+            
+            # Write to file
+            with open(note_file, 'w', encoding='utf-8') as f:
+                f.write(content)
+            
+            # Update tracking
+            text_widget.has_unsaved_changes = False
+            text_widget.original_content = content
+            self.update_notes_tab_title(text_widget, dirty=False)
+            
+            # Re-enable file watcher
+            if self.note_file_watcher:
+                self.note_file_watcher.blockSignals(False)
+            
+        except Exception as e:
+            QMessageBox.warning(self.tab_widget, 'Save Error',
+                              f'Could not save notes file:\n{e}')
+    
+    def update_notes_tab_title(self, text_widget, dirty):
+        """Update the tab title to show dirty state"""
+        note_file = self.get_note_file()
+        if not note_file:
+            return
+        
+        # Find the tab index
+        if 'review_notes' not in self.tab_widget.file_to_tab_index:
+            return
+        
+        tab_index = self.tab_widget.file_to_tab_index['review_notes']
+        if not (0 <= tab_index < self.tab_widget.tab_widget.count()):
+            return
+        
+        # Update title with asterisk if dirty
+        if dirty:
+            self.tab_widget.tab_widget.setTabText(tab_index, f"*{note_file}")
         else:
-            text_widget.setPlainText("Note file does not exist yet.\n\nTake a note to create it.")
-        
-        # Add tab
-        tab_name = "Review Notes"
-        tab_index = self.tab_widget.tab_widget.addTab(text_widget, tab_name)
-        self.tab_widget.file_to_tab_index['review_notes'] = tab_index
-        self.tab_widget.tab_widget.setCurrentIndex(tab_index)
+            self.tab_widget.tab_widget.setTabText(tab_index, note_file)
     
     def setup_note_file_watcher(self, note_file):
-        """Set up file system watcher for note file auto-reload"""
-        # Clean up old watcher if it exists
+        """Set up file system watching for the note file"""
+        import os
+        
+        # Clean up existing watcher if any
         if self.note_file_watcher:
             self.note_file_watcher.deleteLater()
             self.note_file_watcher = None
         
         if self.reload_timer:
             self.reload_timer.stop()
-            self.reload_timer.deleteLater()
             self.reload_timer = None
         
         # Create new watcher
-        self.note_file_watcher = QFileSystemWatcher([note_file], self.tab_widget)
+        self.note_file_watcher = QFileSystemWatcher()
+        
+        # Add the file to watch (create if it doesn't exist)
+        if os.path.exists(note_file):
+            self.note_file_watcher.addPath(note_file)
+        else:
+            # Create empty file so watcher can track it
+            try:
+                with open(note_file, 'a', encoding='utf-8'):
+                    pass
+                self.note_file_watcher.addPath(note_file)
+            except Exception:
+                pass  # If we can't create it, we'll add it later
+        
         self.note_file_watcher.fileChanged.connect(self.on_note_file_changed)
         
         # Create debounce timer
-        self.reload_timer = QTimer(self.tab_widget)
+        self.reload_timer = QTimer()
         self.reload_timer.setSingleShot(True)
         self.reload_timer.timeout.connect(self.reload_notes_tab)
     
     def on_note_file_changed(self, path):
-        """Handle note file change - debounced reload"""
-        # Re-add the watch (some editors remove and recreate files)
-        if path not in self.note_file_watcher.files():
-            if os.path.exists(path):
-                self.note_file_watcher.addPath(path)
+        """Handle note file change notification"""
+        # Restart debounce timer
+        if self.reload_timer:
+            self.reload_timer.stop()
+            self.reload_timer.start(500)  # 500ms debounce
         
-        # Start/restart debounce timer
-        self.reload_timer.start(500)  # 500ms debounce
+        # Schedule a re-watch check to ensure we stay connected
+        # Some editors remove and recreate files, breaking the watch
+        QTimer.singleShot(1000, self.ensure_file_watched)
     
-    def on_notes_text_changed(self):
-        """Handle text changes in Review Notes tab"""
-        # This tab is read-only, so this shouldn't be called
-        pass
+    def ensure_file_watched(self):
+        """Ensure the note file is still being watched (re-add if needed)"""
+        import os
+        
+        note_file = self.get_note_file()
+        if not note_file or not self.note_file_watcher:
+            return
+        
+        watched = self.note_file_watcher.files()
+        if note_file not in watched and os.path.exists(note_file):
+            try:
+                self.note_file_watcher.addPath(note_file)
+            except Exception:
+                pass
     
     def reload_notes_tab(self):
         """Reload the Review Notes tab content"""
+        note_file = self.get_note_file()
+        if not note_file:
+            return
+        
+        # Find the review notes tab
         if 'review_notes' not in self.tab_widget.file_to_tab_index:
             return
         
         tab_index = self.tab_widget.file_to_tab_index['review_notes']
-        if tab_index < 0 or tab_index >= self.tab_widget.tab_widget.count():
+        if not (0 <= tab_index < self.tab_widget.tab_widget.count()):
             return
         
         text_widget = self.tab_widget.tab_widget.widget(tab_index)
-        if not text_widget:
+        if not (hasattr(text_widget, 'is_review_notes') and text_widget.is_review_notes):
             return
         
-        note_file = self.get_note_file()
-        if not note_file or not os.path.exists(note_file):
-            return
+        # Check if there are unsaved changes
+        if text_widget.has_unsaved_changes:
+            # Show conflict dialog
+            reply = QMessageBox.question(
+                self.tab_widget,
+                'File Changed Externally',
+                'The note file has changed on disk, but you have unsaved edits.\n\n'
+                'Do you want to reload from disk (losing your changes) or keep editing?',
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No
+            )
+            
+            if reply == QMessageBox.StandardButton.No:
+                # User wants to keep editing - don't reload
+                return
         
-        # Save cursor position
-        cursor = text_widget.textCursor()
-        pos = cursor.position()
+        # Save scroll position
+        v_scroll_pos = text_widget.verticalScrollBar().value()
         
         # Reload content
         try:
             with open(note_file, 'r', encoding='utf-8') as f:
-                content = f.read()
-            text_widget.setPlainText(content)
+                notes_text = f.read()
             
-            # Restore cursor position
-            cursor = text_widget.textCursor()
-            cursor.setPosition(min(pos, len(content)))
-            text_widget.setTextCursor(cursor)
+            # Block signals to avoid triggering auto-save
+            text_widget.blockSignals(True)
+            text_widget.setPlainText(notes_text)
+            text_widget.blockSignals(False)
             
-        except Exception:
-            pass
+            # Update tracking
+            text_widget.has_unsaved_changes = False
+            text_widget.original_content = notes_text
+            self.update_notes_tab_title(text_widget, dirty=False)
+            
+            # Restore scroll position
+            text_widget.verticalScrollBar().setValue(v_scroll_pos)
+            
+        except Exception as e:
+            # If file doesn't exist or can't be read, show error in the tab
+            text_widget.blockSignals(True)
+            text_widget.setPlainText(f"# Error reading note file:\n# {e}\n")
+            text_widget.blockSignals(False)
+        
+        # Re-add file to watcher (some editors remove and recreate files)
+        # This is critical - without it, we lose watching after first edit
+        if self.note_file_watcher:
+            watched = self.note_file_watcher.files()
+            if note_file not in watched:
+                try:
+                    self.note_file_watcher.addPath(note_file)
+                except Exception:
+                    # File might not exist yet, watcher will pick it up later
+                    pass
     
     def take_note(self, file_path, side, line_numbers, line_texts, is_commit_msg=False):
         """
@@ -408,6 +548,7 @@ end tell'''
         Returns:
             True if note was taken, False if cancelled
         """
+        # Get or prompt for note file
         note_file = self.get_note_file()
         if not note_file:
             note_file = self.prompt_for_note_file()
@@ -417,13 +558,16 @@ end tell'''
         try:
             with open(note_file, 'a', encoding='utf-8') as f:
                 if is_commit_msg:
+                    # Commit message format (no line numbers)
                     f.write("> (commit_msg): Commit Message\n")
                     for line_text in line_texts:
                         f.write(f">   {line_text}\n")
                 else:
+                    # Source file format with range
                     prefix = '(base)' if side == 'base' else '(modi)'
                     clean_filename = extract_display_path(file_path)
                     
+                    # Calculate range [start, end)
                     start_line = line_numbers[0]
                     end_line = line_numbers[-1] + 1
                     
@@ -526,7 +670,7 @@ end tell'''
                 tab_index = self.tab_widget.file_to_tab_index['review_notes']
                 text_widget = self.tab_widget.tab_widget.widget(tab_index)
                 
-                if text_widget.is_review_notes:
+                if hasattr(text_widget, 'is_review_notes') and text_widget.is_review_notes:
                     # Select the entire note for visual feedback
                     cursor = text_widget.textCursor()
                     
@@ -557,7 +701,8 @@ end tell'''
                 for i, num in enumerate(viewer.base_line_nums):
                     if num == line_num:
                         # Clear the noted line marking
-                        viewer.base_text.noted_lines.discard(i)
+                        if hasattr(viewer.base_text, 'noted_lines'):
+                            viewer.base_text.noted_lines.discard(i)
                         viewer.base_text.viewport().update()
                         viewer.base_line_area.noted_lines.discard(i)
                         viewer.base_line_area.update()
@@ -567,7 +712,8 @@ end tell'''
                 for i, num in enumerate(viewer.modified_line_nums):
                     if num == line_num:
                         # Clear the noted line marking
-                        viewer.modified_text.noted_lines.discard(i)
+                        if hasattr(viewer.modified_text, 'noted_lines'):
+                            viewer.modified_text.noted_lines.discard(i)
                         viewer.modified_text.viewport().update()
                         viewer.modified_line_area.noted_lines.discard(i)
                         viewer.modified_line_area.update()

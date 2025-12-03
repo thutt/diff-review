@@ -1374,13 +1374,6 @@ class DiffViewerTabWidget(QMainWindow):
                     return True
         return False
     
-    def closeEvent(self, event):
-        """Handle window close - cleanup terminal process"""
-        # Cleanup terminal subprocess if it exists
-        if self.note_mgr and self.note_mgr.terminal_process:
-            self.note_mgr.cleanup_terminal_process()
-        event.accept()
-    
     def run(self):
         """Show the window and start the application event loop"""
         self.show()
