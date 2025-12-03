@@ -145,7 +145,8 @@ class NoteManager:
         text_widget = QPlainTextEdit()
         text_widget.setReadOnly(False)
         text_widget.setPlainText(notes_text)
-        text_widget.setFont(QFont("Courier", 12, QFont.Weight.Bold))
+        text_widget.setFont(QFont("Courier", 10, QFont.Weight.Bold))
+        text_widget.current_font_size = 10
         
         # Style with light blue tone
         text_widget.setStyleSheet("""

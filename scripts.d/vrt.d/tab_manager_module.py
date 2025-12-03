@@ -989,6 +989,8 @@ class DiffViewerTabWidget(QMainWindow):
         if current_widget:
             if hasattr(current_widget, 'is_commit_msg') and current_widget.is_commit_msg:
                 self._change_commit_msg_font_size(current_widget, 1)
+            elif hasattr(current_widget, 'is_review_notes') and current_widget.is_review_notes:
+                self._change_review_notes_font_size(current_widget, 1)
             elif hasattr(current_widget, 'diff_viewer'):
                 current_widget.diff_viewer.increase_font_size()
     
@@ -998,6 +1000,8 @@ class DiffViewerTabWidget(QMainWindow):
         if current_widget:
             if hasattr(current_widget, 'is_commit_msg') and current_widget.is_commit_msg:
                 self._change_commit_msg_font_size(current_widget, -1)
+            elif hasattr(current_widget, 'is_review_notes') and current_widget.is_review_notes:
+                self._change_review_notes_font_size(current_widget, -1)
             elif hasattr(current_widget, 'diff_viewer'):
                 current_widget.diff_viewer.decrease_font_size()
     
@@ -1007,6 +1011,8 @@ class DiffViewerTabWidget(QMainWindow):
         if current_widget:
             if hasattr(current_widget, 'is_commit_msg') and current_widget.is_commit_msg:
                 self._reset_commit_msg_font_size(current_widget)
+            elif hasattr(current_widget, 'is_review_notes') and current_widget.is_review_notes:
+                self._reset_review_notes_font_size(current_widget)
             elif hasattr(current_widget, 'diff_viewer'):
                 current_widget.diff_viewer.reset_font_size()
     
@@ -1156,12 +1162,34 @@ class DiffViewerTabWidget(QMainWindow):
         """Reset font size for commit message tab to default (12pt)"""
         self.commit_msg_mgr.reset_commit_msg_font_size(text_widget)
     
+    def _change_review_notes_font_size(self, text_widget, delta):
+        """Change font size for review notes tab"""
+        if not hasattr(text_widget, 'current_font_size'):
+            text_widget.current_font_size = 10  # Initialize if not set (review notes default is 10pt)
+        
+        new_size = text_widget.current_font_size + delta
+        # Clamp to range [6, 24]
+        new_size = max(6, min(24, new_size))
+        
+        if new_size != text_widget.current_font_size:
+            text_widget.current_font_size = new_size
+            font = QFont("Courier", new_size, QFont.Weight.Bold)
+            text_widget.setFont(font)
+            text_widget.viewport().update()
+    
+    def _reset_review_notes_font_size(self, text_widget):
+        """Reset font size for review notes tab to default (10pt)"""
+        text_widget.current_font_size = 10
+        font = QFont("Courier", 10, QFont.Weight.Bold)
+        text_widget.setFont(font)
+        text_widget.viewport().update()
+    
     def keyPressEvent(self, event):
         """Handle key press events"""
         key = event.key()
         modifiers = event.modifiers()
         
-        # Font size changes - works for both DiffViewer and commit message tabs
+        # Font size changes - works for DiffViewer, commit message, and review notes tabs
         if modifiers & (Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.MetaModifier):
             if key in (Qt.Key.Key_Plus, Qt.Key.Key_Equal):  # + or = key
                 current_widget = self.tab_widget.currentWidget()
@@ -1169,6 +1197,9 @@ class DiffViewerTabWidget(QMainWindow):
                     # Check if it's a commit message tab
                     if hasattr(current_widget, 'is_commit_msg') and current_widget.is_commit_msg:
                         self._change_commit_msg_font_size(current_widget, 1)
+                    # Check if it's a review notes tab
+                    elif hasattr(current_widget, 'is_review_notes') and current_widget.is_review_notes:
+                        self._change_review_notes_font_size(current_widget, 1)
                     # Otherwise it's a DiffViewer
                     elif hasattr(current_widget, 'diff_viewer'):
                         current_widget.diff_viewer.increase_font_size()
@@ -1178,6 +1209,8 @@ class DiffViewerTabWidget(QMainWindow):
                 if current_widget:
                     if hasattr(current_widget, 'is_commit_msg') and current_widget.is_commit_msg:
                         self._change_commit_msg_font_size(current_widget, -1)
+                    elif hasattr(current_widget, 'is_review_notes') and current_widget.is_review_notes:
+                        self._change_review_notes_font_size(current_widget, -1)
                     elif hasattr(current_widget, 'diff_viewer'):
                         current_widget.diff_viewer.decrease_font_size()
                 return
@@ -1186,6 +1219,8 @@ class DiffViewerTabWidget(QMainWindow):
                 if current_widget:
                     if hasattr(current_widget, 'is_commit_msg') and current_widget.is_commit_msg:
                         self._reset_commit_msg_font_size(current_widget)
+                    elif hasattr(current_widget, 'is_review_notes') and current_widget.is_review_notes:
+                        self._reset_review_notes_font_size(current_widget)
                     elif hasattr(current_widget, 'diff_viewer'):
                         current_widget.diff_viewer.reset_font_size()
                 return
