@@ -9,7 +9,7 @@ This module contains a compact, scannable cheat sheet of all keyboard shortcuts.
 """
 from PyQt6.QtWidgets import QDialog, QVBoxLayout, QTextEdit, QPushButton, QHBoxLayout
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QFont, QPalette
+from PyQt6.QtGui import QFont, QPalette, QKeySequence, QShortcut
 import color_palettes
 
 
@@ -54,8 +54,9 @@ class ShortcutsDialog(QDialog):
         is_dark = is_dark_mode(self.palette())
         shortcuts_text.setHtml(self.get_shortcuts_html(is_dark))
         
+        self.current_font_size = 10
         font = QFont()
-        font.setPointSize(10)
+        font.setPointSize(self.current_font_size)
         shortcuts_text.setFont(font)
         
         layout.addWidget(shortcuts_text)
@@ -76,6 +77,9 @@ class ShortcutsDialog(QDialog):
         layout.addLayout(button_layout)
         
         self.shortcuts_text = shortcuts_text
+        
+        # Setup font size shortcuts
+        self.setup_font_shortcuts()
     
     def print_shortcuts(self):
         """Print or save shortcuts as PDF"""
@@ -91,6 +95,60 @@ class ShortcutsDialog(QDialog):
         dialog = QPrintDialog(printer, self)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             self.shortcuts_text.document().print(printer)
+    
+    def setup_font_shortcuts(self):
+        """Setup keyboard shortcuts for font size adjustment"""
+        # Ctrl++ or Ctrl+=
+        increase_shortcut = QShortcut(QKeySequence("Ctrl++"), self)
+        increase_shortcut.activated.connect(self.increase_font_size)
+        increase_shortcut2 = QShortcut(QKeySequence("Ctrl+="), self)
+        increase_shortcut2.activated.connect(self.increase_font_size)
+        
+        # Ctrl+-
+        decrease_shortcut = QShortcut(QKeySequence("Ctrl+-"), self)
+        decrease_shortcut.activated.connect(self.decrease_font_size)
+        
+        # Ctrl+0
+        reset_shortcut = QShortcut(QKeySequence("Ctrl+0"), self)
+        reset_shortcut.activated.connect(self.reset_font_size)
+        
+        # Add Cmd shortcuts for macOS
+        # Cmd++ or Cmd+=
+        cmd_increase_shortcut = QShortcut(QKeySequence("Meta++"), self)
+        cmd_increase_shortcut.activated.connect(self.increase_font_size)
+        cmd_increase_shortcut2 = QShortcut(QKeySequence("Meta+="), self)
+        cmd_increase_shortcut2.activated.connect(self.increase_font_size)
+        
+        # Cmd+-
+        cmd_decrease_shortcut = QShortcut(QKeySequence("Meta+-"), self)
+        cmd_decrease_shortcut.activated.connect(self.decrease_font_size)
+        
+        # Cmd+0
+        cmd_reset_shortcut = QShortcut(QKeySequence("Meta+0"), self)
+        cmd_reset_shortcut.activated.connect(self.reset_font_size)
+    
+    def increase_font_size(self):
+        """Increase font size (max 24pt)"""
+        if self.current_font_size < 24:
+            self.current_font_size += 1
+            self.update_font_size()
+    
+    def decrease_font_size(self):
+        """Decrease font size (min 6pt)"""
+        if self.current_font_size > 6:
+            self.current_font_size -= 1
+            self.update_font_size()
+    
+    def reset_font_size(self):
+        """Reset font size to default (12pt)"""
+        self.current_font_size = 12
+        self.update_font_size()
+    
+    def update_font_size(self):
+        """Apply current font size to the text widget"""
+        font = self.shortcuts_text.font()
+        font.setPointSize(self.current_font_size)
+        self.shortcuts_text.setFont(font)
     
     @staticmethod
     def get_shortcuts_html(is_dark):
