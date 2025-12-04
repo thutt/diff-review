@@ -9,7 +9,7 @@ This module contains a compact, scannable cheat sheet of all keyboard shortcuts.
 """
 from PyQt6.QtWidgets import QDialog, QVBoxLayout, QTextEdit, QPushButton, QHBoxLayout
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QFont, QPalette
+from PyQt6.QtGui import QFont, QPalette, QKeySequence, QShortcut
 import color_palettes
 
 
@@ -54,8 +54,9 @@ class ShortcutsDialog(QDialog):
         is_dark = is_dark_mode(self.palette())
         shortcuts_text.setHtml(self.get_shortcuts_html(is_dark))
         
+        self.current_font_size = 10
         font = QFont()
-        font.setPointSize(10)
+        font.setPointSize(self.current_font_size)
         shortcuts_text.setFont(font)
         
         layout.addWidget(shortcuts_text)
@@ -76,6 +77,9 @@ class ShortcutsDialog(QDialog):
         layout.addLayout(button_layout)
         
         self.shortcuts_text = shortcuts_text
+        
+        # Setup font size shortcuts
+        self.setup_font_shortcuts()
     
     def print_shortcuts(self):
         """Print or save shortcuts as PDF"""
@@ -91,6 +95,60 @@ class ShortcutsDialog(QDialog):
         dialog = QPrintDialog(printer, self)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             self.shortcuts_text.document().print(printer)
+    
+    def setup_font_shortcuts(self):
+        """Setup keyboard shortcuts for font size adjustment"""
+        # Ctrl++ or Ctrl+=
+        increase_shortcut = QShortcut(QKeySequence("Ctrl++"), self)
+        increase_shortcut.activated.connect(self.increase_font_size)
+        increase_shortcut2 = QShortcut(QKeySequence("Ctrl+="), self)
+        increase_shortcut2.activated.connect(self.increase_font_size)
+        
+        # Ctrl+-
+        decrease_shortcut = QShortcut(QKeySequence("Ctrl+-"), self)
+        decrease_shortcut.activated.connect(self.decrease_font_size)
+        
+        # Ctrl+0
+        reset_shortcut = QShortcut(QKeySequence("Ctrl+0"), self)
+        reset_shortcut.activated.connect(self.reset_font_size)
+        
+        # Add Cmd shortcuts for macOS
+        # Cmd++ or Cmd+=
+        cmd_increase_shortcut = QShortcut(QKeySequence("Meta++"), self)
+        cmd_increase_shortcut.activated.connect(self.increase_font_size)
+        cmd_increase_shortcut2 = QShortcut(QKeySequence("Meta+="), self)
+        cmd_increase_shortcut2.activated.connect(self.increase_font_size)
+        
+        # Cmd+-
+        cmd_decrease_shortcut = QShortcut(QKeySequence("Meta+-"), self)
+        cmd_decrease_shortcut.activated.connect(self.decrease_font_size)
+        
+        # Cmd+0
+        cmd_reset_shortcut = QShortcut(QKeySequence("Meta+0"), self)
+        cmd_reset_shortcut.activated.connect(self.reset_font_size)
+    
+    def increase_font_size(self):
+        """Increase font size (max 24pt)"""
+        if self.current_font_size < 24:
+            self.current_font_size += 1
+            self.update_font_size()
+    
+    def decrease_font_size(self):
+        """Decrease font size (min 6pt)"""
+        if self.current_font_size > 6:
+            self.current_font_size -= 1
+            self.update_font_size()
+    
+    def reset_font_size(self):
+        """Reset font size to default (12pt)"""
+        self.current_font_size = 12
+        self.update_font_size()
+    
+    def update_font_size(self):
+        """Apply current font size to the text widget"""
+        font = self.shortcuts_text.font()
+        font.setPointSize(self.current_font_size)
+        self.shortcuts_text.setFont(font)
     
     @staticmethod
     def get_shortcuts_html(is_dark):
@@ -314,31 +372,31 @@ class ShortcutsDialog(QDialog):
                 <td>Toggle sidebar visibility</td>
             </tr>
             <tr>
-                <td><span class="shortcut">Alt+H</span></td>
+                <td><span class="shortcut">Ctrl+H</span></td>
                 <td>Toggle diff map</td>
             </tr>
             <tr>
-                <td><span class="shortcut">Alt+L</span></td>
+                <td><span class="shortcut">Ctrl+L</span></td>
                 <td>Toggle line numbers</td>
             </tr>
             <tr>
-                <td><span class="shortcut">Alt+T</span></td>
+                <td><span class="shortcut">Ctrl+T</span></td>
                 <td>Toggle tab character highlighting</td>
             </tr>
             <tr>
-                <td><span class="shortcut">Alt+W</span></td>
+                <td><span class="shortcut">Ctrl+E</span></td>
                 <td>Toggle trailing whitespace highlighting</td>
             </tr>
             <tr>
-                <td><span class="shortcut">Alt+I</span></td>
+                <td><span class="shortcut">Ctrl+I</span></td>
                 <td>Toggle intraline changes</td>
             </tr>
             <tr>
-                <td><span class="shortcut">Alt+R</span></td>
+                <td><span class="shortcut">Ctrl+R</span></td>
                 <td>Toggle auto-reload files</td>
             </tr>
             <tr>
-                <td><span class="shortcut">Alt+S</span></td>
+                <td><span class="shortcut">Ctrl+Y</span></td>
                 <td>Cycle stats display (None -> Tabs Only -> Sidebar Only)</td>
             </tr>
         </table>
@@ -388,8 +446,8 @@ class ShortcutsDialog(QDialog):
         </table>
         
         <p class="mac-note">
-        <strong>Mac Users:</strong> On macOS, <span class="shortcut">Cmd</span> can be used instead of 
-        <span class="shortcut">Ctrl</span> for most shortcuts. <span class="shortcut">Cmd</span> can also 
-        replace <span class="shortcut">Alt</span> for view options when using VNC.
+        <strong>Mac Users:</strong> On macOS, all <span class="shortcut">Ctrl</span> shortcuts 
+        work with <span class="shortcut">Cmd</span> instead. For example, <span class="shortcut">Ctrl+H</span> 
+        becomes <span class="shortcut">Cmd+H</span>.
         </p>
         """

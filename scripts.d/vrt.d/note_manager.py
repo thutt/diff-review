@@ -145,7 +145,8 @@ class NoteManager:
         text_widget = QPlainTextEdit()
         text_widget.setReadOnly(False)
         text_widget.setPlainText(notes_text)
-        text_widget.setFont(QFont("Courier", 12, QFont.Weight.Bold))
+        text_widget.setFont(QFont("Courier", 10, QFont.Weight.Bold))
+        text_widget.current_font_size = 10
         
         # Style with light blue tone
         text_widget.setStyleSheet("""
@@ -373,8 +374,9 @@ class NoteManager:
                 # User wants to keep editing - don't reload
                 return
         
-        # Save scroll position
+        # Save scroll position and cursor position
         v_scroll_pos = text_widget.verticalScrollBar().value()
+        cursor_pos = text_widget.textCursor().position()
         
         # Reload content
         try:
@@ -390,6 +392,11 @@ class NoteManager:
             text_widget.has_unsaved_changes = False
             text_widget.original_content = notes_text
             self.update_notes_tab_title(text_widget, dirty=False)
+            
+            # Restore cursor position
+            cursor = text_widget.textCursor()
+            cursor.setPosition(min(cursor_pos, len(notes_text)))
+            text_widget.setTextCursor(cursor)
             
             # Restore scroll position
             text_widget.verticalScrollBar().setValue(v_scroll_pos)

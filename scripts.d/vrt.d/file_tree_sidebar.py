@@ -100,7 +100,7 @@ class FileTreeSidebar(QWidget):
     
     def add_file(self, file_class):
         """
-        Add a file to the tree, organized by directory structure
+        Add a file to the tree, organized by full directory hierarchy
         
         Args:
             file_class: File class object with modi_rel_path_ attribute
@@ -119,33 +119,48 @@ class FileTreeSidebar(QWidget):
             self.tree.addTopLevelItem(item)
             return
         
-        # File is in a directory - get or create top-level directory node
-        top_dir = parts[0]
+        # Build nested directory structure
+        current_parent = self.tree  # Start at tree root
+        dir_path_so_far = ""
         
-        if top_dir not in self.dir_items:
-            # Create directory node
-            dir_item = QTreeWidgetItem(self.tree)
-            dir_item.setText(0, top_dir)
-            dir_item.setData(0, Qt.ItemDataRole.UserRole, ('directory', top_dir))
+        # Process all directory components (all but the last part which is the filename)
+        for i, dir_name in enumerate(parts[:-1]):
+            # Build cumulative path for this directory level
+            if dir_path_so_far:
+                dir_path_so_far = dir_path_so_far + '/' + dir_name
+            else:
+                dir_path_so_far = dir_name
             
-            # Style directory nodes
-            font = QFont()
-            font.setBold(True)
-            dir_item.setFont(0, font)
-            
-            self.dir_items[top_dir] = dir_item
-            self.tree.addTopLevelItem(dir_item)
-            
-            # Expand by default
-            dir_item.setExpanded(True)
+            # Check if this directory node already exists
+            if dir_path_so_far not in self.dir_items:
+                # Create new directory node
+                if current_parent == self.tree:
+                    dir_item = QTreeWidgetItem(self.tree)
+                    self.tree.addTopLevelItem(dir_item)
+                else:
+                    dir_item = QTreeWidgetItem(current_parent)
+                
+                dir_item.setText(0, dir_name)
+                dir_item.setData(0, Qt.ItemDataRole.UserRole, ('directory', dir_path_so_far))
+                
+                # Style directory nodes
+                font = QFont()
+                font.setBold(True)
+                dir_item.setFont(0, font)
+                
+                # Expand by default
+                dir_item.setExpanded(True)
+                
+                self.dir_items[dir_path_so_far] = dir_item
+                current_parent = dir_item
+            else:
+                # Use existing directory node
+                current_parent = self.dir_items[dir_path_so_far]
         
-        dir_item = self.dir_items[top_dir]
-        
-        # Add file as child of directory
-        # Show relative path from top directory
-        relative_path = '/'.join(parts[1:])
-        file_item = QTreeWidgetItem(dir_item)
-        file_item.setText(0, relative_path)
+        # Add file as child of the deepest directory
+        filename = parts[-1]
+        file_item = QTreeWidgetItem(current_parent)
+        file_item.setText(0, filename)
         file_item.setData(0, Qt.ItemDataRole.UserRole, ('file', file_class))
         
         self.file_items[file_class] = file_item
@@ -164,10 +179,13 @@ class FileTreeSidebar(QWidget):
         """Update directory label to show open file count"""
         count = self.dir_open_counts.get(dir_path, 0)
         
+        # Extract just the directory name (last component of path)
+        dir_name = dir_path.split('/')[-1]
+        
         if count > 0:
-            dir_item.setText(0, f"{dir_path} ({count})")
+            dir_item.setText(0, f"{dir_name} ({count})")
         else:
-            dir_item.setText(0, dir_path)
+            dir_item.setText(0, dir_name)
     
     def on_tree_right_click(self, pos):
         """Handle right-click on tree - gives focus to tree for keyboard navigation"""
@@ -253,24 +271,32 @@ class FileTreeSidebar(QWidget):
             item.setFont(0, font)
             item.setForeground(0, Qt.GlobalColor.black)
         
-        # Update directory counter if file has a parent directory
-        if parent:
-            dir_path = parent.data(0, Qt.ItemDataRole.UserRole)[1]
-            
-            # Initialize counter if needed
-            if dir_path not in self.dir_open_counts:
-                self.dir_open_counts[dir_path] = 0
-            
-            # Update counter based on state change
-            if is_open and not was_open:
-                # File just opened - increment
-                self.dir_open_counts[dir_path] += 1
-            elif not is_open and was_open:
-                # File just closed - decrement
-                self.dir_open_counts[dir_path] -= 1
-            
-            # Update directory label
-            self._update_directory_label(parent, dir_path)
+        # Update directory counters for ALL ancestor directories
+        if parent and (is_open != was_open):
+            current = parent
+            while current:
+                # Get the directory path from the current node's data
+                parent_data = current.data(0, Qt.ItemDataRole.UserRole)
+                if parent_data and parent_data[0] == 'directory':
+                    dir_path = parent_data[1]
+                    
+                    # Initialize counter if needed
+                    if dir_path not in self.dir_open_counts:
+                        self.dir_open_counts[dir_path] = 0
+                    
+                    # Update counter based on state change
+                    if is_open and not was_open:
+                        # File just opened - increment
+                        self.dir_open_counts[dir_path] += 1
+                    elif not is_open and was_open:
+                        # File just closed - decrement
+                        self.dir_open_counts[dir_path] -= 1
+                    
+                    # Update directory label
+                    self._update_directory_label(current, dir_path)
+                
+                # Move up to parent
+                current = current.parent()
     
     def update_commit_msg_state(self, is_open, is_active):
         """Update visual state of commit message item"""
@@ -318,14 +344,11 @@ class FileTreeSidebar(QWidget):
         file_path = file_class.modi_rel_path_
         parts = file_path.split('/')
         
+        # Extract just the filename (last component)
+        filename = parts[-1]
+        
         # Update text with stats if enabled
         if file_class.stats_file_:
-            # Extract just the filename part for display
-            if len(parts) > 1:
-                relative_path = '/'.join(parts[1:])
-            else:
-                relative_path = parts[0]
-            
             # Add stats
             if file_class.desc_:
                 stats = ("[%d | A: %d / D: %d / C: %d]" %
@@ -333,14 +356,11 @@ class FileTreeSidebar(QWidget):
                          file_class.add_line_count(),
                          file_class.del_line_count(),
                          file_class.chg_line_count()))
-                new_text = "%s  %s" % (relative_path, stats)
+                new_text = "%s  %s" % (filename, stats)
             else:
-                new_text = relative_path
+                new_text = filename
         else:
-            if len(parts) > 1:
-                new_text = '/'.join(parts[1:])
-            else:
-                new_text = parts[0]
+            new_text = filename
         
         item.setText(0, new_text)
     

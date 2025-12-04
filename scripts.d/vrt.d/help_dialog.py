@@ -9,6 +9,7 @@ This module contains the help dialog that displays user documentation.
 """
 from PyQt6.QtWidgets import QDialog, QVBoxLayout, QTextEdit, QPushButton
 from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QFont, QKeySequence, QShortcut
 
 
 class HelpDialog(QDialog):
@@ -25,11 +26,75 @@ class HelpDialog(QDialog):
         help_text.setReadOnly(True)
         help_text.setHtml(self.get_help_html())
         
+        self.current_font_size = 10
+        font = QFont()
+        font.setPointSize(self.current_font_size)
+        help_text.setFont(font)
+        
         layout.addWidget(help_text)
         
         close_button = QPushButton("Close")
         close_button.clicked.connect(self.accept)
         layout.addWidget(close_button)
+        
+        self.help_text = help_text
+        
+        # Setup font size shortcuts
+        self.setup_font_shortcuts()
+    
+    def setup_font_shortcuts(self):
+        """Setup keyboard shortcuts for font size adjustment"""
+        # Ctrl++ or Ctrl+=
+        increase_shortcut = QShortcut(QKeySequence("Ctrl++"), self)
+        increase_shortcut.activated.connect(self.increase_font_size)
+        increase_shortcut2 = QShortcut(QKeySequence("Ctrl+="), self)
+        increase_shortcut2.activated.connect(self.increase_font_size)
+        
+        # Ctrl+-
+        decrease_shortcut = QShortcut(QKeySequence("Ctrl+-"), self)
+        decrease_shortcut.activated.connect(self.decrease_font_size)
+        
+        # Ctrl+0
+        reset_shortcut = QShortcut(QKeySequence("Ctrl+0"), self)
+        reset_shortcut.activated.connect(self.reset_font_size)
+        
+        # Add Cmd shortcuts for macOS
+        # Cmd++ or Cmd+=
+        cmd_increase_shortcut = QShortcut(QKeySequence("Meta++"), self)
+        cmd_increase_shortcut.activated.connect(self.increase_font_size)
+        cmd_increase_shortcut2 = QShortcut(QKeySequence("Meta+="), self)
+        cmd_increase_shortcut2.activated.connect(self.increase_font_size)
+        
+        # Cmd+-
+        cmd_decrease_shortcut = QShortcut(QKeySequence("Meta+-"), self)
+        cmd_decrease_shortcut.activated.connect(self.decrease_font_size)
+        
+        # Cmd+0
+        cmd_reset_shortcut = QShortcut(QKeySequence("Meta+0"), self)
+        cmd_reset_shortcut.activated.connect(self.reset_font_size)
+    
+    def increase_font_size(self):
+        """Increase font size (max 24pt)"""
+        if self.current_font_size < 24:
+            self.current_font_size += 1
+            self.update_font_size()
+    
+    def decrease_font_size(self):
+        """Decrease font size (min 6pt)"""
+        if self.current_font_size > 6:
+            self.current_font_size -= 1
+            self.update_font_size()
+    
+    def reset_font_size(self):
+        """Reset font size to default (12pt)"""
+        self.current_font_size = 12
+        self.update_font_size()
+    
+    def update_font_size(self):
+        """Apply current font size to the text widget"""
+        font = self.help_text.font()
+        font.setPointSize(self.current_font_size)
+        self.help_text.setFont(font)
     
     @staticmethod
     def get_help_html():
@@ -38,6 +103,8 @@ class HelpDialog(QDialog):
         <h2>Diff Viewer - User Guide</h2>
         
         <p><strong>Tip:</strong> Press <b>F1</b> or <b>Ctrl+?</b> for a quick keyboard shortcuts reference card!</p>
+        
+        <p><strong>Mac Users:</strong> On macOS, use <b>Cmd</b> instead of <b>Ctrl</b> for all keyboard shortcuts (e.g., <b>Ctrl+H</b> becomes <b>Cmd+H</b>).</p>
         
         <h3>Overview</h3>
         <p>This diff viewer displays side-by-side comparison of files with synchronized scrolling and highlighting of changes. Multiple diffs can be opened in tabs with a sidebar for file navigation.</p>
@@ -53,7 +120,7 @@ class HelpDialog(QDialog):
             <li><b>Open All Files:</b> Button at top opens all files at once (shows total count)</li>
             <li><b>Blue Text:</b> Indicates open tabs - bold for active tab, normal weight for other open tabs</li>
             <li><b>Orange Background:</b> File has changed on disk (with auto-reload enabled, reloads automatically)</li>
-            <li><b>Ctrl+B / Cmd+B:</b> Toggle sidebar visibility</li>
+            <li><b>Ctrl+B:</b> Toggle sidebar visibility</li>
             <li><b>Resizable:</b> Drag the divider to resize the sidebar</li>
         </ul>
         
@@ -145,7 +212,7 @@ class HelpDialog(QDialog):
             <li><b>Shift+F3:</b> Find previous match (after performing a search)</li>
             <li><b>Right-click &rarr; Search:</b> Search for currently selected text</li>
             <li><b>Case Sensitive:</b> Toggle case sensitivity in search dialog</li>
-            <li><b>Regular Expression:</b> Enable regex pattern matching in search</li>
+            <li><b>Regular Expression:</b> Enable regex pattern matching in search (uses Python re module syntax)</li>
             <li><b>Search All Tabs:</b> When enabled, searches across all open tabs instead of just the current one</li>
             <li><b>Two-tier Highlighting:</b> All matches shown in subtle yellow, current match in bright yellow</li>
             <li><b>Navigation:</b> Use Previous/Next buttons, F3/Shift+F3, or double-click results to jump to matches</li>
@@ -157,7 +224,7 @@ class HelpDialog(QDialog):
         <ul>
             <li><b>Double-click:</b> Quick note - adds the clicked line to your notes file</li>
             <li><b>Right-click &rarr; Take Note:</b> Add selected text to notes file</li>
-            <li><b>Ctrl+N / Cmd+N:</b> Take note of selected text (works in commit message view too)</li>
+            <li><b>Ctrl+N:</b> Take note of selected text (works in commit message view too)</li>
             <li><b>Yellow background:</b> Lines where notes have been taken are highlighted permanently</li>
             <li><b>Right-click on yellow line &rarr; Jump to Note:</b> Opens Review Notes tab and navigates to that note</li>
             <li><b>Review Notes tab:</b> Appears in sidebar after first note is taken; displays all notes in read-only view</li>
@@ -192,28 +259,28 @@ class HelpDialog(QDialog):
             </li>
             <li><span style="background-color: rgba(128, 128, 128, 0.4); padding: 2px 6px;">Gray rectangle: Current viewport position</span></li>
             <li><b>Click on diff map:</b> Jump to that location in the file</li>
-            <li><b>Alt+H / Cmd+H:</b> Toggle diff map visibility</li>
+            <li><b>Ctrl+H:</b> Toggle diff map visibility</li>
             <li><b>Mouse wheel:</b> Scroll through the file</li>
         </ul>
         
         <h3>View Options</h3>
         <p>All View menu options are accessible via keyboard shortcuts and show their current state with checkmarks:</p>
         <ul>
-            <li><b>Alt+B / Cmd+B:</b> Toggle Sidebar visibility</li>
-            <li><b>Alt+H / Cmd+H:</b> Toggle Diff Map visibility</li>
-            <li><b>Alt+L / Cmd+L:</b> Toggle Line Numbers visibility</li>
-            <li><b>Alt+T / Cmd+T:</b> Toggle Tab character highlighting</li>
-            <li><b>Alt+W / Cmd+W:</b> Toggle Trailing Whitespace highlighting</li>
-            <li><b>Alt+I / Cmd+I:</b> Toggle Intraline Changes highlighting</li>
-            <li><b>Alt+R / Cmd+R:</b> Toggle Auto-reload Files on/off</li>
-            <li><b>Alt+S:</b> Cycle Stats Display - cycles through three modes: None -> Tabs Only -> Sidebar Only. Shows file statistics (line counts, additions, deletions, changes) in tab titles and/or sidebar file buttons. On macOS, use Option+S</li>
+            <li><b>Ctrl+B:</b> Toggle Sidebar visibility</li>
+            <li><b>Ctrl+H:</b> Toggle Diff Map visibility</li>
+            <li><b>Ctrl+L:</b> Toggle Line Numbers visibility</li>
+            <li><b>Ctrl+T:</b> Toggle Tab character highlighting</li>
+            <li><b>Ctrl+E:</b> Toggle Trailing Whitespace highlighting</li>
+            <li><b>Ctrl+I:</b> Toggle Intraline Changes highlighting</li>
+            <li><b>Ctrl+R:</b> Toggle Auto-reload Files on/off</li>
+            <li><b>Ctrl+Y:</b> Cycle Stats Display - cycles through three modes: None -> Tabs Only -> Sidebar Only. Shows file statistics (line counts, additions, deletions, changes) in tab titles and/or sidebar file buttons.</li>
         </ul>
         
         <h3>Font Size</h3>
         <ul>
-            <li><b>Ctrl++ / Cmd++:</b> Increase font size (up to 24pt)</li>
-            <li><b>Ctrl+- / Cmd+-:</b> Decrease font size (down to 6pt)</li>
-            <li><b>Ctrl+0 / Cmd+0:</b> Reset font size to default (12pt)</li>
+            <li><b>Ctrl++:</b> Increase font size (up to 24pt)</li>
+            <li><b>Ctrl+-:</b> Decrease font size (down to 6pt)</li>
+            <li><b>Ctrl+0:</b> Reset font size to default (12pt)</li>
             <li>Font size changes apply to current tab only (including commit message tabs)</li>
             <li>Changes are not persisted between sessions</li>
         </ul>
@@ -222,14 +289,14 @@ class HelpDialog(QDialog):
         <ul>
             <li>Shows original line numbers from each file</li>
             <li>Background colors indicate changed lines (colors depend on selected palette)</li>
-            <li><b>Alt+L / Cmd+L:</b> Toggle line number visibility</li>
+            <li><b>Ctrl+L:</b> Toggle line number visibility</li>
         </ul>
         
         <h3>Whitespace Display</h3>
         <ul>
-            <li><b>Alt+T / Cmd+T:</b> Toggle highlighting of tab characters</li>
-            <li><b>Alt+W / Cmd+W:</b> Toggle highlighting of trailing whitespace at end of lines</li>
-            <li><b>Alt+I / Cmd+I:</b> Toggle highlighting of intraline changes (character-level diffs)</li>
+            <li><b>Ctrl+T:</b> Toggle highlighting of tab characters</li>
+            <li><b>Ctrl+E:</b> Toggle highlighting of trailing whitespace at end of lines</li>
+            <li><b>Ctrl+I:</b> Toggle highlighting of intraline changes (character-level diffs)</li>
             <li><b>Colors (Colorblind Friendly):</b> <span style="background-color: rgb(210, 210, 240); padding: 2px 6px;">Spaces (light purple-blue)</span>, <span style="background-color: rgb(255, 200, 100); padding: 2px 6px;">Tabs (light orange)</span>, <span style="background-color: rgb(255, 200, 150); padding: 2px 6px;">Trailing (light orange)</span></li>
             <li><b>Colors (Standard):</b> <span style="background-color: rgb(220, 220, 255); padding: 2px 6px;">Spaces (light blue)</span>, <span style="background-color: rgb(255, 180, 255); padding: 2px 6px;">Tabs (light magenta)</span>, <span style="background-color: rgb(255, 200, 200); padding: 2px 6px;">Trailing (light red)</span></li>
             <li><b>Colors (Dark Mode palettes):</b> Similar colors adjusted for dark backgrounds</li>
@@ -238,7 +305,7 @@ class HelpDialog(QDialog):
         
         <h3>Auto-reload Files</h3>
         <ul>
-            <li><b>Alt+R / Cmd+R:</b> Toggle auto-reload on/off</li>
+            <li><b>Ctrl+R:</b> Toggle auto-reload on/off</li>
             <li><b>F5:</b> Manually reload current file at any time</li>
             <li><b>Automatic monitoring:</b> Watches source files for changes on disk</li>
             <li><b>Visual indicator:</b> Sidebar button changes to change-indicator color when files are modified</li>

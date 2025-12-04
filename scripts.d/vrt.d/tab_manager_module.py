@@ -184,12 +184,12 @@ class DiffViewerTabWidget(QMainWindow):
         file_menu.addSeparator()
         
         close_tab_action = QAction("Close Tab", self)
-        close_tab_action.setShortcut("Ctrl+W")
+        close_tab_action.setShortcut(QKeySequence("Ctrl+W"))
         close_tab_action.triggered.connect(self.close_current_tab)
         file_menu.addAction(close_tab_action)
         
         quit_action = QAction("Quit", self)
-        quit_action.setShortcut("Ctrl+Q")
+        quit_action.setShortcut(QKeySequence("Ctrl+Q"))
         quit_action.triggered.connect(self.close)
         file_menu.addAction(quit_action)
         
@@ -197,7 +197,7 @@ class DiffViewerTabWidget(QMainWindow):
         view_menu = menubar.addMenu("View")
         
         self.show_sidebar_action = QAction("Show Sidebar", self)
-        self.show_sidebar_action.setShortcuts([QKeySequence("Ctrl+B"), QKeySequence("Meta+B")])
+        self.show_sidebar_action.setShortcut(QKeySequence("Ctrl+B"))
         self.show_sidebar_action.setCheckable(True)
         self.show_sidebar_action.setChecked(True)  # Sidebar starts visible
         self.show_sidebar_action.triggered.connect(self.toggle_sidebar)
@@ -206,14 +206,14 @@ class DiffViewerTabWidget(QMainWindow):
         view_menu.addSeparator()
         
         self.show_diff_map_action = QAction("Show Diff Map", self)
-        self.show_diff_map_action.setShortcuts([QKeySequence("Alt+H"), QKeySequence("Meta+H")])
+        self.show_diff_map_action.setShortcut(QKeySequence("Ctrl+H"))
         self.show_diff_map_action.setCheckable(True)
         self.show_diff_map_action.setChecked(show_diff_map)
         self.show_diff_map_action.triggered.connect(self.toggle_diff_map)
         view_menu.addAction(self.show_diff_map_action)
         
         self.show_line_numbers_action = QAction("Show Line Numbers", self)
-        self.show_line_numbers_action.setShortcuts([QKeySequence("Alt+L"), QKeySequence("Meta+L")])
+        self.show_line_numbers_action.setShortcut(QKeySequence("Ctrl+L"))
         self.show_line_numbers_action.setCheckable(True)
         self.show_line_numbers_action.setChecked(show_line_numbers)
         self.show_line_numbers_action.triggered.connect(self.toggle_line_numbers)
@@ -222,21 +222,21 @@ class DiffViewerTabWidget(QMainWindow):
         view_menu.addSeparator()
         
         self.show_tab_action = QAction("Show Tabs", self)
-        self.show_tab_action.setShortcuts([QKeySequence("Alt+T"), QKeySequence("Meta+T")])
+        self.show_tab_action.setShortcut(QKeySequence("Ctrl+T"))
         self.show_tab_action.setCheckable(True)
         self.show_tab_action.setChecked(not ignore_tab)
         self.show_tab_action.triggered.connect(self.toggle_tab_visibility)
         view_menu.addAction(self.show_tab_action)
         
         self.show_trailing_ws_action = QAction("Show Trailing Whitespace", self)
-        self.show_trailing_ws_action.setShortcuts([QKeySequence("Alt+W"), QKeySequence("Meta+W")])
+        self.show_trailing_ws_action.setShortcut(QKeySequence("Ctrl+E"))
         self.show_trailing_ws_action.setCheckable(True)
         self.show_trailing_ws_action.setChecked(not ignore_trailing_ws)
         self.show_trailing_ws_action.triggered.connect(self.toggle_trailing_ws_visibility)
         view_menu.addAction(self.show_trailing_ws_action)
         
         self.show_intraline_action = QAction("Show Intraline Changes", self)
-        self.show_intraline_action.setShortcuts([QKeySequence("Alt+I"), QKeySequence("Meta+I")])
+        self.show_intraline_action.setShortcut(QKeySequence("Ctrl+I"))
         self.show_intraline_action.setCheckable(True)
         self.show_intraline_action.setChecked(not ignore_intraline)
         self.show_intraline_action.triggered.connect(self.toggle_intraline_visibility)
@@ -245,7 +245,7 @@ class DiffViewerTabWidget(QMainWindow):
         view_menu.addSeparator()
         
         self.auto_reload_action = QAction("Auto-reload Files", self)
-        self.auto_reload_action.setShortcuts([QKeySequence("Alt+R"), QKeySequence("Meta+R")])
+        self.auto_reload_action.setShortcut(QKeySequence("Ctrl+R"))
         self.auto_reload_action.setCheckable(True)
         self.auto_reload_action.setChecked(auto_reload)  # Set from parameter
         self.auto_reload_action.triggered.connect(self.toggle_auto_reload)
@@ -254,7 +254,7 @@ class DiffViewerTabWidget(QMainWindow):
         view_menu.addSeparator()
         
         self.cycle_stats_action = QAction("Cycle Stats Display (None -> Tabs -> Sidebar)", self)
-        self.cycle_stats_action.setShortcut(QKeySequence("Alt+S"))
+        self.cycle_stats_action.setShortcut(QKeySequence("Ctrl+Y"))
         self.cycle_stats_action.triggered.connect(self.cycle_stats_display)
         view_menu.addAction(self.cycle_stats_action)
         
@@ -274,7 +274,7 @@ class DiffViewerTabWidget(QMainWindow):
         view_menu.addAction(decrease_font_action)
         
         reset_font_action = QAction("Reset Font Size", self)
-        reset_font_action.setShortcuts([QKeySequence("Ctrl+0"), QKeySequence("Meta+0")])
+        reset_font_action.setShortcut(QKeySequence("Ctrl+0"))
         reset_font_action.triggered.connect(self.reset_font_size)
         view_menu.addAction(reset_font_action)
         
@@ -321,16 +321,12 @@ class DiffViewerTabWidget(QMainWindow):
         # Height: lines + labels (40) + scrollbar (20) + status bar (30) + margins (20) + menubar (30)
         total_height = (self.display_lines * line_height) + 40 + 20 + 30 + 20 + 30
         
-        # Tab navigation shortcuts (support both Ctrl and Meta for Mac compatibility)
+        # Tab navigation shortcuts
         next_tab_shortcut = QShortcut(QKeySequence("Ctrl+Tab"), self)
         next_tab_shortcut.activated.connect(self.next_tab)
-        next_tab_shortcut_alt = QShortcut(QKeySequence("Meta+Tab"), self)
-        next_tab_shortcut_alt.activated.connect(self.next_tab)
         
         prev_tab_shortcut = QShortcut(QKeySequence("Ctrl+Shift+Tab"), self)
         prev_tab_shortcut.activated.connect(self.prev_tab)
-        prev_tab_shortcut_alt = QShortcut(QKeySequence("Meta+Shift+Tab"), self)
-        prev_tab_shortcut_alt.activated.connect(self.prev_tab)
         
         self.resize(total_width, total_height)
     
@@ -948,13 +944,14 @@ class DiffViewerTabWidget(QMainWindow):
             # Sidebar stats only
             self.tab_label_stats = False
             self.file_label_stats = True
-        
+
         # Update all file buttons to use new settings
-        for button in self.file_buttons:
-            button.file_class.set_stats_tab(self.tab_label_stats)
-            button.file_class.set_stats_file(self.file_label_stats)
-            button.update_label()
-        
+        for file_class in self.file_buttons:
+            file_class.set_stats_tab(self.tab_label_stats)
+            file_class.set_stats_file(self.file_label_stats)
+            self.sidebar_widget.update_file_label(file_class)
+
+
         # Re-render all tab labels
         for file_class, tab_index in self.file_to_tab_index.items():
             # Skip commit_msg and review_notes - they don't have file_class
@@ -988,6 +985,8 @@ class DiffViewerTabWidget(QMainWindow):
         if current_widget:
             if hasattr(current_widget, 'is_commit_msg') and current_widget.is_commit_msg:
                 self._change_commit_msg_font_size(current_widget, 1)
+            elif hasattr(current_widget, 'is_review_notes') and current_widget.is_review_notes:
+                self._change_review_notes_font_size(current_widget, 1)
             elif hasattr(current_widget, 'diff_viewer'):
                 current_widget.diff_viewer.increase_font_size()
     
@@ -997,6 +996,8 @@ class DiffViewerTabWidget(QMainWindow):
         if current_widget:
             if hasattr(current_widget, 'is_commit_msg') and current_widget.is_commit_msg:
                 self._change_commit_msg_font_size(current_widget, -1)
+            elif hasattr(current_widget, 'is_review_notes') and current_widget.is_review_notes:
+                self._change_review_notes_font_size(current_widget, -1)
             elif hasattr(current_widget, 'diff_viewer'):
                 current_widget.diff_viewer.decrease_font_size()
     
@@ -1006,6 +1007,8 @@ class DiffViewerTabWidget(QMainWindow):
         if current_widget:
             if hasattr(current_widget, 'is_commit_msg') and current_widget.is_commit_msg:
                 self._reset_commit_msg_font_size(current_widget)
+            elif hasattr(current_widget, 'is_review_notes') and current_widget.is_review_notes:
+                self._reset_review_notes_font_size(current_widget)
             elif hasattr(current_widget, 'diff_viewer'):
                 current_widget.diff_viewer.reset_font_size()
     
@@ -1155,19 +1158,44 @@ class DiffViewerTabWidget(QMainWindow):
         """Reset font size for commit message tab to default (12pt)"""
         self.commit_msg_mgr.reset_commit_msg_font_size(text_widget)
     
+    def _change_review_notes_font_size(self, text_widget, delta):
+        """Change font size for review notes tab"""
+        if not hasattr(text_widget, 'current_font_size'):
+            text_widget.current_font_size = 10  # Initialize if not set (review notes default is 10pt)
+        
+        new_size = text_widget.current_font_size + delta
+        # Clamp to range [6, 24]
+        new_size = max(6, min(24, new_size))
+        
+        if new_size != text_widget.current_font_size:
+            text_widget.current_font_size = new_size
+            font = QFont("Courier", new_size, QFont.Weight.Bold)
+            text_widget.setFont(font)
+            text_widget.viewport().update()
+    
+    def _reset_review_notes_font_size(self, text_widget):
+        """Reset font size for review notes tab to default (10pt)"""
+        text_widget.current_font_size = 10
+        font = QFont("Courier", 10, QFont.Weight.Bold)
+        text_widget.setFont(font)
+        text_widget.viewport().update()
+    
     def keyPressEvent(self, event):
         """Handle key press events"""
         key = event.key()
         modifiers = event.modifiers()
         
-        # Font size changes - works for both DiffViewer and commit message tabs
-        if modifiers & (Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.MetaModifier):
+        # Font size changes - Ctrl + Plus/Minus/0
+        if modifiers & Qt.KeyboardModifier.ControlModifier:
             if key in (Qt.Key.Key_Plus, Qt.Key.Key_Equal):  # + or = key
                 current_widget = self.tab_widget.currentWidget()
                 if current_widget:
                     # Check if it's a commit message tab
                     if hasattr(current_widget, 'is_commit_msg') and current_widget.is_commit_msg:
                         self._change_commit_msg_font_size(current_widget, 1)
+                    # Check if it's a review notes tab
+                    elif hasattr(current_widget, 'is_review_notes') and current_widget.is_review_notes:
+                        self._change_review_notes_font_size(current_widget, 1)
                     # Otherwise it's a DiffViewer
                     elif hasattr(current_widget, 'diff_viewer'):
                         current_widget.diff_viewer.increase_font_size()
@@ -1177,6 +1205,8 @@ class DiffViewerTabWidget(QMainWindow):
                 if current_widget:
                     if hasattr(current_widget, 'is_commit_msg') and current_widget.is_commit_msg:
                         self._change_commit_msg_font_size(current_widget, -1)
+                    elif hasattr(current_widget, 'is_review_notes') and current_widget.is_review_notes:
+                        self._change_review_notes_font_size(current_widget, -1)
                     elif hasattr(current_widget, 'diff_viewer'):
                         current_widget.diff_viewer.decrease_font_size()
                 return
@@ -1185,6 +1215,8 @@ class DiffViewerTabWidget(QMainWindow):
                 if current_widget:
                     if hasattr(current_widget, 'is_commit_msg') and current_widget.is_commit_msg:
                         self._reset_commit_msg_font_size(current_widget)
+                    elif hasattr(current_widget, 'is_review_notes') and current_widget.is_review_notes:
+                        self._reset_review_notes_font_size(current_widget)
                     elif hasattr(current_widget, 'diff_viewer'):
                         current_widget.diff_viewer.reset_font_size()
                 return
@@ -1208,15 +1240,13 @@ class DiffViewerTabWidget(QMainWindow):
             super().keyPressEvent(event)
             return
         
-        # Alt+H - Toggle diff map (Alt on Win/Linux, Cmd on Mac for VNC compatibility)
-        if key == Qt.Key.Key_H and (modifiers & Qt.KeyboardModifier.AltModifier or
-                                      modifiers & Qt.KeyboardModifier.MetaModifier):
+        # Ctrl+H - Toggle diff map
+        if key == Qt.Key.Key_H and modifiers & Qt.KeyboardModifier.ControlModifier:
             self.toggle_diff_map()
             return
         
-        # Alt+L - Toggle line numbers (Alt on Win/Linux, Cmd on Mac for VNC compatibility)
-        if key == Qt.Key.Key_L and (modifiers & Qt.KeyboardModifier.AltModifier or
-                                      modifiers & Qt.KeyboardModifier.MetaModifier):
+        # Ctrl+L - Toggle line numbers
+        if key == Qt.Key.Key_L and modifiers & Qt.KeyboardModifier.ControlModifier:
             self.toggle_line_numbers()
             return
         
@@ -1242,9 +1272,8 @@ class DiffViewerTabWidget(QMainWindow):
                 self.reload_viewer(viewer)
             return
         
-        # Ctrl+N - Take note (Ctrl on Win/Linux, Cmd on Mac)
-        if key == Qt.Key.Key_N and (modifiers & Qt.KeyboardModifier.ControlModifier or 
-                                      modifiers & Qt.KeyboardModifier.MetaModifier):
+        # Ctrl+N - Take note
+        if key == Qt.Key.Key_N and modifiers & Qt.KeyboardModifier.ControlModifier:
             # Determine which side has focus
             if viewer.base_text.hasFocus():
                 viewer.take_note_from_widget('base')
@@ -1313,14 +1342,12 @@ class DiffViewerTabWidget(QMainWindow):
             
             # Ctrl+S or Ctrl+F - Search (works for both commit message and diff viewers)
             if ((key == Qt.Key.Key_S or key == Qt.Key.Key_F) and 
-                (modifiers & Qt.KeyboardModifier.ControlModifier or
-                 modifiers & Qt.KeyboardModifier.MetaModifier)):
+                modifiers & Qt.KeyboardModifier.ControlModifier):
                 self.show_search_dialog()
                 return True
             
             # Ctrl+N - Take note (works for both)
-            if key == Qt.Key.Key_N and (modifiers & Qt.KeyboardModifier.ControlModifier or
-                                          modifiers & Qt.KeyboardModifier.MetaModifier):
+            if key == Qt.Key.Key_N and modifiers & Qt.KeyboardModifier.ControlModifier:
                 if is_commit_msg:
                     self.take_commit_msg_note(obj)
                     return True
