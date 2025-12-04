@@ -9,6 +9,7 @@ This module contains the help dialog that displays user documentation.
 """
 from PyQt6.QtWidgets import QDialog, QVBoxLayout, QTextEdit, QPushButton
 from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QFont, QKeySequence, QShortcut
 
 
 class HelpDialog(QDialog):
@@ -25,11 +26,75 @@ class HelpDialog(QDialog):
         help_text.setReadOnly(True)
         help_text.setHtml(self.get_help_html())
         
+        self.current_font_size = 10
+        font = QFont()
+        font.setPointSize(self.current_font_size)
+        help_text.setFont(font)
+        
         layout.addWidget(help_text)
         
         close_button = QPushButton("Close")
         close_button.clicked.connect(self.accept)
         layout.addWidget(close_button)
+        
+        self.help_text = help_text
+        
+        # Setup font size shortcuts
+        self.setup_font_shortcuts()
+    
+    def setup_font_shortcuts(self):
+        """Setup keyboard shortcuts for font size adjustment"""
+        # Ctrl++ or Ctrl+=
+        increase_shortcut = QShortcut(QKeySequence("Ctrl++"), self)
+        increase_shortcut.activated.connect(self.increase_font_size)
+        increase_shortcut2 = QShortcut(QKeySequence("Ctrl+="), self)
+        increase_shortcut2.activated.connect(self.increase_font_size)
+        
+        # Ctrl+-
+        decrease_shortcut = QShortcut(QKeySequence("Ctrl+-"), self)
+        decrease_shortcut.activated.connect(self.decrease_font_size)
+        
+        # Ctrl+0
+        reset_shortcut = QShortcut(QKeySequence("Ctrl+0"), self)
+        reset_shortcut.activated.connect(self.reset_font_size)
+        
+        # Add Cmd shortcuts for macOS
+        # Cmd++ or Cmd+=
+        cmd_increase_shortcut = QShortcut(QKeySequence("Meta++"), self)
+        cmd_increase_shortcut.activated.connect(self.increase_font_size)
+        cmd_increase_shortcut2 = QShortcut(QKeySequence("Meta+="), self)
+        cmd_increase_shortcut2.activated.connect(self.increase_font_size)
+        
+        # Cmd+-
+        cmd_decrease_shortcut = QShortcut(QKeySequence("Meta+-"), self)
+        cmd_decrease_shortcut.activated.connect(self.decrease_font_size)
+        
+        # Cmd+0
+        cmd_reset_shortcut = QShortcut(QKeySequence("Meta+0"), self)
+        cmd_reset_shortcut.activated.connect(self.reset_font_size)
+    
+    def increase_font_size(self):
+        """Increase font size (max 24pt)"""
+        if self.current_font_size < 24:
+            self.current_font_size += 1
+            self.update_font_size()
+    
+    def decrease_font_size(self):
+        """Decrease font size (min 6pt)"""
+        if self.current_font_size > 6:
+            self.current_font_size -= 1
+            self.update_font_size()
+    
+    def reset_font_size(self):
+        """Reset font size to default (12pt)"""
+        self.current_font_size = 12
+        self.update_font_size()
+    
+    def update_font_size(self):
+        """Apply current font size to the text widget"""
+        font = self.help_text.font()
+        font.setPointSize(self.current_font_size)
+        self.help_text.setFont(font)
     
     @staticmethod
     def get_help_html():
