@@ -145,7 +145,7 @@ class HelpDialog(QDialog):
             <li><b>Shift+F3:</b> Find previous match (after performing a search)</li>
             <li><b>Right-click &rarr; Search:</b> Search for currently selected text</li>
             <li><b>Case Sensitive:</b> Toggle case sensitivity in search dialog</li>
-            <li><b>Regular Expression:</b> Enable regex pattern matching in search</li>
+            <li><b>Regular Expression:</b> Enable regex pattern matching in search (uses Python re module syntax)</li>
             <li><b>Search All Tabs:</b> When enabled, searches across all open tabs instead of just the current one</li>
             <li><b>Two-tier Highlighting:</b> All matches shown in subtle yellow, current match in bright yellow</li>
             <li><b>Navigation:</b> Use Previous/Next buttons, F3/Shift+F3, or double-click results to jump to matches</li>

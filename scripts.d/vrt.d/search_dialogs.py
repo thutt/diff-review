@@ -107,6 +107,12 @@ class SearchDialog(QDialog):
         self.regex_checkbox.setChecked(False)
         checkbox_layout1.addWidget(self.regex_checkbox)
         
+        # Regex documentation link
+        regex_link = QLabel('<a href="https://docs.python.org/3/library/re.html">Python regex docs</a>')
+        regex_link.setOpenExternalLinks(True)
+        regex_link.setToolTip("Open Python re module documentation")
+        checkbox_layout1.addWidget(regex_link)
+        
         checkbox_layout1.addStretch()
         
         layout.addLayout(checkbox_layout1)
@@ -221,6 +227,12 @@ class SearchResultDialog(QDialog):
         self.regex_checkbox.setChecked(use_regex)
         self.regex_checkbox.stateChanged.connect(self.on_regex_changed)
         checkbox_layout1.addWidget(self.regex_checkbox)
+        
+        # Regex documentation link
+        regex_link = QLabel('<a href="https://docs.python.org/3/library/re.html">Python regex docs</a>')
+        regex_link.setOpenExternalLinks(True)
+        regex_link.setToolTip("Open Python re module documentation")
+        checkbox_layout1.addWidget(regex_link)
         
         checkbox_layout1.addStretch()
         
