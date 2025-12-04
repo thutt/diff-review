@@ -1030,8 +1030,8 @@ class DiffViewer(QMainWindow):
         key = event.key()
         modifiers = event.modifiers()
         
-        # Font size changes - Ctrl/Cmd + Plus/Minus/0
-        if modifiers & (Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.MetaModifier):
+        # Font size changes - Ctrl + Plus/Minus/0
+        if modifiers & Qt.KeyboardModifier.ControlModifier:
             if key in (Qt.Key.Key_Plus, Qt.Key.Key_Equal):  # + or = key
                 self.increase_font_size()
                 return
@@ -1042,11 +1042,11 @@ class DiffViewer(QMainWindow):
                 self.reset_font_size()
                 return
         
-        if key == Qt.Key.Key_H and modifiers & Qt.KeyboardModifier.AltModifier:
+        if key == Qt.Key.Key_H and modifiers & Qt.KeyboardModifier.ControlModifier:
             self.toggle_diff_map()
             return
         
-        if key == Qt.Key.Key_L and modifiers & Qt.KeyboardModifier.AltModifier:
+        if key == Qt.Key.Key_L and modifiers & Qt.KeyboardModifier.ControlModifier:
             self.toggle_line_numbers()
             return
         

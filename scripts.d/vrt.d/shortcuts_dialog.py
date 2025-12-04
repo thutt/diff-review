@@ -372,31 +372,31 @@ class ShortcutsDialog(QDialog):
                 <td>Toggle sidebar visibility</td>
             </tr>
             <tr>
-                <td><span class="shortcut">Alt+H</span></td>
+                <td><span class="shortcut">Ctrl+H</span></td>
                 <td>Toggle diff map</td>
             </tr>
             <tr>
-                <td><span class="shortcut">Alt+L</span></td>
+                <td><span class="shortcut">Ctrl+L</span></td>
                 <td>Toggle line numbers</td>
             </tr>
             <tr>
-                <td><span class="shortcut">Alt+T</span></td>
+                <td><span class="shortcut">Ctrl+T</span></td>
                 <td>Toggle tab character highlighting</td>
             </tr>
             <tr>
-                <td><span class="shortcut">Alt+W</span></td>
+                <td><span class="shortcut">Ctrl+E</span></td>
                 <td>Toggle trailing whitespace highlighting</td>
             </tr>
             <tr>
-                <td><span class="shortcut">Alt+I</span></td>
+                <td><span class="shortcut">Ctrl+I</span></td>
                 <td>Toggle intraline changes</td>
             </tr>
             <tr>
-                <td><span class="shortcut">Alt+R</span></td>
+                <td><span class="shortcut">Ctrl+R</span></td>
                 <td>Toggle auto-reload files</td>
             </tr>
             <tr>
-                <td><span class="shortcut">Alt+S</span></td>
+                <td><span class="shortcut">Ctrl+Y</span></td>
                 <td>Cycle stats display (None -> Tabs Only -> Sidebar Only)</td>
             </tr>
         </table>
@@ -446,8 +446,8 @@ class ShortcutsDialog(QDialog):
         </table>
         
         <p class="mac-note">
-        <strong>Mac Users:</strong> On macOS, <span class="shortcut">Cmd</span> can be used instead of 
-        <span class="shortcut">Ctrl</span> for most shortcuts. <span class="shortcut">Cmd</span> can also 
-        replace <span class="shortcut">Alt</span> for view options when using VNC.
+        <strong>Mac Users:</strong> On macOS, all <span class="shortcut">Ctrl</span> shortcuts 
+        work with <span class="shortcut">Cmd</span> instead. For example, <span class="shortcut">Ctrl+H</span> 
+        becomes <span class="shortcut">Cmd+H</span>.
         </p>
         """
