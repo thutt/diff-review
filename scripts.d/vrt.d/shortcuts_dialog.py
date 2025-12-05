@@ -10,7 +10,6 @@ This module contains a compact, scannable cheat sheet of all keyboard shortcuts.
 from PyQt6.QtWidgets import QDialog, QVBoxLayout, QTextEdit, QPushButton, QHBoxLayout
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont, QPalette, QKeySequence, QShortcut
-import sys
 import color_palettes
 
 
@@ -55,7 +54,7 @@ class ShortcutsDialog(QDialog):
         is_dark = is_dark_mode(self.palette())
         shortcuts_text.setHtml(self.get_shortcuts_html(is_dark))
         
-        self.current_font_size = 12
+        self.current_font_size = 10
         font = QFont()
         font.setPointSize(self.current_font_size)
         shortcuts_text.setFont(font)
@@ -162,9 +161,6 @@ class ShortcutsDialog(QDialog):
         Returns:
             HTML string with appropriate color scheme
         """
-        # Detect platform and set modifier key
-        is_mac = sys.platform == 'darwin'
-        mod_key = 'Cmd' if is_mac else 'Ctrl'
         if is_dark:
             # Dark mode colors
             bg_color = "#2b2b2b"
@@ -229,6 +225,12 @@ class ShortcutsDialog(QDialog):
                 white-space: nowrap; 
                 font-weight: bold; 
             }}
+            .mac-note {{ 
+                color: {note_color}; 
+                font-style: italic; 
+                font-size: 0.9em; 
+                margin-top: 5px; 
+            }}
         </style>
         
         <h2>Essential Shortcuts</h2>
@@ -246,7 +248,7 @@ class ShortcutsDialog(QDialog):
                 <td>Previous change region</td>
             </tr>
             <tr>
-                <td><span class="shortcut">{mod_key}+F</span> or <span class="shortcut">{mod_key}+S</span></td>
+                <td><span class="shortcut">Ctrl+F</span> or <span class="shortcut">Ctrl+S</span></td>
                 <td>Open search dialog</td>
             </tr>
             <tr>
@@ -256,6 +258,14 @@ class ShortcutsDialog(QDialog):
             <tr>
                 <td><span class="shortcut">M</span></td>
                 <td>Toggle bookmark on current line</td>
+            </tr>
+            <tr>
+                <td><span class="shortcut">X</span></td>
+                <td>Collapse/uncollapse deleted region at cursor</td>
+            </tr>
+            <tr>
+                <td><span class="shortcut">Shift+X</span></td>
+                <td>Collapse/uncollapse all deleted regions</td>
             </tr>
             <tr>
                 <td><span class="shortcut">[</span> / <span class="shortcut">]</span></td>
@@ -270,24 +280,28 @@ class ShortcutsDialog(QDialog):
                 <th>Action</th>
             </tr>
             <tr>
-                <td><span class="shortcut">{mod_key}+Tab</span></td>
+                <td><span class="shortcut">Ctrl+Tab</span></td>
                 <td>Next tab</td>
             </tr>
             <tr>
-                <td><span class="shortcut">{mod_key}+Shift+Tab</span></td>
+                <td><span class="shortcut">Ctrl+Shift+Tab</span></td>
                 <td>Previous tab</td>
             </tr>
             <tr>
-                <td><span class="shortcut">{mod_key}+W</span></td>
+                <td><span class="shortcut">Ctrl+W</span></td>
                 <td>Close current tab</td>
             </tr>
             <tr>
-                <td><span class="shortcut">{mod_key}+Q</span></td>
+                <td><span class="shortcut">Ctrl+Q</span></td>
                 <td>Quit application</td>
             </tr>
             <tr>
                 <td><span class="shortcut">F5</span></td>
                 <td>Reload current file</td>
+            </tr>
+            <tr>
+                <td><span class="shortcut">Escape</span></td>
+                <td>Close application</td>
             </tr>
         </table>
         
@@ -346,7 +360,7 @@ class ShortcutsDialog(QDialog):
                 <td>Quick note - add clicked line to notes file</td>
             </tr>
             <tr>
-                <td><span class="shortcut">{mod_key}+N</span></td>
+                <td><span class="shortcut">Ctrl+N</span></td>
                 <td>Take note of selected text</td>
             </tr>
             <tr>
@@ -362,35 +376,35 @@ class ShortcutsDialog(QDialog):
                 <th>Action</th>
             </tr>
             <tr>
-                <td><span class="shortcut">{mod_key}+B</span></td>
+                <td><span class="shortcut">Ctrl+B</span></td>
                 <td>Toggle sidebar visibility</td>
             </tr>
             <tr>
-                <td><span class="shortcut">{mod_key}+H</span></td>
+                <td><span class="shortcut">Ctrl+H</span></td>
                 <td>Toggle diff map</td>
             </tr>
             <tr>
-                <td><span class="shortcut">{mod_key}+L</span></td>
+                <td><span class="shortcut">Ctrl+L</span></td>
                 <td>Toggle line numbers</td>
             </tr>
             <tr>
-                <td><span class="shortcut">{mod_key}+T</span></td>
+                <td><span class="shortcut">Ctrl+T</span></td>
                 <td>Toggle tab character highlighting</td>
             </tr>
             <tr>
-                <td><span class="shortcut">{mod_key}+E</span></td>
+                <td><span class="shortcut">Ctrl+E</span></td>
                 <td>Toggle trailing whitespace highlighting</td>
             </tr>
             <tr>
-                <td><span class="shortcut">{mod_key}+I</span></td>
+                <td><span class="shortcut">Ctrl+I</span></td>
                 <td>Toggle intraline changes</td>
             </tr>
             <tr>
-                <td><span class="shortcut">{mod_key}+R</span></td>
+                <td><span class="shortcut">Ctrl+R</span></td>
                 <td>Toggle auto-reload files</td>
             </tr>
             <tr>
-                <td><span class="shortcut">{mod_key}+Y</span></td>
+                <td><span class="shortcut">Ctrl+Y</span></td>
                 <td>Cycle stats display (None -> Tabs Only -> Sidebar Only)</td>
             </tr>
         </table>
@@ -402,7 +416,7 @@ class ShortcutsDialog(QDialog):
                 <th>Action</th>
             </tr>
             <tr>
-                <td><span class="shortcut">{mod_key}+F</span> or <span class="shortcut">{mod_key}+S</span></td>
+                <td><span class="shortcut">Ctrl+F</span> or <span class="shortcut">Ctrl+S</span></td>
                 <td>Open search dialog</td>
             </tr>
             <tr>
@@ -426,16 +440,22 @@ class ShortcutsDialog(QDialog):
                 <th>Action</th>
             </tr>
             <tr>
-                <td><span class="shortcut">{mod_key}++</span></td>
+                <td><span class="shortcut">Ctrl++</span></td>
                 <td>Increase font size (max 24pt)</td>
             </tr>
             <tr>
-                <td><span class="shortcut">{mod_key}+-</span></td>
+                <td><span class="shortcut">Ctrl+-</span></td>
                 <td>Decrease font size (min 6pt)</td>
             </tr>
             <tr>
-                <td><span class="shortcut">{mod_key}+0</span></td>
+                <td><span class="shortcut">Ctrl+0</span></td>
                 <td>Reset font size to default (12pt)</td>
             </tr>
         </table>
+        
+        <p class="mac-note">
+        <strong>Mac Users:</strong> On macOS, all <span class="shortcut">Ctrl</span> shortcuts 
+        work with <span class="shortcut">Cmd</span> instead. For example, <span class="shortcut">Ctrl+H</span> 
+        becomes <span class="shortcut">Cmd+H</span>.
+        </p>
         """
