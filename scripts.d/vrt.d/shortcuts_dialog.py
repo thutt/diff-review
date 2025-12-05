@@ -55,7 +55,7 @@ class ShortcutsDialog(QDialog):
         is_dark = is_dark_mode(self.palette())
         shortcuts_text.setHtml(self.get_shortcuts_html(is_dark))
         
-        self.current_font_size = 10
+        self.current_font_size = 12
         font = QFont()
         font.setPointSize(self.current_font_size)
         shortcuts_text.setFont(font)
