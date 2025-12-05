@@ -40,6 +40,25 @@ On MacOS, and Windows <code>cmd.exe</code>, this can be satisfied with:
     pip3 install requests
 
 
+- <code>keyring</code>
+
+The Python keyring module is an interface to the host OS key ring, and
+its use facilitates only having to enter your credentials for
+URL-based diff viewing once.
+
+It can be installed with pip, on MacOS and Windows, and some Linux
+distributions:
+
+    pip3 install requests
+
+On Ubuntu, it must be installed with:
+
+    sudo apt install python3-keyring
+
+If you prefer to not use this, you can add '--no-keyring' to the 'vrt'
+invocation.  However, if keyring cannot be imported, the software will
+also transparently not use it.
+
 # Supported Operating Systems
 
  - Linux
