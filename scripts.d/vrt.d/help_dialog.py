@@ -26,7 +26,7 @@ class HelpDialog(QDialog):
         help_text.setReadOnly(True)
         help_text.setHtml(self.get_help_html())
         
-        self.current_font_size = 10
+        self.current_font_size = 12
         font = QFont()
         font.setPointSize(self.current_font_size)
         help_text.setFont(font)
