@@ -288,7 +288,7 @@ class SyncedPlainTextEdit(QPlainTextEdit):
             
             is_parent_command = key in (Qt.Key.Key_N, Qt.Key.Key_P, Qt.Key.Key_C,
                                        Qt.Key.Key_T, Qt.Key.Key_B, Qt.Key.Key_M,
-                                       Qt.Key.Key_X, Qt.Key.Key_Escape)
+                                       Qt.Key.Key_X)
             
             is_alt_command = ((key == Qt.Key.Key_H or key == Qt.Key.Key_L) and 
                             modifiers & Qt.KeyboardModifier.AltModifier)

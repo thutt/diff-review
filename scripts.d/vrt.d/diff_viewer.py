@@ -1103,8 +1103,6 @@ class DiffViewer(QMainWindow):
                 self.current_region = len(self.change_regions) - 1
                 self.center_on_line(len(self.base_display) - 1)
             self.update_status()
-        elif key == Qt.Key.Key_Escape:
-            self.close()
         else:
             super().keyPressEvent(event)
     
