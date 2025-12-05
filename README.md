@@ -49,7 +49,7 @@ URL-based diff viewing once.
 It can be installed with pip, on MacOS and Windows, and some Linux
 distributions:
 
-    pip3 install requests
+    pip3 install keyring
 
 On Ubuntu, it must be installed with:
 
