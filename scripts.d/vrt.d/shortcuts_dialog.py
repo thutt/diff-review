@@ -162,9 +162,12 @@ class ShortcutsDialog(QDialog):
         Returns:
             HTML string with appropriate color scheme
         """
-        # Detect platform and set modifier key
-        is_mac = sys.platform == 'darwin'
-        mod_key = 'Cmd' if is_mac else 'Ctrl'
+        # Detect platform and set modifier key name
+        if sys.platform == 'darwin':
+            mod_key = "Cmd"
+        else:
+            mod_key = "Ctrl"
+        
         if is_dark:
             # Dark mode colors
             bg_color = "#2b2b2b"
@@ -296,10 +299,6 @@ class ShortcutsDialog(QDialog):
             <tr>
                 <td><span class="shortcut">F5</span></td>
                 <td>Reload current file</td>
-            </tr>
-            <tr>
-                <td><span class="shortcut">Escape</span></td>
-                <td>Close application</td>
             </tr>
         </table>
         
