@@ -129,6 +129,19 @@ Return Code:
                          metavar  = "<URL>",
                          dest     = "arg_dossier_url")
 
+    dso.add_argument("--keyring",
+                     help     = ("Use system keyring to store credentials"),
+                     action   = "store_true",
+                     default  = True,
+                     required = False,
+                     dest     = "arg_keyring")
+
+    dso.add_argument("--no-keyring", 
+                     help     = ("Do not use system keyring to "
+                                 "store credentials"),
+                     action   = "store_false",
+                     dest     = "arg_keyring")
+
     dso.add_argument("--fqdn",
                      help     = regular_help(ext, ext_options, "fqdn"),
                      action   = "store",
@@ -362,8 +375,10 @@ def process_command_line():
         # installed, and there is no reason to need it to be installed
         # if it's not used.
         import fetchurl
+        fetchurl.set_keyring_disabled(not options.arg_keyring)
         options.afr_ = file_url.URLFileAccess(options.arg_dossier_url,
                                               options.arg_ack_insecure_cert)
+
     else:
         # options.arg_dossier_path can be None.  When that is the
         # case, use the default review name.

@@ -74,6 +74,9 @@ class DiffViewer(QMainWindow):
         
         self.current_font_size = 12  # Default font size
         
+        self.collapsed_regions = []  # List of (start_line, end_line) tuples for collapsed deleted regions
+        self.all_collapsed = False  # Track if all deleted regions are collapsed
+        
         self.setup_gui()
     
     def setup_gui(self):
@@ -1059,6 +1062,31 @@ class DiffViewer(QMainWindow):
             self.toggle_bookmark()
             return
         
+        # X - Toggle collapse deleted region / Shift+X - Toggle collapse all
+        if key == Qt.Key.Key_X:
+            if modifiers & Qt.KeyboardModifier.ShiftModifier:
+                # Shift+X - Toggle collapse all deleted regions
+                if self.collapsed_regions:
+                    self.uncollapse_all_regions()
+                else:
+                    self.collapse_all_deleted_regions()
+            else:
+                # X - Toggle collapse for current line's region
+                if self.base_text.hasFocus():
+                    line_idx = self.base_text.textCursor().blockNumber()
+                elif self.modified_text.hasFocus():
+                    line_idx = self.modified_text.textCursor().blockNumber()
+                else:
+                    return
+                
+                # Check if line is in a collapsed region - if so, uncollapse
+                if self.is_line_in_collapsed_region(line_idx):
+                    self.uncollapse_region(line_idx)
+                # Check if line is in a deleted region - if so, collapse
+                elif self.is_deleted_region(line_idx):
+                    self.collapse_deleted_region(line_idx)
+            return
+        
         if key == Qt.Key.Key_N:
             self.next_change()
         elif key == Qt.Key.Key_P:
@@ -1083,6 +1111,136 @@ class DiffViewer(QMainWindow):
     def resizeEvent(self, event):
         super().resizeEvent(event)
         self.update_diff_map_viewport()
+    
+    def is_deleted_region(self, line_idx):
+        """Check if a line is part of a deleted region (deleted in base, not in modified)"""
+        import diff_desc
+        if 0 <= line_idx < len(self.base_line_objects):
+            line_obj = self.base_line_objects[line_idx]
+            if line_obj.region_:
+                return line_obj.region_.kind_ == diff_desc.RegionDesc.DELETE
+        return False
+    
+    def find_deleted_region_bounds(self, line_idx):
+        """Find the start and end of the deleted region containing line_idx"""
+        import diff_desc
+        if not self.is_deleted_region(line_idx):
+            return None, None
+        
+        start = line_idx
+        while start > 0 and self.is_deleted_region(start - 1):
+            start -= 1
+        
+        end = line_idx
+        while end < len(self.base_line_objects) - 1 and self.is_deleted_region(end + 1):
+            end += 1
+        
+        return start, end
+    
+    def collapse_deleted_region(self, line_idx):
+        """Collapse the deleted region containing line_idx"""
+        start, end = self.find_deleted_region_bounds(line_idx)
+        if start is None or end is None:
+            return
+        
+        if (start, end) in self.collapsed_regions:
+            return
+        
+        self.collapsed_regions.append((start, end))
+        self._apply_collapsed_regions()
+    
+    def collapse_all_deleted_regions(self):
+        """Collapse all deleted regions"""
+        import diff_desc
+        
+        self.collapsed_regions = []
+        
+        in_delete_region = False
+        region_start = None
+        
+        for i, line_obj in enumerate(self.base_line_objects):
+            is_deleted = (line_obj.region_ and 
+                         line_obj.region_.kind_ == diff_desc.RegionDesc.DELETE)
+            
+            if is_deleted and not in_delete_region:
+                in_delete_region = True
+                region_start = i
+            elif not is_deleted and in_delete_region:
+                self.collapsed_regions.append((region_start, i - 1))
+                in_delete_region = False
+                region_start = None
+        
+        if in_delete_region and region_start is not None:
+            self.collapsed_regions.append((region_start, len(self.base_line_objects) - 1))
+        
+        self.all_collapsed = True
+        self._apply_collapsed_regions()
+    
+    def uncollapse_region(self, line_idx):
+        """Uncollapse the region containing line_idx"""
+        for region in self.collapsed_regions:
+            start, end = region
+            if start <= line_idx <= end:
+                self.collapsed_regions.remove(region)
+                self._apply_collapsed_regions()
+                return
+    
+    def uncollapse_all_regions(self):
+        """Uncollapse all regions"""
+        self.collapsed_regions = []
+        self.all_collapsed = False
+        self._apply_collapsed_regions()
+    
+    def is_line_in_collapsed_region(self, line_idx):
+        """Check if line_idx is within any collapsed region"""
+        for start, end in self.collapsed_regions:
+            if start <= line_idx <= end:
+                return True
+        return False
+    
+    def _apply_collapsed_regions(self):
+        """Apply the current collapsed regions by hiding blocks"""
+        base_doc = self.base_text.document()
+        modified_doc = self.modified_text.document()
+        
+        # Update visibility of all blocks
+        for i in range(base_doc.blockCount()):
+            base_block = base_doc.findBlockByNumber(i)
+            modified_block = modified_doc.findBlockByNumber(i)
+            
+            if not base_block.isValid() or not modified_block.isValid():
+                continue
+            
+            should_hide = False
+            
+            # Check if this line is inside a collapsed region (but not the first line)
+            for start, end in self.collapsed_regions:
+                if start < i <= end:
+                    should_hide = True
+                    break
+            
+            # Set visibility
+            base_block.setVisible(not should_hide)
+            modified_block.setVisible(not should_hide)
+        
+        # Store collapsed marker info for painting
+        self.base_text.collapsed_markers = {}
+        self.modified_text.collapsed_markers = {}
+        
+        for start, end in self.collapsed_regions:
+            num_lines = end - start + 1
+            self.base_text.collapsed_markers[start] = num_lines
+            self.modified_text.collapsed_markers[start] = num_lines
+        
+        # Update the document layout
+        base_doc.markContentsDirty(0, base_doc.characterCount())
+        modified_doc.markContentsDirty(0, modified_doc.characterCount())
+        
+        # Force viewport updates
+        self.base_text.viewport().update()
+        self.modified_text.viewport().update()
+        self.base_line_area.update()
+        self.modified_line_area.update()
     
     def refresh_colors(self):
         """Refresh all colors from the current palette"""

@@ -168,6 +168,7 @@ class SyncedPlainTextEdit(QPlainTextEdit):
         self.noted_lines = set()  # Track which lines have notes
         self.bookmarked_lines = set()  # Track which lines have bookmarks
         self.max_line_length = None  # Maximum line length indicator
+        self.collapsed_markers = {}  # Dict mapping line_idx to num_collapsed_lines
         
         self.setReadOnly(True)
         self.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
@@ -286,14 +287,16 @@ class SyncedPlainTextEdit(QPlainTextEdit):
                                  Qt.Key.Key_Left, Qt.Key.Key_Right, Qt.Key.Key_Space)
             
             is_parent_command = key in (Qt.Key.Key_N, Qt.Key.Key_P, Qt.Key.Key_C,
-                                       Qt.Key.Key_T, Qt.Key.Key_B, Qt.Key.Key_Escape)
+                                       Qt.Key.Key_T, Qt.Key.Key_B, Qt.Key.Key_M,
+                                       Qt.Key.Key_X, Qt.Key.Key_Escape)
             
             is_alt_command = ((key == Qt.Key.Key_H or key == Qt.Key.Key_L) and 
                             modifiers & Qt.KeyboardModifier.AltModifier)
             
             if (is_parent_command or is_alt_command) and not (modifiers & Qt.KeyboardModifier.ControlModifier):
                 parent = self.parent()
-                while parent and not hasattr(parent, 'keyPressEvent'):
+                # Keep going up until we find the DiffViewer (which has base_text attribute)
+                while parent and not hasattr(parent, 'base_text'):
                     parent = parent.parent()
                 if parent:
                     parent.keyPressEvent(event)
@@ -457,6 +460,29 @@ class SyncedPlainTextEdit(QPlainTextEdit):
             # Only draw if the line is visible in the viewport
             if 0 <= x_pos <= self.viewport().width():
                 painter.drawLine(x_pos, 0, x_pos, self.viewport().height())
+        
+        # Draw collapsed region markers
+        if hasattr(self, 'collapsed_markers') and self.collapsed_markers:
+            viewport_lines = self.viewport().height() // line_height if line_height > 0 else 0
+            for line_idx, num_lines in self.collapsed_markers.items():
+                if (line_idx >= first_visible and 
+                    line_idx < first_visible + viewport_lines):
+                    
+                    block = self.document().findBlockByNumber(line_idx)
+                    if block.isValid() and block.isVisible():
+                        block_geom = self.blockBoundingGeometry(block)
+                        y_pos = int(block_geom.translated(self.contentOffset()).top())
+                        block_height = int(block_geom.height())
+                        
+                        # Draw a distinct background for the collapse marker line
+                        painter.fillRect(0, y_pos, self.viewport().width(), 
+                                       block_height, QColor(230, 230, 250))
+                        
+                        # Draw the collapse marker text
+                        marker_text = f"[...{num_lines} deleted lines collapsed...]"
+                        painter.setPen(QColor(100, 100, 150))
+                        text_y = y_pos + font_metrics.ascent() + 2
+                        painter.drawText(10, text_y, marker_text)
     
     def wheelEvent(self, event):
         if not self._in_wheel_event:

@@ -260,6 +260,14 @@ class ShortcutsDialog(QDialog):
                 <td>Toggle bookmark on current line</td>
             </tr>
             <tr>
+                <td><span class="shortcut">X</span></td>
+                <td>Collapse/uncollapse deleted region at cursor</td>
+            </tr>
+            <tr>
+                <td><span class="shortcut">Shift+X</span></td>
+                <td>Collapse/uncollapse all deleted regions</td>
+            </tr>
+            <tr>
                 <td><span class="shortcut">[</span> / <span class="shortcut">]</span></td>
                 <td>Previous / next bookmark</td>
             </tr>

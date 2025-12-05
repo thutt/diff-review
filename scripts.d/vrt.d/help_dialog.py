@@ -26,7 +26,7 @@ class HelpDialog(QDialog):
         help_text.setReadOnly(True)
         help_text.setHtml(self.get_help_html())
         
-        self.current_font_size = 10
+        self.current_font_size = 12
         font = QFont()
         font.setPointSize(self.current_font_size)
         help_text.setFont(font)
@@ -147,7 +147,6 @@ class HelpDialog(QDialog):
             <li><b>C:</b> Center on the currently selected region</li>
             <li><b>T:</b> Jump to top of file</li>
             <li><b>B:</b> Jump to bottom of file</li>
-            <li><b>Escape:</b> Close the application</li>
         </ul>
         
         <h3>Visual Indicators</h3>

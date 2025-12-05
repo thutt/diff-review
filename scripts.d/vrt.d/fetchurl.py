@@ -9,17 +9,52 @@ except Exception as exc:
     utils.fatal("Unable to import 'requests'.  "
                 "You must install the 'requests' module.")
 
+# Try to import keyring - make it optional
+_keyring_available = False
+try:
+    import keyring
+    _keyring_available = True
+except ImportError:
+    pass
+
 from requests.auth import HTTPBasicAuth
 from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
-                              QLineEdit, QPushButton, QMessageBox)
+                              QLineEdit, QPushButton, QMessageBox, QCheckBox)
 from PyQt6.QtCore import Qt
 
-# Module-level credential cache - persists for the session
+# Module-level credential cache - persists for the session only
 _cached_username = None
 _cached_password = None
 
 # Module-level flag for certificate verification
 _verify_ssl = True  # Start with verification enabled
+
+# Module-level flag to disable keyring even if available
+_keyring_disabled = False
+
+# Keyring service identifier
+KEYRING_SERVICE = "diff-review-http-auth"
+
+
+def set_keyring_disabled(disabled):
+    """
+    Disable keyring usage even if available.
+    
+    Args:
+        disabled: True to disable keyring, False to enable
+    """
+    global _keyring_disabled
+    _keyring_disabled = disabled
+
+
+def is_keyring_enabled():
+    """
+    Check if keyring is available and enabled.
+    
+    Returns:
+        True if keyring can be used, False otherwise
+    """
+    return _keyring_available and not _keyring_disabled
 
 
 class SSLVerificationDialog(QDialog):
@@ -100,6 +135,16 @@ class BasicAuthDialog(QDialog):
         password_layout.addWidget(self.password_field)
         layout.addLayout(password_layout)
 
+        # Remember credentials checkbox - only enable if keyring is available
+        if is_keyring_enabled():
+            self.remember_checkbox = QCheckBox("Remember credentials (stored securely in OS keyring)")
+            self.remember_checkbox.setChecked(True)
+        else:
+            self.remember_checkbox = QCheckBox("Remember credentials (keyring unavailable - disabled)")
+            self.remember_checkbox.setChecked(False)
+            self.remember_checkbox.setEnabled(False)
+        layout.addWidget(self.remember_checkbox)
+
         # Buttons
         button_layout = QHBoxLayout()
         ok_button = QPushButton("OK")
@@ -121,6 +166,7 @@ class BasicAuthDialog(QDialog):
         """Store credentials when OK is clicked"""
         self.username = self.username_field.text()
         self.password = self.password_field.text()
+        self.remember = self.remember_checkbox.isChecked()
         super().accept()
 
 
@@ -152,6 +198,42 @@ class FetchDesc(object):
             return (_cached_username, _cached_password)
         return None
 
+    def _get_keyring_credentials(self):
+        """Retrieve credentials from OS keyring"""
+        if not is_keyring_enabled():
+            return None
+        try:
+            username = keyring.get_password(KEYRING_SERVICE, "username")
+            if username:
+                password = keyring.get_password(KEYRING_SERVICE, username)
+                if password:
+                    return (username, password)
+        except Exception:
+            pass
+        return None
+
+    def _store_keyring_credentials(self, username, password):
+        """Store credentials in OS keyring"""
+        if not is_keyring_enabled():
+            return
+        try:
+            keyring.set_password(KEYRING_SERVICE, "username", username)
+            keyring.set_password(KEYRING_SERVICE, username, password)
+        except Exception:
+            pass
+
+    def _clear_keyring_credentials(self):
+        """Clear credentials from OS keyring"""
+        if not is_keyring_enabled():
+            return
+        try:
+            username = keyring.get_password(KEYRING_SERVICE, "username")
+            if username:
+                keyring.delete_password(KEYRING_SERVICE, username)
+                keyring.delete_password(KEYRING_SERVICE, "username")
+        except Exception:
+            pass
+
     def _cache_credentials(self, username, password):
         """Cache credentials for the session"""
         global _cached_username, _cached_password
@@ -170,8 +252,18 @@ class FetchDesc(object):
         if dialog.exec() == QDialog.DialogCode.Accepted:
             username = dialog.username
             password = dialog.password
-            # Cache the credentials for future requests
+            remember = dialog.remember
+            
+            # Cache the credentials for this session
             self._cache_credentials(username, password)
+            
+            # Store in OS keyring if user chose to remember
+            if remember:
+                self._store_keyring_credentials(username, password)
+            else:
+                # Clear any existing keyring credentials
+                self._clear_keyring_credentials()
+            
             return (username, password)
         return None
 
@@ -199,7 +291,14 @@ class FetchDesc(object):
             auth = None
 
             # Determine if we should use authentication
+            # Check keyring first, then session cache
             cached = self._get_cached_credentials()
+            if not cached:
+                cached = self._get_keyring_credentials()
+                if cached:
+                    # Found in keyring, cache for this session
+                    self._cache_credentials(*cached)
+            
             if self.require_auth_ or cached:
                 # Use cached credentials if available, or prompt if require_auth is True
                 if cached:
@@ -274,8 +373,9 @@ class FetchDesc(object):
                         return
                     # Credentials cached by _prompt_for_credentials, will be used on retry
                 else:
-                    # Auth failed - clear cached credentials and loop to retry
+                    # Auth failed - clear cached credentials and keyring, then loop to retry
                     self._clear_cached_credentials()
+                    self._clear_keyring_credentials()
                     # Loop will prompt again
             else:
                 # Some other HTTP error - return it

@@ -206,6 +206,29 @@ class SearchManager:
             jump_action = menu.addAction("Jump to Note")
             jump_action.triggered.connect(jump_action_func)
         
+        # Add collapse/uncollapse options for deleted regions
+        cursor = text_widget.textCursor()
+        line_idx = cursor.blockNumber()
+        
+        is_deleted = viewer.is_deleted_region(line_idx)
+        is_collapsed = viewer.is_line_in_collapsed_region(line_idx)
+        
+        if is_deleted or is_collapsed:
+            menu.addSeparator()
+            
+            if is_collapsed:
+                uncollapse_action = menu.addAction("Uncollapse this region")
+                uncollapse_action.triggered.connect(lambda: viewer.uncollapse_region(line_idx))
+                
+                uncollapse_all_action = menu.addAction("Uncollapse all regions")
+                uncollapse_all_action.triggered.connect(viewer.uncollapse_all_regions)
+            else:
+                collapse_action = menu.addAction("Collapse this deleted region")
+                collapse_action.triggered.connect(lambda: viewer.collapse_deleted_region(line_idx))
+                
+                collapse_all_action = menu.addAction("Collapse all deleted regions")
+                collapse_all_action.triggered.connect(viewer.collapse_all_deleted_regions)
+        
         menu.addAction(search_action)
         menu.addAction(note_action)
         menu.exec(text_widget.mapToGlobal(pos))
