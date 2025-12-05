@@ -1161,7 +1161,7 @@ class DiffViewerTabWidget(QMainWindow):
     def _change_review_notes_font_size(self, text_widget, delta):
         """Change font size for review notes tab"""
         if not hasattr(text_widget, 'current_font_size'):
-            text_widget.current_font_size = 10  # Initialize if not set (review notes default is 10pt)
+            text_widget.current_font_size = 12  # Initialize if not set (review notes default is 12pt)
         
         new_size = text_widget.current_font_size + delta
         # Clamp to range [6, 24]
@@ -1174,9 +1174,9 @@ class DiffViewerTabWidget(QMainWindow):
             text_widget.viewport().update()
     
     def _reset_review_notes_font_size(self, text_widget):
-        """Reset font size for review notes tab to default (10pt)"""
-        text_widget.current_font_size = 10
-        font = QFont("Courier", 10, QFont.Weight.Bold)
+        """Reset font size for review notes tab to default (12pt)"""
+        text_widget.current_font_size = 12
+        font = QFont("Courier", 12, QFont.Weight.Bold)
         text_widget.setFont(font)
         text_widget.viewport().update()
     
