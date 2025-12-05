@@ -289,10 +289,6 @@ class ShortcutsDialog(QDialog):
                 <td><span class="shortcut">F5</span></td>
                 <td>Reload current file</td>
             </tr>
-            <tr>
-                <td><span class="shortcut">Escape</span></td>
-                <td>Close application</td>
-            </tr>
         </table>
         
         <h2>Navigation</h2>

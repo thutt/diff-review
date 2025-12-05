@@ -1230,11 +1230,6 @@ class DiffViewerTabWidget(QMainWindow):
             self.show_shortcuts()
             return
         
-        # Escape closes the entire application
-        if key == Qt.Key.Key_Escape:
-            self.close()
-            return
-        
         # All other shortcuts require an active viewer
         if not viewer:
             super().keyPressEvent(event)

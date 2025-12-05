@@ -147,7 +147,6 @@ class HelpDialog(QDialog):
             <li><b>C:</b> Center on the currently selected region</li>
             <li><b>T:</b> Jump to top of file</li>
             <li><b>B:</b> Jump to bottom of file</li>
-            <li><b>Escape:</b> Close the application</li>
         </ul>
         
         <h3>Visual Indicators</h3>
