@@ -309,6 +309,14 @@ class ShortcutsDialog(QDialog):
                 <th>Action</th>
             </tr>
             <tr>
+                <td><span class="shortcut">N</span></td>
+                <td>Next change region</td>
+            </tr>
+            <tr>
+                <td><span class="shortcut">P</span></td>
+                <td>Previous change region</td>
+            </tr>
+            <tr>
                 <td><span class="shortcut">Arrow Keys</span></td>
                 <td>Navigate up/down/left/right</td>
             </tr>
