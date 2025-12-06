@@ -199,6 +199,12 @@ class FileTreeSidebar(QWidget):
         
         item_type, item_data = data
         
+        # Store current scroll position before handling the click
+        # This prevents the uncontrolled scrolling issue on Mac when
+        # an item is clicked that is mostly out of viewport
+        scroll_bar = self.tree.verticalScrollBar()
+        saved_scroll_pos = scroll_bar.value()
+        
         if item_type == 'commit_msg':
             self.tab_widget.on_commit_msg_clicked()
             # Focus the text widget in the commit message tab
@@ -215,6 +221,9 @@ class FileTreeSidebar(QWidget):
         elif item_type == 'directory':
             # Toggle expand/collapse on directory click
             item.setExpanded(not item.isExpanded())
+        
+        # Restore scroll position to prevent uncontrolled scrolling
+        scroll_bar.setValue(saved_scroll_pos)
     
     def _focus_current_diff_viewer(self):
         """Set focus to the base text widget of the current diff viewer"""
