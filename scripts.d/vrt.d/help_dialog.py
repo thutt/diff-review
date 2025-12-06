@@ -58,7 +58,6 @@ class HelpDialog(QDialog):
         reset_shortcut = QShortcut(QKeySequence("Ctrl+0"), self)
         reset_shortcut.activated.connect(self.reset_font_size)
         
-        # Add Cmd shortcuts for macOS
         # Cmd++ or Cmd+=
         cmd_increase_shortcut = QShortcut(QKeySequence("Meta++"), self)
         cmd_increase_shortcut.activated.connect(self.increase_font_size)
@@ -104,17 +103,14 @@ class HelpDialog(QDialog):
         # Detect platform and set modifier key name
         if sys.platform == 'darwin':
             mod_key = "Cmd"
-            mac_note = ""  # No note needed on Mac
         else:
             mod_key = "Ctrl"
-            mac_note = "<p><strong>Mac Users:</strong> On macOS, use <b>Cmd</b> instead of <b>Ctrl</b> for all keyboard shortcuts (e.g., <b>Ctrl+H</b> becomes <b>Cmd+H</b>).</p>"
         
         return f"""
         <h2>Diff Viewer - User Guide</h2>
         
         <p><strong>Tip:</strong> Press <b>F1</b> or <b>{mod_key}+?</b> for a quick keyboard shortcuts reference card!</p>
         
-        {mac_note}
         <h3>Overview</h3>
         <p>This diff viewer displays side-by-side comparison of files with synchronized scrolling and highlighting of changes. Multiple diffs can be opened in tabs with a sidebar for file navigation.</p>
         
@@ -135,8 +131,8 @@ class HelpDialog(QDialog):
         
         <h3>Tab Management</h3>
         <ul>
-            <li><b>{mod_key}+Tab:</b> Switch to next tab (left-to-right, wraps around)</li>
-            <li><b>{mod_key}+Shift+Tab:</b> Switch to previous tab (right-to-left, wraps around)</li>
+            <li><b>Ctrl+Tab:</b> Switch to next tab (left-to-right, wraps around)</li>
+            <li><b>Ctrl+Shift+Tab:</b> Switch to previous tab (right-to-left, wraps around)</li>
             <li><b>{mod_key}+W:</b> Close current tab</li>
             <li><b>{mod_key}+Q:</b> Quit application</li>
             <li><b>X button:</b> Close individual tabs</li>

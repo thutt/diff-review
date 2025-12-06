@@ -321,12 +321,16 @@ class DiffViewerTabWidget(QMainWindow):
         # Height: lines + labels (40) + scrollbar (20) + status bar (30) + margins (20) + menubar (30)
         total_height = (self.display_lines * line_height) + 40 + 20 + 30 + 20 + 30
         
-        # Tab navigation shortcuts
+        # Tab navigation shortcuts (support both Ctrl and Meta for Mac compatibility)
         next_tab_shortcut = QShortcut(QKeySequence("Ctrl+Tab"), self)
         next_tab_shortcut.activated.connect(self.next_tab)
+        next_tab_shortcut_alt = QShortcut(QKeySequence("Meta+Tab"), self)
+        next_tab_shortcut_alt.activated.connect(self.next_tab)
         
         prev_tab_shortcut = QShortcut(QKeySequence("Ctrl+Shift+Tab"), self)
         prev_tab_shortcut.activated.connect(self.prev_tab)
+        prev_tab_shortcut_alt = QShortcut(QKeySequence("Meta+Shift+Tab"), self)
+        prev_tab_shortcut_alt.activated.connect(self.prev_tab)
         
         self.resize(total_width, total_height)
     

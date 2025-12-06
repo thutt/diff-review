@@ -281,11 +281,11 @@ class ShortcutsDialog(QDialog):
                 <th>Action</th>
             </tr>
             <tr>
-                <td><span class="shortcut">{mod_key}+Tab</span></td>
+                <td><span class="shortcut">Ctrl+Tab</span></td>
                 <td>Next tab</td>
             </tr>
             <tr>
-                <td><span class="shortcut">{mod_key}+Shift+Tab</span></td>
+                <td><span class="shortcut">Ctrl+Shift+Tab</span></td>
                 <td>Previous tab</td>
             </tr>
             <tr>
