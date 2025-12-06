@@ -159,6 +159,16 @@ class DiffViewerTabWidget(QMainWindow):
         self.tab_widget = QTabWidget()
         self.tab_widget.setTabsClosable(True)
         self.tab_widget.setMovable(True)  # Allow tabs to be reordered by dragging
+        
+        # On MacOS, prevent tab widget from expanding the window when many tabs are added
+        # This fixes a regression where the window would grow wider and the sidebar would
+        # shrink and become unresizable after opening many files
+        if sys.platform == 'darwin':
+            from PyQt6.QtWidgets import QSizePolicy
+            policy = self.tab_widget.sizePolicy()
+            policy.setHorizontalPolicy(QSizePolicy.Policy.Ignored)
+            self.tab_widget.setSizePolicy(policy)
+        
         self.tab_widget.tabCloseRequested.connect(self.close_tab)
         self.tab_widget.currentChanged.connect(self.on_tab_changed)
         
