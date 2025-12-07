@@ -262,11 +262,11 @@ class ShortcutsDialog(QDialog):
             </tr>
             <tr>
                 <td><span class="shortcut">X</span></td>
-                <td>Collapse/uncollapse deleted region at cursor</td>
+                <td>Collapse/expand added/deleted region at cursor</td>
             </tr>
             <tr>
                 <td><span class="shortcut">Shift+X</span></td>
-                <td>Collapse/uncollapse all deleted regions</td>
+                <td>Collapse/expand all added/deleted regions</td>
             </tr>
             <tr>
                 <td><span class="shortcut">[</span> / <span class="shortcut">]</span></td>

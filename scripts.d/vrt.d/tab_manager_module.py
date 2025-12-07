@@ -1303,14 +1303,14 @@ class DiffViewerTabWidget(QMainWindow):
             viewer.toggle_bookmark()
             return
         
-        # X - Toggle collapse deleted region / Shift+X - Toggle collapse all
+        # X - Toggle collapse change region / Shift+X - Toggle collapse all
         if key == Qt.Key.Key_X:
             if modifiers & Qt.KeyboardModifier.ShiftModifier:
-                # Shift+X - Toggle collapse all deleted regions
+                # Shift+X - Toggle collapse all change regions (deleted and added)
                 if viewer.collapsed_regions:
                     viewer.uncollapse_all_regions()
                 else:
-                    viewer.collapse_all_deleted_regions()
+                    viewer.collapse_all_change_regions()
             else:
                 # X - Toggle collapse for current line's region
                 if viewer.base_text.hasFocus():
@@ -1323,9 +1323,9 @@ class DiffViewerTabWidget(QMainWindow):
                 # Check if line is in a collapsed region - if so, uncollapse
                 if viewer.is_line_in_collapsed_region(line_idx):
                     viewer.uncollapse_region(line_idx)
-                # Check if line is in a deleted region - if so, collapse
-                elif viewer.is_deleted_region(line_idx):
-                    viewer.collapse_deleted_region(line_idx)
+                # Check if line is in a change region - if so, collapse
+                elif viewer.is_change_region(line_idx):
+                    viewer.collapse_change_region(line_idx)
             return
         
         # N - Next change

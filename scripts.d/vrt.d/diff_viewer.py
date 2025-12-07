@@ -74,8 +74,8 @@ class DiffViewer(QMainWindow):
         
         self.current_font_size = 12  # Default font size
         
-        self.collapsed_regions = []  # List of (start_line, end_line) tuples for collapsed deleted regions
-        self.all_collapsed = False  # Track if all deleted regions are collapsed
+        self.collapsed_regions = []  # List of (start_line, end_line) tuples for collapsed change regions (deleted/added)
+        self.all_collapsed = False  # Track if all change regions are collapsed
         
         self.setup_gui()
     
@@ -1062,14 +1062,14 @@ class DiffViewer(QMainWindow):
             self.toggle_bookmark()
             return
         
-        # X - Toggle collapse deleted region / Shift+X - Toggle collapse all
+        # X - Toggle collapse change region / Shift+X - Toggle collapse all
         if key == Qt.Key.Key_X:
             if modifiers & Qt.KeyboardModifier.ShiftModifier:
-                # Shift+X - Toggle collapse all deleted regions
+                # Shift+X - Toggle collapse all change regions (deleted and added)
                 if self.collapsed_regions:
                     self.uncollapse_all_regions()
                 else:
-                    self.collapse_all_deleted_regions()
+                    self.collapse_all_change_regions()
             else:
                 # X - Toggle collapse for current line's region
                 if self.base_text.hasFocus():
@@ -1082,9 +1082,9 @@ class DiffViewer(QMainWindow):
                 # Check if line is in a collapsed region - if so, uncollapse
                 if self.is_line_in_collapsed_region(line_idx):
                     self.uncollapse_region(line_idx)
-                # Check if line is in a deleted region - if so, collapse
-                elif self.is_deleted_region(line_idx):
-                    self.collapse_deleted_region(line_idx)
+                # Check if line is in a change region - if so, collapse
+                elif self.is_change_region(line_idx):
+                    self.collapse_change_region(line_idx)
             return
         
         if key == Qt.Key.Key_N:
@@ -1110,34 +1110,72 @@ class DiffViewer(QMainWindow):
         super().resizeEvent(event)
         self.update_diff_map_viewport()
     
-    def is_deleted_region(self, line_idx):
-        """Check if a line is part of a deleted region (deleted in base, not in modified)"""
+    def is_change_region(self, line_idx):
+        """Check if a line is part of a change region (deleted or added)"""
         import diff_desc
+        
+        # Check base file for deleted regions
         if 0 <= line_idx < len(self.base_line_objects):
             line_obj = self.base_line_objects[line_idx]
             if line_obj.region_:
-                return line_obj.region_.kind_ == diff_desc.RegionDesc.DELETE
+                if line_obj.region_.kind_ == diff_desc.RegionDesc.DELETE:
+                    return True
+        
+        # Check modified file for added regions
+        if 0 <= line_idx < len(self.modified_line_objects):
+            line_obj = self.modified_line_objects[line_idx]
+            if line_obj.region_:
+                if line_obj.region_.kind_ == diff_desc.RegionDesc.ADD:
+                    return True
+        
         return False
     
-    def find_deleted_region_bounds(self, line_idx):
-        """Find the start and end of the deleted region containing line_idx"""
+    def find_change_region_bounds(self, line_idx):
+        """Find the start and end of the change region (deleted or added) containing line_idx"""
         import diff_desc
-        if not self.is_deleted_region(line_idx):
+        if not self.is_change_region(line_idx):
             return None, None
         
+        # Determine which type of region we're in
+        is_deleted = False
+        is_added = False
+        
+        if 0 <= line_idx < len(self.base_line_objects):
+            line_obj = self.base_line_objects[line_idx]
+            if line_obj.region_ and line_obj.region_.kind_ == diff_desc.RegionDesc.DELETE:
+                is_deleted = True
+        
+        if 0 <= line_idx < len(self.modified_line_objects):
+            line_obj = self.modified_line_objects[line_idx]
+            if line_obj.region_ and line_obj.region_.kind_ == diff_desc.RegionDesc.ADD:
+                is_added = True
+        
+        # Helper to check if line is same region type
+        def is_same_region_type(idx):
+            if is_deleted:
+                if 0 <= idx < len(self.base_line_objects):
+                    obj = self.base_line_objects[idx]
+                    return obj.region_ and obj.region_.kind_ == diff_desc.RegionDesc.DELETE
+            elif is_added:
+                if 0 <= idx < len(self.modified_line_objects):
+                    obj = self.modified_line_objects[idx]
+                    return obj.region_ and obj.region_.kind_ == diff_desc.RegionDesc.ADD
+            return False
+        
         start = line_idx
-        while start > 0 and self.is_deleted_region(start - 1):
+        while start > 0 and is_same_region_type(start - 1):
             start -= 1
         
+        max_lines = max(len(self.base_line_objects), len(self.modified_line_objects))
         end = line_idx
-        while end < len(self.base_line_objects) - 1 and self.is_deleted_region(end + 1):
+        while end < max_lines - 1 and is_same_region_type(end + 1):
             end += 1
         
         return start, end
     
-    def collapse_deleted_region(self, line_idx):
-        """Collapse the deleted region containing line_idx"""
-        start, end = self.find_deleted_region_bounds(line_idx)
+    def collapse_change_region(self, line_idx):
+        """Collapse the change region (deleted or added) containing line_idx"""
+        start, end = self.find_change_region_bounds(line_idx)
         if start is None or end is None:
             return
         
@@ -1147,12 +1185,13 @@ class DiffViewer(QMainWindow):
         self.collapsed_regions.append((start, end))
         self._apply_collapsed_regions()
     
-    def collapse_all_deleted_regions(self):
-        """Collapse all deleted regions"""
+    def collapse_all_change_regions(self):
+        """Collapse all change regions (deleted and added)"""
         import diff_desc
         
         self.collapsed_regions = []
         
+        # Process deleted regions in base file
         in_delete_region = False
         region_start = None
         
@@ -1170,6 +1209,25 @@ class DiffViewer(QMainWindow):
         
         if in_delete_region and region_start is not None:
             self.collapsed_regions.append((region_start, len(self.base_line_objects) - 1))
+        
+        # Process added regions in modified file
+        in_add_region = False
+        region_start = None
+        
+        for i, line_obj in enumerate(self.modified_line_objects):
+            is_added = (line_obj.region_ and 
+                       line_obj.region_.kind_ == diff_desc.RegionDesc.ADD)
+            
+            if is_added and not in_add_region:
+                in_add_region = True
+                region_start = i
+            elif not is_added and in_add_region:
+                self.collapsed_regions.append((region_start, i - 1))
+                in_add_region = False
+                region_start = None
+        
+        if in_add_region and region_start is not None:
+            self.collapsed_regions.append((region_start, len(self.modified_line_objects) - 1))
         
         self.all_collapsed = True
         self._apply_collapsed_regions()
@@ -1222,13 +1280,28 @@ class DiffViewer(QMainWindow):
             modified_block.setVisible(not should_hide)
         
         # Store collapsed marker info for painting
+        import diff_desc
         self.base_text.collapsed_markers = {}
         self.modified_text.collapsed_markers = {}
         
         for start, end in self.collapsed_regions:
             num_lines = end - start + 1
-            self.base_text.collapsed_markers[start] = num_lines
-            self.modified_text.collapsed_markers[start] = num_lines
+            
+            # Determine region type by checking the start line
+            region_type = 'deleted'  # default
+            if 0 <= start < len(self.base_line_objects):
+                line_obj = self.base_line_objects[start]
+                if line_obj.region_ and line_obj.region_.kind_ == diff_desc.RegionDesc.DELETE:
+                    region_type = 'deleted'
+            
+            if 0 <= start < len(self.modified_line_objects):
+                line_obj = self.modified_line_objects[start]
+                if line_obj.region_ and line_obj.region_.kind_ == diff_desc.RegionDesc.ADD:
+                    region_type = 'added'
+            
+            # Store tuple of (num_lines, region_type)
+            self.base_text.collapsed_markers[start] = (num_lines, region_type)
+            self.modified_text.collapsed_markers[start] = (num_lines, region_type)
         
         # Update the document layout
         base_doc.markContentsDirty(0, base_doc.characterCount())
