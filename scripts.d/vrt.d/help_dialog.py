@@ -365,4 +365,16 @@ class HelpDialog(QDialog):
             <li>Search and note-taking work the same way in commit message view</li>
             <li>{mod_key}+S and {mod_key}+N shortcuts work in commit message window</li>
         </ul>
+        
+        <h3>HTTP Authentication and Credential Storage</h3>
+        <ul>
+            <li><b>Authentication Dialog:</b> When accessing password-protected URLs, a dialog prompts for username and password</li>
+            <li><b>Remember Credentials:</b> Check "Remember credentials" to store them securely in your operating system's keyring</li>
+            <li><b>Keyring Storage:</b> Uses your OS's native credential storage (Keychain on macOS, Credential Manager on Windows, Secret Service on Linux)</li>
+            <li><b>Session Cache:</b> Credentials are cached in memory during the session regardless of the "Remember" setting</li>
+            <li><b>--keyring / --no-keyring:</b> Command line options to enable/disable keyring storage (default: enabled)</li>
+            <li><b>Password Changes:</b> If you change your password on the remote server, the stored credentials will become invalid. On the next access attempt, authentication will fail and you'll be prompted to re-enter your credentials. The old credentials are automatically cleared from the keyring when authentication fails.</li>
+            <li><b>Clearing Credentials:</b> Uncheck "Remember credentials" when prompted to clear stored credentials from the keyring</li>
+            <li><b>SSL Certificate Warnings:</b> If a server has an invalid/self-signed certificate, you'll be warned and can choose to proceed (not recommended on untrusted networks)</li>
+        </ul>
         """
