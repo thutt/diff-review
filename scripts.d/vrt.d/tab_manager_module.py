@@ -109,6 +109,10 @@ class DiffViewerTabWidget(QMainWindow):
         # Keep reference to global_bookmarks for compatibility
         self.global_bookmarks = self.bookmark_mgr.global_bookmarks
         
+        # Dialog instance tracking to prevent multiple instances
+        self.help_dialog = None
+        self.shortcuts_dialog = None
+        
         # Create file watcher manager
         self.file_watcher_mgr = file_watcher.FileWatcherManager(self, auto_reload)
         
@@ -1129,14 +1133,22 @@ class DiffViewerTabWidget(QMainWindow):
         self.file_watcher_mgr.cleanup_file_watcher(viewer)
     
     def show_help(self):
-        """Show help dialog"""
-        help_dialog = HelpDialog(self)
-        help_dialog.show()
+        """Show help dialog - reuses existing instance if open"""
+        if self.help_dialog is None or not self.help_dialog.isVisible():
+            self.help_dialog = HelpDialog(self)
+            self.help_dialog.show()
+        else:
+            self.help_dialog.raise_()
+            self.help_dialog.activateWindow()
     
     def show_shortcuts(self):
-        """Show keyboard shortcuts reference"""
-        shortcuts_dialog = ShortcutsDialog(self)
-        shortcuts_dialog.show()  # Non-modal, not stay-on-top
+        """Show keyboard shortcuts reference - reuses existing instance if open"""
+        if self.shortcuts_dialog is None or not self.shortcuts_dialog.isVisible():
+            self.shortcuts_dialog = ShortcutsDialog(self)
+            self.shortcuts_dialog.show()
+        else:
+            self.shortcuts_dialog.raise_()
+            self.shortcuts_dialog.activateWindow()
     
     def switch_palette(self, palette_name):
         """Switch to a different color palette and refresh all viewers"""
