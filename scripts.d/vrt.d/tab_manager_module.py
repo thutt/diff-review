@@ -10,11 +10,11 @@ with a sidebar for file selection.
 """
 import os
 import sys
-from PyQt6.QtWidgets import (QApplication, QTabWidget, QMainWindow, QHBoxLayout, 
+from PyQt6.QtWidgets import (QApplication, QTabWidget, QMainWindow, QHBoxLayout,
                               QVBoxLayout, QWidget, QPushButton, QSplitter,
                               QPlainTextEdit, QMenu, QMessageBox, QProgressDialog, QFileDialog)
 from PyQt6.QtCore import Qt, QFileSystemWatcher, QTimer
-from PyQt6.QtGui import (QAction, QFont, QKeySequence, QActionGroup, QFontMetrics, 
+from PyQt6.QtGui import (QAction, QFont, QKeySequence, QActionGroup, QFontMetrics,
                          QColor, QTextDocument, QShortcut)
 
 from help_dialog import HelpDialog
@@ -27,6 +27,7 @@ import file_watcher
 import commit_msg_handler
 import search_manager
 import file_tree_sidebar
+import keybindings
 
 
 class DiffViewerTabWidget(QMainWindow):
@@ -46,7 +47,8 @@ class DiffViewerTabWidget(QMainWindow):
                  palette           : str,
                  dump_ir           : bool,
                  tab_label_stats   : bool,
-                 file_label_stats  : bool):
+                 file_label_stats  : bool,
+                 keybindings_file):
         if QApplication.instance() is None:
             self._app = QApplication(sys.argv)
         else:
@@ -102,6 +104,10 @@ class DiffViewerTabWidget(QMainWindow):
         self.view_state_mgr = view_state_manager.ViewStateManager(
             self, show_diff_map, show_line_numbers,
             ignore_tab, ignore_trailing_ws, ignore_intraline)
+
+        # Initialize key bindings
+        self.keybindings = keybindings.KeyBindings(keybindings_file)
+        self.pending_keys = []  # For multi-key sequences
         
         # Create bookmark manager
         self.bookmark_mgr = bookmark_manager.BookmarkManager(self)
@@ -1207,193 +1213,231 @@ class DiffViewerTabWidget(QMainWindow):
         text_widget.viewport().update()
     
     def keyPressEvent(self, event):
-        """Handle key press events"""
+        """Handle key press events using configurable keybindings"""
         key = event.key()
         modifiers = event.modifiers()
-        
-        # Font size changes - Ctrl + Plus/Minus/0
-        if modifiers & Qt.KeyboardModifier.ControlModifier:
-            if key in (Qt.Key.Key_Plus, Qt.Key.Key_Equal):  # + or = key
-                current_widget = self.tab_widget.currentWidget()
-                if current_widget:
-                    # Check if it's a commit message tab
-                    if hasattr(current_widget, 'is_commit_msg') and current_widget.is_commit_msg:
-                        self._change_commit_msg_font_size(current_widget, 1)
-                    # Check if it's a review notes tab
-                    elif hasattr(current_widget, 'is_review_notes') and current_widget.is_review_notes:
-                        self._change_review_notes_font_size(current_widget, 1)
-                    # Otherwise it's a DiffViewer
-                    elif hasattr(current_widget, 'diff_viewer'):
-                        current_widget.diff_viewer.increase_font_size()
-                return
-            elif key == Qt.Key.Key_Minus:
-                current_widget = self.tab_widget.currentWidget()
-                if current_widget:
-                    if hasattr(current_widget, 'is_commit_msg') and current_widget.is_commit_msg:
-                        self._change_commit_msg_font_size(current_widget, -1)
-                    elif hasattr(current_widget, 'is_review_notes') and current_widget.is_review_notes:
-                        self._change_review_notes_font_size(current_widget, -1)
-                    elif hasattr(current_widget, 'diff_viewer'):
-                        current_widget.diff_viewer.decrease_font_size()
-                return
-            elif key == Qt.Key.Key_0:
-                current_widget = self.tab_widget.currentWidget()
-                if current_widget:
-                    if hasattr(current_widget, 'is_commit_msg') and current_widget.is_commit_msg:
-                        self._reset_commit_msg_font_size(current_widget)
-                    elif hasattr(current_widget, 'is_review_notes') and current_widget.is_review_notes:
-                        self._reset_review_notes_font_size(current_widget)
-                    elif hasattr(current_widget, 'diff_viewer'):
-                        current_widget.diff_viewer.reset_font_size()
-                return
-        
-        # Get current viewer for most commands
-        viewer = self.get_current_viewer()
-        
-        # F1 or Ctrl+? - Show keyboard shortcuts
-        if key == Qt.Key.Key_F1 or (key == Qt.Key.Key_Question and 
-                                      modifiers & Qt.KeyboardModifier.ControlModifier):
-            self.show_shortcuts()
+
+        # Build current key press as (qt_key, modifiers)
+        current_key = (key, modifiers)
+
+        # Add to pending sequence
+        self.pending_keys.append(current_key)
+
+        # Try to match current sequence
+        sequence = keybindings.KeySequence(self.pending_keys[:])
+        action = self.keybindings.get_action(sequence)
+
+        if action:
+            # Found a complete match - execute action
+            self.pending_keys = []
+            self._execute_action(action)
             return
-        
-        # All other shortcuts require an active viewer
-        if not viewer:
+
+        # Check if current sequence is a prefix of any valid sequence
+        is_prefix = self._is_sequence_prefix(sequence)
+
+        if not is_prefix:
+            # Not a valid prefix - reset and pass to parent
+            self.pending_keys = []
             super().keyPressEvent(event)
             return
-        
-        # Ctrl+H - Toggle diff map
-        if key == Qt.Key.Key_H and modifiers & Qt.KeyboardModifier.ControlModifier:
-            self.toggle_diff_map()
+
+        # Valid prefix - wait for more keys
+        # (pending_keys remains populated)
+
+    def _is_sequence_prefix(self, sequence):
+        """Check if sequence is a prefix of any valid keybinding"""
+        for valid_seq in self.keybindings.sequence_to_action.keys():
+            if len(sequence.keys) <= len(valid_seq.keys):
+                if valid_seq.keys[:len(sequence.keys)] == sequence.keys:
+                    return True
+        return False
+
+    def _execute_action(self, action):
+        """Execute the action associated with a keybinding"""
+        viewer = self.get_current_viewer()
+        current_widget = self.tab_widget.currentWidget()
+
+        # Font size actions work on any widget
+        if action == 'increase_font':
+            if current_widget:
+                if hasattr(current_widget, 'is_commit_msg') and current_widget.is_commit_msg:
+                    self._change_commit_msg_font_size(current_widget, 1)
+                elif hasattr(current_widget, 'is_review_notes') and current_widget.is_review_notes:
+                    self._change_review_notes_font_size(current_widget, 1)
+                elif hasattr(current_widget, 'diff_viewer'):
+                    current_widget.diff_viewer.increase_font_size()
             return
-        
-        # Ctrl+L - Toggle line numbers
-        if key == Qt.Key.Key_L and modifiers & Qt.KeyboardModifier.ControlModifier:
-            self.toggle_line_numbers()
+        elif action == 'decrease_font':
+            if current_widget:
+                if hasattr(current_widget, 'is_commit_msg') and current_widget.is_commit_msg:
+                    self._change_commit_msg_font_size(current_widget, -1)
+                elif hasattr(current_widget, 'is_review_notes') and current_widget.is_review_notes:
+                    self._change_review_notes_font_size(current_widget, -1)
+                elif hasattr(current_widget, 'diff_viewer'):
+                    current_widget.diff_viewer.decrease_font_size()
             return
-        
-        # Ctrl+S or Ctrl+F - Search
-        if ((key == Qt.Key.Key_S or key == Qt.Key.Key_F) and 
-            modifiers & Qt.KeyboardModifier.ControlModifier):
+        elif action == 'reset_font':
+            if current_widget:
+                if hasattr(current_widget, 'is_commit_msg') and current_widget.is_commit_msg:
+                    self._reset_commit_msg_font_size(current_widget)
+                elif hasattr(current_widget, 'is_review_notes') and current_widget.is_review_notes:
+                    self._reset_review_notes_font_size(current_widget)
+                elif hasattr(current_widget, 'diff_viewer'):
+                    current_widget.diff_viewer.reset_font_size()
+            return
+
+        # Actions that work on any widget (including commit msg, review notes)
+        if action == 'search':
             self.show_search_dialog()
             return
-        
-        # F3 - Find Next
-        if key == Qt.Key.Key_F3 and not (modifiers & Qt.KeyboardModifier.ShiftModifier):
+        elif action == 'shortcuts_help':
+            self.show_shortcuts()
+            return
+        elif action == 'find_next':
             self.search_mgr.find_next()
             return
-        
-        # Shift+F3 - Find Previous
-        if key == Qt.Key.Key_F3 and modifiers & Qt.KeyboardModifier.ShiftModifier:
+        elif action == 'find_prev':
             self.search_mgr.find_previous()
             return
-        
-        # F5 - Manual reload
-        if key == Qt.Key.Key_F5:
-            if viewer and hasattr(viewer, 'base_file'):
-                self.reload_viewer(viewer)
+        elif action == 'close_tab':
+            current_index = self.tab_widget.currentIndex()
+            if current_index >= 0:
+                self.tab_widget.tabCloseRequested.emit(current_index)
             return
-        
-        # Ctrl+N - Take note
-        if key == Qt.Key.Key_N and modifiers & Qt.KeyboardModifier.ControlModifier:
-            # Determine which side has focus
-            if viewer.base_text.hasFocus():
-                viewer.take_note_from_widget('base')
-            elif viewer.modified_text.hasFocus():
-                viewer.take_note_from_widget('modified')
+        elif action == 'next_tab':
+            count = self.tab_widget.count()
+            if count > 0:
+                current = self.tab_widget.currentIndex()
+                self.tab_widget.setCurrentIndex((current + 1) % count)
             return
-        
-        # [ - Previous bookmark
-        if key == Qt.Key.Key_BracketLeft:
-            self.navigate_to_prev_bookmark()
+        elif action == 'prev_tab':
+            count = self.tab_widget.count()
+            if count > 0:
+                current = self.tab_widget.currentIndex()
+                self.tab_widget.setCurrentIndex((current - 1) % count)
             return
-        
-        # ] - Next bookmark
-        if key == Qt.Key.Key_BracketRight:
-            self.navigate_to_next_bookmark()
+        elif action == 'first_file':
+            if self.tab_widget.count() > 0:
+                self.tab_widget.setCurrentIndex(0)
             return
-        
-        # M - Toggle bookmark
-        if key == Qt.Key.Key_M:
-            viewer.toggle_bookmark()
+        elif action == 'last_file':
+            count = self.tab_widget.count()
+            if count > 0:
+                self.tab_widget.setCurrentIndex(count - 1)
             return
-        
-        # X - Toggle collapse change region / Shift+X - Toggle collapse all
-        if key == Qt.Key.Key_X:
-            if modifiers & Qt.KeyboardModifier.ShiftModifier:
-                # Shift+X - Toggle collapse all change regions (deleted and added)
-                if viewer.collapsed_regions:
-                    viewer.uncollapse_all_regions()
-                else:
-                    viewer.collapse_all_change_regions()
-            else:
-                # X - Toggle collapse for current line's region
-                if viewer.base_text.hasFocus():
-                    line_idx = viewer.base_text.textCursor().blockNumber()
-                elif viewer.modified_text.hasFocus():
-                    line_idx = viewer.modified_text.textCursor().blockNumber()
-                else:
-                    return
-                
-                # Check if line is in a collapsed region - if so, uncollapse
-                if viewer.is_line_in_collapsed_region(line_idx):
-                    viewer.uncollapse_region(line_idx)
-                # Check if line is in a change region - if so, collapse
-                elif viewer.is_change_region(line_idx):
-                    viewer.collapse_change_region(line_idx)
+        elif action == 'toggle_sidebar':
+            self.toggle_sidebar()
             return
-        
-        # N - Next change
-        if key == Qt.Key.Key_N:
+
+        # Actions that require a viewer
+        if not viewer:
+            return
+
+        if action == 'next_change':
             viewer.next_change()
-            return
-        
-        # P - Previous change
-        if key == Qt.Key.Key_P:
+        elif action == 'prev_change':
             viewer.prev_change()
-            return
-        
-        # C - Center on current region
-        if key == Qt.Key.Key_C:
-            viewer.center_current_region()
-            return
-        
-        # T - Top of file
-        if key == Qt.Key.Key_T:
+        elif action == 'top_of_file':
             viewer.current_region = 0
             if viewer.change_regions:
                 viewer.center_on_line(0)
             viewer.update_status()
-            return
-        
-        # B - Bottom of file
-        if key == Qt.Key.Key_B:
+        elif action == 'bottom_of_file':
             if viewer.change_regions:
                 viewer.current_region = len(viewer.change_regions) - 1
                 viewer.center_on_line(len(viewer.base_display) - 1)
             viewer.update_status()
-            return
-        
-        # Pass other events to parent
-        super().keyPressEvent(event)
+        elif action == 'toggle_bookmark':
+            viewer.toggle_bookmark()
+        elif action == 'next_bookmark':
+            self.navigate_to_next_bookmark()
+        elif action == 'prev_bookmark':
+            self.navigate_to_prev_bookmark()
+        elif action == 'center_region':
+            viewer.center_current_region()
+        elif action == 'collapse_region':
+            if viewer.base_text.hasFocus():
+                line_idx = viewer.base_text.textCursor().blockNumber()
+            elif viewer.modified_text.hasFocus():
+                line_idx = viewer.modified_text.textCursor().blockNumber()
+            else:
+                return
+
+            if viewer.is_line_in_collapsed_region(line_idx):
+                viewer.uncollapse_region(line_idx)
+            elif viewer.is_change_region(line_idx):
+                viewer.collapse_change_region(line_idx)
+        elif action == 'collapse_all':
+            if viewer.collapsed_regions:
+                viewer.uncollapse_all_regions()
+            else:
+                viewer.collapse_all_change_regions()
+        elif action == 'reload':
+            self.reload_viewer(viewer)
+        elif action == 'take_note':
+            if viewer.base_text.hasFocus():
+                viewer.take_note_from_widget('base')
+            elif viewer.modified_text.hasFocus():
+                viewer.take_note_from_widget('modified')
+        elif action == 'toggle_diff_map':
+            self.toggle_diff_map()
+        elif action == 'toggle_line_numbers':
+            self.toggle_line_numbers()
+        elif action == 'toggle_tab_highlight':
+            self.toggle_tab_visibility()
+        elif action == 'toggle_eol_highlight':
+            self.toggle_trailing_ws_visibility()
+        elif action == 'focus_toggle':
+            if viewer.base_text.hasFocus():
+                cursor = viewer.base_text.textCursor()
+                current_line = cursor.blockNumber()
+                new_cursor = viewer.modified_text.textCursor()
+                new_cursor.movePosition(new_cursor.MoveOperation.Start)
+                for _ in range(current_line):
+                    new_cursor.movePosition(new_cursor.MoveOperation.Down)
+                viewer.modified_text.setTextCursor(new_cursor)
+                viewer.modified_text.setFocus()
+                viewer.modified_text.ensureCursorVisible()
+            elif viewer.modified_text.hasFocus():
+                cursor = viewer.modified_text.textCursor()
+                current_line = cursor.blockNumber()
+                new_cursor = viewer.base_text.textCursor()
+                new_cursor.movePosition(new_cursor.MoveOperation.Start)
+                for _ in range(current_line):
+                    new_cursor.movePosition(new_cursor.MoveOperation.Down)
+                viewer.base_text.setTextCursor(new_cursor)
+                viewer.base_text.setFocus()
+                viewer.base_text.ensureCursorVisible()
+        elif action == 'focus_next':
+            if not viewer.base_text.hasFocus():
+                viewer.base_text.setFocus()
+            else:
+                viewer.modified_text.setFocus()
+
     
     def eventFilter(self, obj, event):
-        """Filter events from text widgets to handle Tab key and Ctrl+N"""
+        """Filter events from text widgets to handle Tab key and configurable shortcuts"""
         if event.type() == event.Type.KeyPress:
             viewer = self.get_current_viewer()
             key = event.key()
             modifiers = event.modifiers()
-            
+
             # Check if this is the commit message widget
             is_commit_msg = hasattr(obj, 'is_commit_msg') and obj.is_commit_msg
-            
-            # Ctrl+S or Ctrl+F - Search (works for both commit message and diff viewers)
-            if ((key == Qt.Key.Key_S or key == Qt.Key.Key_F) and 
-                modifiers & Qt.KeyboardModifier.ControlModifier):
+
+            # Build current key press
+            current_key = (key, modifiers)
+            sequence = keybindings.KeySequence([current_key])
+            action = self.keybindings.get_action(sequence)
+
+            # Handle search action
+            if action == 'search':
                 self.show_search_dialog()
                 return True
-            
-            # Ctrl+N - Take note (works for both)
-            if key == Qt.Key.Key_N and modifiers & Qt.KeyboardModifier.ControlModifier:
+
+            # Handle take_note action
+            if action == 'take_note':
                 if is_commit_msg:
                     self.take_commit_msg_note(obj)
                     return True
@@ -1404,38 +1448,39 @@ class DiffViewerTabWidget(QMainWindow):
                     elif obj == viewer.modified_text:
                         viewer.take_note_from_widget('modified')
                         return True
-            
+
             # Tab - Switch focus between base and modified (only for diff viewers)
+            # This is NOT configurable - always use Tab for focus switching
             if not is_commit_msg and viewer and key == Qt.Key.Key_Tab and not modifiers:
                 if obj == viewer.base_text:
                     # Get current line in base
                     cursor = viewer.base_text.textCursor()
                     current_line = cursor.blockNumber()
-                    
+
                     # Move cursor in modified BEFORE switching focus
                     new_cursor = viewer.modified_text.textCursor()
                     new_cursor.movePosition(new_cursor.MoveOperation.Start)
                     for _ in range(current_line):
                         new_cursor.movePosition(new_cursor.MoveOperation.Down)
                     viewer.modified_text.setTextCursor(new_cursor)
-                    
+
                     # Now switch focus
                     viewer.modified_text.setFocus()
                     viewer.modified_text.ensureCursorVisible()
                     return True
-                    
+
                 elif obj == viewer.modified_text:
                     # Get current line in modified
                     cursor = viewer.modified_text.textCursor()
                     current_line = cursor.blockNumber()
-                    
+
                     # Move cursor in base BEFORE switching focus
                     new_cursor = viewer.base_text.textCursor()
                     new_cursor.movePosition(new_cursor.MoveOperation.Start)
                     for _ in range(current_line):
                         new_cursor.movePosition(new_cursor.MoveOperation.Down)
                     viewer.base_text.setTextCursor(new_cursor)
-                    
+
                     # Now switch focus
                     viewer.base_text.setFocus()
                     viewer.base_text.ensureCursorVisible()

@@ -110,6 +110,7 @@ Return Code:
     dco = parser.add_argument_group("Display Characteristics Options")
     oo  = parser.add_argument_group("Output Options")
     ext = parser.add_argument_group("Extended Help Information")
+    kbo = parser.add_argument_group("Keybinding Options")
 
     # Diff Specification Options
     d_group = dso.add_mutually_exclusive_group()
@@ -330,6 +331,16 @@ Return Code:
                      action   = "store_false",
                      required = False,
                      dest     = "arg_file_label_stats")
+
+    # Keybinding Options
+    kbo.add_argument("--keybindings",
+                     help     = "Keybinding json file.",
+                     action   = "store",
+                     default  = None,
+                     required = False,
+                     metavar  = "<keybinding json description pathname>",
+                     dest     = "arg_keybindings")
+                     
 
     # Output Options
     oo.add_argument("--dump-ir",
