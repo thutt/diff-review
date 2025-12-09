@@ -1256,6 +1256,32 @@ class DiffViewerTabWidget(QMainWindow):
             self.show_shortcuts()
             return
         
+        # M - Toggle bookmark (works for both commit message and diff viewers)
+        if key == Qt.Key.Key_M:
+            # Check if current tab is commit message
+            current_widget = self.tab_widget.currentWidget()
+            if current_widget:
+                if hasattr(current_widget, 'text_widget'):
+                    # Container widget with text_widget (commit message)
+                    text_widget = current_widget.text_widget
+                    if hasattr(text_widget, 'is_commit_msg') and text_widget.is_commit_msg:
+                        self.commit_msg_mgr.toggle_bookmark(text_widget)
+                        return
+            # Regular diff viewer
+            if viewer:
+                viewer.toggle_bookmark()
+            return
+        
+        # [ - Previous bookmark (works for both commit message and diff viewers)
+        if key == Qt.Key.Key_BracketLeft:
+            self.navigate_to_prev_bookmark()
+            return
+        
+        # ] - Next bookmark (works for both commit message and diff viewers)
+        if key == Qt.Key.Key_BracketRight:
+            self.navigate_to_next_bookmark()
+            return
+        
         # All other shortcuts require an active viewer
         if not viewer:
             super().keyPressEvent(event)
@@ -1300,21 +1326,6 @@ class DiffViewerTabWidget(QMainWindow):
                 viewer.take_note_from_widget('base')
             elif viewer.modified_text.hasFocus():
                 viewer.take_note_from_widget('modified')
-            return
-        
-        # [ - Previous bookmark
-        if key == Qt.Key.Key_BracketLeft:
-            self.navigate_to_prev_bookmark()
-            return
-        
-        # ] - Next bookmark
-        if key == Qt.Key.Key_BracketRight:
-            self.navigate_to_next_bookmark()
-            return
-        
-        # M - Toggle bookmark
-        if key == Qt.Key.Key_M:
-            viewer.toggle_bookmark()
             return
         
         # X - Toggle collapse change region / Shift+X - Toggle collapse all
