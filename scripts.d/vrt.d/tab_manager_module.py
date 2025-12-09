@@ -46,7 +46,9 @@ class DiffViewerTabWidget(QMainWindow):
                  palette           : str,
                  dump_ir           : bool,
                  tab_label_stats   : bool,
-                 file_label_stats  : bool):
+                 file_label_stats  : bool,
+                 editor_class,
+                 editor_theme):
         if QApplication.instance() is None:
             self._app = QApplication(sys.argv)
         else:
