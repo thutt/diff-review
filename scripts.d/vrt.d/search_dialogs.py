@@ -9,11 +9,12 @@ This module contains the search input dialog and search results dialog
 with unified search across base, modified, and commit message files.
 """
 import re
-from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, 
-                              QPlainTextEdit, QCheckBox, QPushButton, 
+from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
+                              QPlainTextEdit, QCheckBox, QPushButton,
                               QListWidget, QListWidgetItem, QMessageBox, QStyledItemDelegate, QStyle)
 from PyQt6.QtCore import Qt, QRectF
 from PyQt6.QtGui import QColor, QTextDocument, QPalette
+from tab_content_base import CommitMessageTab, ReviewNotesTabBase
 
 
 class HTMLDelegate(QStyledItemDelegate):
@@ -370,14 +371,14 @@ class SearchResultDialog(QDialog):
                 tab_title = self.parent_tab_widget.tab_widget.tabText(tab_index)
                 
                 # Check if it's a commit message tab
-                if hasattr(tab_widget, 'is_commit_msg') and tab_widget.is_commit_msg:
-                    text = tab_widget.toPlainText()
+                if isinstance(tab_widget, CommitMessageTab):
+                    text = tab_widget.text_widget.toPlainText()
                     lines = text.split('\n')
                     for line_num, line_text in enumerate(lines):
                         # Find ALL matches in this line
                         matches = self.find_all_matches_in_line(line_text)
                         for char_pos, matched_text in matches:
-                            results.append((tab_index, tab_title, 'commit_msg', 
+                            results.append((tab_index, tab_title, 'commit_msg',
                                           line_num + 1, line_num, line_text, char_pos))
                 # Check if it's a review notes tab
                 elif hasattr(tab_widget, 'is_review_notes') and tab_widget.is_review_notes:
@@ -387,7 +388,7 @@ class SearchResultDialog(QDialog):
                         # Find ALL matches in this line
                         matches = self.find_all_matches_in_line(line_text)
                         for char_pos, matched_text in matches:
-                            results.append((tab_index, tab_title, 'review_notes', 
+                            results.append((tab_index, tab_title, 'review_notes',
                                           line_num + 1, line_num, line_text, char_pos))
                 # Otherwise it's a diff viewer
                 elif hasattr(tab_widget, 'diff_viewer'):
@@ -421,14 +422,14 @@ class SearchResultDialog(QDialog):
             tab_title = self.parent_tab_widget.tab_widget.tabText(tab_index)
             
             # Check if it's a commit message tab
-            if hasattr(current_widget, 'is_commit_msg') and current_widget.is_commit_msg:
-                text = current_widget.toPlainText()
+            if isinstance(current_widget, CommitMessageTab):
+                text = current_widget.text_widget.toPlainText()
                 lines = text.split('\n')
                 for line_num, line_text in enumerate(lines):
                     # Find ALL matches in this line
                     matches = self.find_all_matches_in_line(line_text)
                     for char_pos, matched_text in matches:
-                        results.append((tab_index, tab_title, 'commit_msg', 
+                        results.append((tab_index, tab_title, 'commit_msg',
                                       line_num + 1, line_num, line_text, char_pos))
             # Check if it's a review notes tab
             elif hasattr(current_widget, 'is_review_notes') and current_widget.is_review_notes:
@@ -438,7 +439,7 @@ class SearchResultDialog(QDialog):
                     # Find ALL matches in this line
                     matches = self.find_all_matches_in_line(line_text)
                     for char_pos, matched_text in matches:
-                        results.append((tab_index, tab_title, 'review_notes', 
+                        results.append((tab_index, tab_title, 'review_notes',
                                       line_num + 1, line_num, line_text, char_pos))
             # Otherwise it's a diff viewer
             elif hasattr(current_widget, 'diff_viewer'):

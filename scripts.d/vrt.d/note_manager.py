@@ -18,6 +18,7 @@ from PyQt6.QtCore import Qt, QFileSystemWatcher, QTimer
 from PyQt6.QtGui import QFont, QTextCursor, QColor, QTextCharFormat
 
 from utils import extract_display_path
+from tab_content_base import ReviewNotesTab, CommitMessageTab
 
 
 class NoteManager:
@@ -131,7 +132,7 @@ class NoteManager:
             QMessageBox.information(self.tab_widget, 'No Note File',
                                   'No note file has been configured yet.')
             return
-        
+
         # Read note file content
         try:
             with open(note_file, 'r', encoding='utf-8') as f:
@@ -140,49 +141,23 @@ class NoteManager:
             notes_text = "# No notes yet\n"
         except Exception as e:
             notes_text = f"# Error reading note file:\n# {e}\n"
-        
-        # Create text widget - EDITABLE
-        text_widget = QPlainTextEdit()
-        text_widget.setReadOnly(False)
-        text_widget.setPlainText(notes_text)
-        text_widget.setFont(QFont("Courier", 12, QFont.Weight.Bold))
-        text_widget.current_font_size = 12
-        
-        # Style with light blue tone
-        text_widget.setStyleSheet("""
-            QPlainTextEdit {
-                background-color: #f5f9ff;
-                color: #2c3e50;
-            }
-        """)
-        
+
+        # Create review notes tab widget
+        text_widget = ReviewNotesTab(notes_text, self)
+
         # Set up context menu
         text_widget.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         text_widget.customContextMenuRequested.connect(
             lambda pos: self.show_notes_context_menu(pos, text_widget))
-        
-        # Install event filter for keyboard shortcuts AND ASCII filtering
+
+        # Install event filter for keyboard shortcuts
         text_widget.installEventFilter(self.tab_widget)
-        
-        # Store reference to tab widget for later use
-        text_widget.is_review_notes = True
-        text_widget.has_unsaved_changes = False
-        text_widget.original_content = notes_text
-        
-        # Create auto-save timer
-        save_timer = QTimer()
-        save_timer.setSingleShot(True)
-        save_timer.timeout.connect(lambda: self.save_notes_content(text_widget))
-        text_widget.save_timer = save_timer
-        
-        # Connect text changes to auto-save timer
-        text_widget.textChanged.connect(lambda: self.on_notes_text_changed(text_widget))
-        
+
         # Add to tabs with note file path as title
         index = self.tab_widget.tab_widget.addTab(text_widget, note_file)
         self.tab_widget.file_to_tab_index['review_notes'] = index
         self.tab_widget.tab_widget.setCurrentIndex(index)
-        
+
         # Update button state
         self.tab_widget.update_button_states()
     
@@ -201,60 +176,30 @@ class NoteManager:
         
         menu.exec(text_widget.mapToGlobal(pos))
     
-    def on_notes_text_changed(self, text_widget):
-        """Handle text changes in Review Notes tab"""
-        # Filter out non-ASCII characters
-        cursor_pos = text_widget.textCursor().position()
-        text = text_widget.toPlainText()
-        
-        # Filter to ASCII only
-        filtered_text = ''.join(char for char in text if ord(char) < 128)
-        
-        if filtered_text != text:
-            # Non-ASCII characters were present - replace text
-            text_widget.blockSignals(True)
-            text_widget.setPlainText(filtered_text)
-            # Restore cursor position (adjusted for removed chars)
-            new_cursor = text_widget.textCursor()
-            new_cursor.setPosition(min(cursor_pos, len(filtered_text)))
-            text_widget.setTextCursor(new_cursor)
-            text_widget.blockSignals(False)
-        
-        # Mark as having unsaved changes
-        if not text_widget.has_unsaved_changes:
-            text_widget.has_unsaved_changes = True
-            self.update_notes_tab_title(text_widget, dirty=True)
-        
-        # Restart auto-save timer (2.5 seconds)
-        text_widget.save_timer.stop()
-        text_widget.save_timer.start(2500)
-    
     def save_notes_content(self, text_widget):
         """Save the notes content to file"""
         note_file = self.get_note_file()
         if not note_file:
             return
-        
+
         try:
             content = text_widget.toPlainText()
-            
+
             # Temporarily disable file watcher to avoid triggering reload
             if self.note_file_watcher:
                 self.note_file_watcher.blockSignals(True)
-            
+
             # Write to file
             with open(note_file, 'w', encoding='utf-8') as f:
                 f.write(content)
-            
-            # Update tracking
-            text_widget.has_unsaved_changes = False
-            text_widget.original_content = content
-            self.update_notes_tab_title(text_widget, dirty=False)
-            
+
+            # Update tracking via tab's method
+            text_widget.mark_saved()
+
             # Re-enable file watcher
             if self.note_file_watcher:
                 self.note_file_watcher.blockSignals(False)
-            
+
         except Exception as e:
             QMessageBox.warning(self.tab_widget, 'Save Error',
                               f'Could not save notes file:\n{e}')
@@ -355,11 +300,11 @@ class NoteManager:
             return
         
         text_widget = self.tab_widget.tab_widget.widget(tab_index)
-        if not (hasattr(text_widget, 'is_review_notes') and text_widget.is_review_notes):
+        if not isinstance(text_widget, ReviewNotesTab):
             return
         
         # Check if there are unsaved changes
-        if text_widget.has_unsaved_changes:
+        if text_widget.has_unsaved_changes():
             # Show conflict dialog
             reply = QMessageBox.question(
                 self.tab_widget,
@@ -387,11 +332,9 @@ class NoteManager:
             text_widget.blockSignals(True)
             text_widget.setPlainText(notes_text)
             text_widget.blockSignals(False)
-            
-            # Update tracking
-            text_widget.has_unsaved_changes = False
-            text_widget.original_content = notes_text
-            self.update_notes_tab_title(text_widget, dirty=False)
+
+            # Mark as saved
+            text_widget.mark_saved()
             
             # Restore cursor position
             cursor = text_widget.textCursor()
@@ -550,7 +493,7 @@ class NoteManager:
             commit_msg_tab_index = self.tab_widget.file_to_tab_index['commit_msg']
             if 0 <= commit_msg_tab_index < self.tab_widget.tab_widget.count():
                 widget = self.tab_widget.tab_widget.widget(commit_msg_tab_index)
-                if widget.is_commit_msg:
+                if isinstance(widget, CommitMessageTab):
                     commit_msg_widget = widget
         
         if not commit_msg_widget:
@@ -588,7 +531,7 @@ class NoteManager:
         
         if found_line_idx is None:
             # Note not found - remove yellow highlighting from this line
-            block = commit_msg_widget.document().findBlockByNumber(line_idx)
+            block = commit_msg_widget.text_widget.document().findBlockByNumber(line_idx)
             if block.isValid():
                 cursor = QTextCursor(block)
                 cursor.movePosition(cursor.MoveOperation.StartOfBlock)
@@ -692,7 +635,7 @@ class NoteManager:
                 tab_index = self.tab_widget.file_to_tab_index['review_notes']
                 text_widget = self.tab_widget.tab_widget.widget(tab_index)
                 
-                if hasattr(text_widget, 'is_review_notes') and text_widget.is_review_notes:
+                if isinstance(text_widget, ReviewNotesTab):
                     # Select the entire note for visual feedback
                     cursor = text_widget.textCursor()
                     

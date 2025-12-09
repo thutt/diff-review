@@ -14,6 +14,7 @@ This module manages commit message tab functionality:
 from PyQt6.QtWidgets import QPlainTextEdit, QMenu, QMessageBox
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont, QTextCharFormat, QColor
+from tab_content_base import CommitMessageTab
 
 
 class CommitMsgHandler:
@@ -79,8 +80,6 @@ class CommitMsgHandler:
     
     def create_commit_msg_tab(self):
         """Create a tab displaying the commit message"""
-        from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel
-
         commit_msg_text = self.tab_widget.afr_.read(self.commit_msg_rel_path)
 
         # The afr_.read() will return the lines as an array of
@@ -89,78 +88,22 @@ class CommitMsgHandler:
         # back together.
         commit_msg_text = '\n'.join(commit_msg_text)
 
-        # Create text widget
-        text_widget = QPlainTextEdit()
-        text_widget.setReadOnly(True)
-        text_widget.setPlainText(commit_msg_text)
-        text_widget.setFont(QFont("Courier", 12, QFont.Weight.Bold))
+        # Create commit message tab widget
+        tab_widget = CommitMessageTab(commit_msg_text, self)
 
-        # Store reference to handler for bookmark lookup
-        text_widget.commit_msg_handler = self
-
-        # Override paintEvent to draw bookmark indicators
-        original_paintEvent = text_widget.paintEvent
-        def paintEvent_with_bookmarks(event):
-            original_paintEvent(event)
-            from PyQt6.QtGui import QPainter, QPen, QBrush
-            from PyQt6.QtCore import Qt as QtCore_Qt, QRect
-
-            painter = QPainter(text_widget.viewport())
-
-            for line_idx in self.bookmarked_lines:
-                block = text_widget.document().findBlockByNumber(line_idx)
-                if block.isValid():
-                    rect = text_widget.blockBoundingGeometry(block).translated(
-                        text_widget.contentOffset())
-                    y = int(rect.top())
-                    height = int(rect.height())
-                    # Bright cyan vertical bar on left edge - 5px wide (same as diff viewer)
-                    painter.fillRect(0, y, 5, height, QColor(0, 255, 255))
-
-        text_widget.paintEvent = paintEvent_with_bookmarks
-
-        # Style commit message with subtle sepia tone
-        text_widget.setStyleSheet("""
-            QPlainTextEdit {
-                background-color: #fdf6e3;
-                color: #5c4a3a;
-            }
-        """)
+        # Store reference for bookmark label updates
+        self.bookmarks_label = tab_widget.bookmarks_label
 
         # Set up context menu
-        text_widget.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        text_widget.customContextMenuRequested.connect(
-            lambda pos: self.show_commit_msg_context_menu(pos, text_widget))
+        tab_widget.text_widget.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        tab_widget.text_widget.customContextMenuRequested.connect(
+            lambda pos: self.show_commit_msg_context_menu(pos, tab_widget.text_widget))
 
         # Install event filter for keyboard shortcuts
-        text_widget.installEventFilter(self.tab_widget)
-
-        # Store reference to tab widget for later use
-        text_widget.is_commit_msg = True
-
-        # Create status bar with bookmark count
-        status_widget = QWidget()
-        status_layout = QHBoxLayout(status_widget)
-        status_layout.setContentsMargins(5, 2, 5, 2)
-
-        self.bookmarks_label = QLabel("Bookmarks: 0")
-        self.bookmarks_label.setStyleSheet("color: #5c4a3a; font-weight: bold;")
-        status_layout.addWidget(self.bookmarks_label)
-        status_layout.addStretch()
-
-        # Create container with text widget and status bar
-        container = QWidget()
-        container_layout = QVBoxLayout(container)
-        container_layout.setContentsMargins(0, 0, 0, 0)
-        container_layout.setSpacing(0)
-        container_layout.addWidget(text_widget)
-        container_layout.addWidget(status_widget)
-
-        # Store reference to text widget on container
-        container.text_widget = text_widget
+        tab_widget.text_widget.installEventFilter(self.tab_widget)
 
         # Add to tabs
-        index = self.tab_widget.tab_widget.addTab(container, "Commit Message")
+        index = self.tab_widget.tab_widget.addTab(tab_widget, "Commit Message")
         self.tab_widget.file_to_tab_index['commit_msg'] = index
         self.tab_widget.tab_widget.setCurrentIndex(index)
 

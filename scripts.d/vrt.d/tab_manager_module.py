@@ -27,6 +27,7 @@ import file_watcher
 import commit_msg_handler
 import search_manager
 import file_tree_sidebar
+from tab_content_base import CommitMessageTab, ReviewNotesTabBase
 
 
 class DiffViewerTabWidget(QMainWindow):
@@ -856,7 +857,7 @@ class DiffViewerTabWidget(QMainWindow):
             self.global_bookmarks = self.bookmark_mgr.global_bookmarks
             
             # Check if this is the commit message tab
-            if hasattr(widget, 'is_commit_msg') and widget.is_commit_msg:
+            if isinstance(widget, CommitMessageTab):
                 if 'commit_msg' in self.file_to_tab_index:
                     del self.file_to_tab_index['commit_msg']
             # Regular file tab
@@ -1001,8 +1002,8 @@ class DiffViewerTabWidget(QMainWindow):
         """Increase font size in current tab"""
         current_widget = self.tab_widget.currentWidget()
         if current_widget:
-            if hasattr(current_widget, 'is_commit_msg') and current_widget.is_commit_msg:
-                self._change_commit_msg_font_size(current_widget, 1)
+            if isinstance(current_widget, CommitMessageTab):
+                current_widget.increase_font_size()
             elif hasattr(current_widget, 'is_review_notes') and current_widget.is_review_notes:
                 self._change_review_notes_font_size(current_widget, 1)
             elif hasattr(current_widget, 'diff_viewer'):
@@ -1012,8 +1013,8 @@ class DiffViewerTabWidget(QMainWindow):
         """Decrease font size in current tab"""
         current_widget = self.tab_widget.currentWidget()
         if current_widget:
-            if hasattr(current_widget, 'is_commit_msg') and current_widget.is_commit_msg:
-                self._change_commit_msg_font_size(current_widget, -1)
+            if isinstance(current_widget, CommitMessageTab):
+                current_widget.decrease_font_size()
             elif hasattr(current_widget, 'is_review_notes') and current_widget.is_review_notes:
                 self._change_review_notes_font_size(current_widget, -1)
             elif hasattr(current_widget, 'diff_viewer'):
@@ -1023,7 +1024,7 @@ class DiffViewerTabWidget(QMainWindow):
         """Reset font size to default in current tab"""
         current_widget = self.tab_widget.currentWidget()
         if current_widget:
-            if hasattr(current_widget, 'is_commit_msg') and current_widget.is_commit_msg:
+            if isinstance(current_widget, CommitMessageTab):
                 self._reset_commit_msg_font_size(current_widget)
             elif hasattr(current_widget, 'is_review_notes') and current_widget.is_review_notes:
                 self._reset_review_notes_font_size(current_widget)
@@ -1217,8 +1218,8 @@ class DiffViewerTabWidget(QMainWindow):
                 current_widget = self.tab_widget.currentWidget()
                 if current_widget:
                     # Check if it's a commit message tab
-                    if hasattr(current_widget, 'is_commit_msg') and current_widget.is_commit_msg:
-                        self._change_commit_msg_font_size(current_widget, 1)
+                    if isinstance(current_widget, CommitMessageTab):
+                        current_widget.increase_font_size()
                     # Check if it's a review notes tab
                     elif hasattr(current_widget, 'is_review_notes') and current_widget.is_review_notes:
                         self._change_review_notes_font_size(current_widget, 1)
@@ -1229,8 +1230,8 @@ class DiffViewerTabWidget(QMainWindow):
             elif key == Qt.Key.Key_Minus:
                 current_widget = self.tab_widget.currentWidget()
                 if current_widget:
-                    if hasattr(current_widget, 'is_commit_msg') and current_widget.is_commit_msg:
-                        self._change_commit_msg_font_size(current_widget, -1)
+                    if isinstance(current_widget, CommitMessageTab):
+                        current_widget.decrease_font_size()
                     elif hasattr(current_widget, 'is_review_notes') and current_widget.is_review_notes:
                         self._change_review_notes_font_size(current_widget, -1)
                     elif hasattr(current_widget, 'diff_viewer'):
@@ -1239,7 +1240,7 @@ class DiffViewerTabWidget(QMainWindow):
             elif key == Qt.Key.Key_0:
                 current_widget = self.tab_widget.currentWidget()
                 if current_widget:
-                    if hasattr(current_widget, 'is_commit_msg') and current_widget.is_commit_msg:
+                    if isinstance(current_widget, CommitMessageTab):
                         self._reset_commit_msg_font_size(current_widget)
                     elif hasattr(current_widget, 'is_review_notes') and current_widget.is_review_notes:
                         self._reset_review_notes_font_size(current_widget)
@@ -1261,12 +1262,10 @@ class DiffViewerTabWidget(QMainWindow):
             # Check if current tab is commit message
             current_widget = self.tab_widget.currentWidget()
             if current_widget:
-                if hasattr(current_widget, 'text_widget'):
-                    # Container widget with text_widget (commit message)
-                    text_widget = current_widget.text_widget
-                    if hasattr(text_widget, 'is_commit_msg') and text_widget.is_commit_msg:
-                        self.commit_msg_mgr.toggle_bookmark(text_widget)
-                        return
+                # Check if this is a commit message tab
+                if isinstance(current_widget, CommitMessageTab):
+                    self.commit_msg_mgr.toggle_bookmark(current_widget.text_widget)
+                    return
             # Regular diff viewer
             if viewer:
                 viewer.toggle_bookmark()
@@ -1395,10 +1394,10 @@ class DiffViewerTabWidget(QMainWindow):
             modifiers = event.modifiers()
             
             # Check if this is the commit message widget
-            is_commit_msg = hasattr(obj, 'is_commit_msg') and obj.is_commit_msg
+            is_commit_msg = isinstance(obj.parent(), CommitMessageTab) if obj.parent() else False
             
             # Ctrl+S or Ctrl+F - Search (works for both commit message and diff viewers)
-            if ((key == Qt.Key.Key_S or key == Qt.Key.Key_F) and 
+            if ((key == Qt.Key.Key_S or key == Qt.Key.Key_F) and
                 modifiers & Qt.KeyboardModifier.ControlModifier):
                 self.show_search_dialog()
                 return True
