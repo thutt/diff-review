@@ -34,6 +34,8 @@ class NoteManager:
         self.notes_button = None
         self.note_file_watcher = None
         self.reload_timer = None
+        self.editor_class = tab_widget.editor_class
+        self.editor_theme = tab_widget.editor_theme
     
     def get_note_file(self):
         """Get the current note file path"""
@@ -46,6 +48,10 @@ class NoteManager:
                 return viewer.note_file
         return None
     
+    def is_builtin_editor(self, text_widget):
+        """Check if the widget is the built-in editor (not external emacs/vim)"""
+        return hasattr(text_widget, 'has_unsaved_changes')
+
     def prompt_for_note_file(self):
         """
         Prompt user to select a note file.
@@ -131,7 +137,23 @@ class NoteManager:
             QMessageBox.information(self.tab_widget, 'No Note File',
                                   'No note file has been configured yet.')
             return
-        
+
+        # Check if using external editor
+        if self.editor_class is not None:
+            # Use external editor widget (emacs or vim)
+            text_widget = self.editor_class(self.tab_widget, self.editor_theme, note_file)
+            text_widget.is_review_notes = True
+
+            # Add to tabs with note file path as title
+            index = self.tab_widget.tab_widget.addTab(text_widget, note_file)
+            self.tab_widget.file_to_tab_index['review_notes'] = index
+            self.tab_widget.tab_widget.setCurrentIndex(index)
+
+            # Update button state
+            self.tab_widget.update_button_states()
+            return
+
+        # Use built-in editor (original behavior)
         # Read note file content
         try:
             with open(note_file, 'r', encoding='utf-8') as f:
@@ -188,8 +210,12 @@ class NoteManager:
     
     def show_notes_context_menu(self, pos, text_widget):
         """Show context menu for review notes tab"""
+        # External editors handle their own context menus
+        if not self.is_builtin_editor(text_widget):
+            return
+
         menu = QMenu(self.tab_widget)
-        
+
         cursor = text_widget.textCursor()
         has_selection = cursor.hasSelection()
         
@@ -203,6 +229,10 @@ class NoteManager:
     
     def on_notes_text_changed(self, text_widget):
         """Handle text changes in Review Notes tab"""
+        # External editors handle their own text processing
+        if not self.is_builtin_editor(text_widget):
+            return
+
         # Filter out non-ASCII characters
         cursor_pos = text_widget.textCursor().position()
         text = text_widget.toPlainText()
@@ -234,7 +264,11 @@ class NoteManager:
         note_file = self.get_note_file()
         if not note_file:
             return
-        
+
+        # External editors handle their own saving
+        if not self.is_builtin_editor(text_widget):
+            return
+
         try:
             content = text_widget.toPlainText()
             
@@ -264,7 +298,11 @@ class NoteManager:
         note_file = self.get_note_file()
         if not note_file:
             return
-        
+
+        # External editors don't show dirty state in tab title
+        if not self.is_builtin_editor(text_widget):
+            return
+
         # Find the tab index
         if 'review_notes' not in self.tab_widget.file_to_tab_index:
             return
@@ -357,7 +395,11 @@ class NoteManager:
         text_widget = self.tab_widget.tab_widget.widget(tab_index)
         if not (hasattr(text_widget, 'is_review_notes') and text_widget.is_review_notes):
             return
-        
+
+        # External editors handle their own reloading
+        if not self.is_builtin_editor(text_widget):
+            return
+
         # Check if there are unsaved changes
         if text_widget.has_unsaved_changes:
             # Show conflict dialog

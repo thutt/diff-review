@@ -65,6 +65,8 @@ class DiffViewerTabWidget(QMainWindow):
         self.dump_ir = dump_ir
         self.intraline_percent = intraline_percent
         self._bulk_loading = False  # Suppress highlighting during "Open All Files"
+        self.editor_class = editor_class
+        self.editor_theme = editor_theme
         
         # Stats display mode: 0=none, 1=tabs only, 2=sidebar only
         # Determine initial mode from command line args
