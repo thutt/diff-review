@@ -142,6 +142,13 @@ class CommitMsgHandler:
             note_action = menu.addAction("Take Note (no selection)")
             note_action.setEnabled(False)
         
+        # Add "Jump to Note" if this line has a note
+        jump_action_func = self.tab_widget.note_mgr.show_jump_to_note_menu_commit_msg(pos, text_widget)
+        if jump_action_func:
+            menu.addSeparator()
+            jump_action = menu.addAction("Jump to Note")
+            jump_action.triggered.connect(jump_action_func)
+        
         menu.exec(text_widget.mapToGlobal(pos))
     
     def take_commit_msg_note(self, text_widget):
@@ -157,14 +164,22 @@ class CommitMsgHandler:
         selection_start = cursor.selectionStart()
         selection_end = cursor.selectionEnd()
         
+        # Calculate line number range for the selection
+        doc = text_widget.document()
+        start_block = doc.findBlock(selection_start)
+        end_block = doc.findBlock(selection_end)
+        
+        start_line = start_block.blockNumber()
+        end_line = end_block.blockNumber() + 1  # Half-open range [start, end)
+        
         selected_text = cursor.selectedText()
         selected_text = selected_text.replace('\u2029', '\n')
         
         # Split into lines for note taking
         line_texts = selected_text.split('\n')
         
-        # Take note using NoteManager
-        if note_mgr.take_note("Commit Message", 'commit_msg', None, line_texts, is_commit_msg=True):
+        # Take note using NoteManager with line range
+        if note_mgr.take_note("Commit Message", 'commit_msg', (start_line, end_line), line_texts, is_commit_msg=True):
             # Apply permanent yellow background to noted text
             # Create new cursor with saved selection
             highlight_cursor = text_widget.textCursor()

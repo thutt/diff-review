@@ -425,7 +425,7 @@ class NoteManager:
         Args:
             file_path: Source file path (or "Commit Message")
             side: 'base', 'modified', or 'commit_msg'
-            line_numbers: List of line numbers (or None for commit message)
+            line_numbers: List of line numbers, or (start, end) tuple for commit message
             line_texts: List of line text content
             is_commit_msg: True if this is from commit message
             
@@ -442,8 +442,9 @@ class NoteManager:
         try:
             with open(note_file, 'a', encoding='utf-8') as f:
                 if is_commit_msg:
-                    # Commit message format (no line numbers)
-                    f.write("> (commit_msg): Commit Message\n")
+                    # Commit message format with line range [start, end)
+                    start_line, end_line = line_numbers
+                    f.write(f"> (commit_msg): Commit Message:[{start_line},{end_line})\n")
                     for line_text in line_texts:
                         f.write(f">   {line_text}\n")
                 else:
@@ -496,6 +497,143 @@ class NoteManager:
         # This line has a note - return the action
         return lambda: self.jump_to_note(viewer.base_file if side == 'base' else viewer.modified_file,
                                          side, line_num, viewer)
+    
+    def show_jump_to_note_menu_commit_msg(self, pos, text_widget):
+        """
+        Check if commit message line has a note and return jump action if it does.
+        
+        Args:
+            pos: Mouse position
+            text_widget: The commit message text widget
+            
+        Returns:
+            Callable to jump to note, or None if no note exists for this line
+        """
+        # Get the line under cursor
+        cursor = text_widget.cursorForPosition(pos)
+        line_idx = cursor.blockNumber()
+        
+        # Check if this line has yellow highlighting (indicating a note was taken)
+        block = text_widget.document().findBlockByNumber(line_idx)
+        if not block.isValid():
+            return None
+        
+        # Check for yellow background format
+        cursor_check = QTextCursor(block)
+        cursor_check.movePosition(cursor_check.MoveOperation.StartOfBlock)
+        cursor_check.movePosition(cursor_check.MoveOperation.EndOfBlock, cursor_check.MoveMode.KeepAnchor)
+        
+        char_format = cursor_check.charFormat()
+        bg_color = char_format.background().color()
+        
+        # Check if it's yellow (RGB: 255, 255, 200 - light yellow)
+        if bg_color.red() > 200 and bg_color.green() > 200 and bg_color.blue() > 150:
+            # This line has a note - return the jump action
+            return lambda: self.jump_to_note_commit_msg(line_idx)
+        
+        return None
+    
+    def jump_to_note_commit_msg(self, line_idx):
+        """
+        Jump to the note for a specific line in the commit message.
+        
+        Args:
+            line_idx: Line index in the commit message display
+        """
+        note_file = self.get_note_file()
+        if not note_file:
+            return
+        
+        # Get the commit message tab
+        commit_msg_widget = None
+        if 'commit_msg' in self.tab_widget.file_to_tab_index:
+            commit_msg_tab_index = self.tab_widget.file_to_tab_index['commit_msg']
+            if 0 <= commit_msg_tab_index < self.tab_widget.tab_widget.count():
+                widget = self.tab_widget.tab_widget.widget(commit_msg_tab_index)
+                if widget.is_commit_msg:
+                    commit_msg_widget = widget
+        
+        if not commit_msg_widget:
+            return
+        
+        # Search for the note
+        try:
+            with open(note_file, 'r', encoding='utf-8') as f:
+                content = f.read()
+        except Exception:
+            return
+        
+        # Parse to find the note containing this line index
+        lines = content.split('\n')
+        found_line_idx = None
+        note_end_idx = None
+        
+        for i, line in enumerate(lines):
+            if line.startswith("> (commit_msg): Commit Message:"):
+                # Extract range [start,end)
+                if ':[' in line:
+                    range_part = line.split(':[')[1].split(')')[0]
+                    try:
+                        start, end = map(int, range_part.split(','))
+                        if start <= line_idx < end:
+                            found_line_idx = i
+                            # Find the end of this note (blank line with just '>')
+                            for j in range(i + 1, len(lines)):
+                                if lines[j].strip() == '>':
+                                    note_end_idx = j
+                                    break
+                            break
+                    except (ValueError, IndexError):
+                        continue
+        
+        if found_line_idx is None:
+            # Note not found - remove yellow highlighting from this line
+            block = commit_msg_widget.document().findBlockByNumber(line_idx)
+            if block.isValid():
+                cursor = QTextCursor(block)
+                cursor.movePosition(cursor.MoveOperation.StartOfBlock)
+                cursor.movePosition(cursor.MoveOperation.EndOfBlock, cursor.MoveMode.KeepAnchor)
+                
+                # Clear the background by setting a format with no background
+                char_format = QTextCharFormat()
+                char_format.clearBackground()
+                cursor.mergeCharFormat(char_format)
+            
+            QMessageBox.information(self.tab_widget, 'Note Not Found',
+                                  'The note for this line was not found in the note file.\n'
+                                  'The highlighting has been removed.')
+            return
+        
+        # Open or switch to review notes tab
+        self.on_notes_clicked()
+        
+        # Navigate to the found line
+        if 'review_notes' in self.tab_widget.file_to_tab_index:
+            review_notes_tab_index = self.tab_widget.file_to_tab_index['review_notes']
+            if 0 <= review_notes_tab_index < self.tab_widget.tab_widget.count():
+                notes_widget = self.tab_widget.tab_widget.widget(review_notes_tab_index)
+                
+                # Move cursor to the line
+                cursor = notes_widget.textCursor()
+                cursor.movePosition(cursor.MoveOperation.Start)
+                for _ in range(found_line_idx):
+                    cursor.movePosition(cursor.MoveOperation.Down)
+                
+                # Select the entire note section (from header to blank '>' line)
+                cursor.movePosition(cursor.MoveOperation.StartOfBlock)
+                end_cursor = notes_widget.textCursor()
+                end_cursor.movePosition(end_cursor.MoveOperation.Start)
+                if note_end_idx is not None:
+                    for _ in range(note_end_idx):
+                        end_cursor.movePosition(end_cursor.MoveOperation.Down)
+                    end_cursor.movePosition(end_cursor.MoveOperation.EndOfBlock)
+                else:
+                    end_cursor.movePosition(end_cursor.MoveOperation.End)
+                
+                cursor.setPosition(end_cursor.position(), cursor.MoveMode.KeepAnchor)
+                notes_widget.setTextCursor(cursor)
+                notes_widget.ensureCursorVisible()
+
     
     def jump_to_note(self, file_path, side, line_num, viewer):
         """
