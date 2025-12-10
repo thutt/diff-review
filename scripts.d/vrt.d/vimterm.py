@@ -18,8 +18,6 @@ import termios
 class VimWidget(TerminalWidget):
     def __init__(self, parent, theme, pathname):
         super().__init__(parent, theme, pathname)
-        self.process_pid = None
-        self.timer = None
         self.setup_vim()
 
     def setup_vim(self):

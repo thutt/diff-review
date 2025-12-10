@@ -6,6 +6,7 @@
 from PyQt6.QtWidgets import QTextEdit, QApplication
 from PyQt6.QtGui import QFont, QTextCursor, QFontMetrics, QTextCharFormat, QColor
 from PyQt6.QtCore import Qt, pyqtSignal, QTimer
+from tab_content_base import TabContentBase
 import pyte
 import struct
 import fcntl
@@ -105,11 +106,12 @@ def map_pyte_color_to_qcolor(color_name, is_background):
     return None
 
 
-class TerminalWidget(QTextEdit):
+class TerminalWidget(QTextEdit, TabContentBase):
     process_exited = pyqtSignal(int)
 
     def __init__(self, parent, theme, pathname):
         super().__init__(parent)
+        self.current_font_size = 10
         self.theme = TerminalTheme.get_theme(theme)
         self.setup_terminal()
         self.pathname = pathname
@@ -125,7 +127,7 @@ class TerminalWidget(QTextEdit):
 
     def setup_terminal(self):
         self.setReadOnly(False)
-        font = QFont("Courier New", 10)
+        font = QFont("Courier New", self.current_font_size)
         self.setFont(font)
         theme_name, bg_color, fg_color = self.theme
         self.setStyleSheet(f"""
@@ -135,6 +137,28 @@ class TerminalWidget(QTextEdit):
             }}
         """)
         self.setCursorWidth(10)
+
+    def increase_font_size(self):
+        """Increase terminal font size"""
+        self.current_font_size = min(self.current_font_size + 1, 24)
+        font = QFont("Courier New", self.current_font_size)
+        self.setFont(font)
+        self.update_terminal_size()
+
+    def decrease_font_size(self):
+        """Decrease terminal font size"""
+        self.current_font_size = max(self.current_font_size - 1, 6)
+        font = QFont("Courier New", self.current_font_size)
+        self.setFont(font)
+        self.update_terminal_size()
+
+    def has_unsaved_changes(self):
+        """Terminal has no concept of unsaved changes"""
+        return False
+
+    def search_content(self, search_text, case_sensitive, regex, search_base=True, search_modi=True):
+        """Terminal content is not searchable via the normal search mechanism"""
+        return []
 
     def set_master_fd(self, fd):
         self.master_fd = fd
