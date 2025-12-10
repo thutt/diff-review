@@ -11,9 +11,158 @@ This module manages commit message tab functionality:
 - Note taking from commit messages
 - Font size management for commit message tabs
 """
-from PyQt6.QtWidgets import QPlainTextEdit, QMenu, QMessageBox
+from PyQt6.QtWidgets import QPlainTextEdit, QMenu, QMessageBox, QWidget, QVBoxLayout, QHBoxLayout, QLabel
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QFont, QTextCharFormat, QColor
+from PyQt6.QtGui import QFont, QTextCharFormat, QColor, QPainter
+from tab_content_base import TabContentBase
+
+
+class CommitMessageTab(QWidget, TabContentBase):
+    """
+    Tab widget for displaying commit messages.
+
+    This is a read-only view of the commit message with bookmark support
+    and note-taking capability.
+    """
+
+    def __init__(self, commit_msg_text, commit_msg_handler):
+        """
+        Initialize commit message tab.
+
+        Args:
+            commit_msg_text: The commit message text to display
+            commit_msg_handler: Reference to CommitMsgHandler for bookmarks
+        """
+        super().__init__()
+        self.commit_msg_handler = commit_msg_handler
+        self.current_font_size = 12
+
+        # Create main layout
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+
+        # Create text widget
+        self.text_widget = QPlainTextEdit()
+        self.text_widget.setReadOnly(True)
+        self.text_widget.setPlainText(commit_msg_text)
+        self.text_widget.setFont(QFont("Courier", self.current_font_size, QFont.Weight.Bold))
+
+        # Store reference to handler for bookmark lookup
+        self.text_widget.commit_msg_handler = commit_msg_handler
+
+        # Override paintEvent to draw bookmark indicators
+        original_paintEvent = self.text_widget.paintEvent
+        def paintEvent_with_bookmarks(event):
+            original_paintEvent(event)
+            painter = QPainter(self.text_widget.viewport())
+
+            for line_idx in commit_msg_handler.bookmarked_lines:
+                block = self.text_widget.document().findBlockByNumber(line_idx)
+                if block.isValid():
+                    rect = self.text_widget.blockBoundingGeometry(block).translated(
+                        self.text_widget.contentOffset())
+                    y = int(rect.top())
+                    height = int(rect.height())
+                    # Bright cyan vertical bar on left edge - 5px wide
+                    painter.fillRect(0, y, 5, height, QColor(0, 255, 255))
+
+        self.text_widget.paintEvent = paintEvent_with_bookmarks
+
+        # Style commit message with subtle sepia tone
+        self.text_widget.setStyleSheet("""
+            QPlainTextEdit {
+                background-color: #fdf6e3;
+                color: #5c4a3a;
+            }
+        """)
+
+        # Create status bar with bookmark count
+        status_widget = QWidget()
+        status_layout = QHBoxLayout(status_widget)
+        status_layout.setContentsMargins(5, 2, 5, 2)
+
+        self.bookmarks_label = QLabel("Bookmarks: 0")
+        self.bookmarks_label.setStyleSheet("color: #5c4a3a; font-weight: bold;")
+        status_layout.addWidget(self.bookmarks_label)
+        status_layout.addStretch()
+
+        # Add widgets to layout
+        layout.addWidget(self.text_widget)
+        layout.addWidget(status_widget)
+
+    def increase_font_size(self):
+        """Increase font size in commit message"""
+        self.current_font_size += 1
+        font = self.text_widget.font()
+        font.setPointSize(self.current_font_size)
+        self.text_widget.setFont(font)
+
+    def decrease_font_size(self):
+        """Decrease font size in commit message"""
+        if self.current_font_size > 6:
+            self.current_font_size -= 1
+            font = self.text_widget.font()
+            font.setPointSize(self.current_font_size)
+            self.text_widget.setFont(font)
+
+    def reset_font_size(self):
+        """Reset font size to default (12pt)"""
+        self.current_font_size = 12
+        font = self.text_widget.font()
+        font.setPointSize(self.current_font_size)
+        self.text_widget.setFont(font)
+
+    def toggle_bookmark(self):
+        """Toggle bookmark on current line"""
+        self.commit_msg_handler.toggle_bookmark(self.text_widget)
+
+    def search_content(self, search_text, case_sensitive, regex, search_base=True, search_modi=True):
+        """
+        Search for text in commit message.
+
+        Returns:
+            List of tuples: (side, display_line_num, line_idx, line_text, char_pos)
+        """
+        results = []
+        text = self.text_widget.toPlainText()
+        lines = text.split('\n')
+        
+        for line_idx, line_text in enumerate(lines):
+            # Find matches using same logic as search dialog
+            matches = self._find_matches_in_line(line_text, search_text, case_sensitive, regex)
+            for char_pos, matched_text in matches:
+                results.append(('commit_msg', line_idx + 1, line_idx, line_text, char_pos))
+        
+        return results
+
+    def _find_matches_in_line(self, line_text, search_text, case_sensitive, regex):
+        """Find all match positions in a line. Returns list of (start_pos, match_text) tuples."""
+        import re
+        matches = []
+        
+        if regex:
+            try:
+                flags = 0 if case_sensitive else re.IGNORECASE
+                pattern = re.compile(search_text, flags)
+                for match in pattern.finditer(line_text):
+                    matches.append((match.start(), match.group()))
+            except re.error:
+                pass
+        else:
+            search_str = search_text if case_sensitive else search_text.lower()
+            search_in = line_text if case_sensitive else line_text.lower()
+            
+            pos = 0
+            while True:
+                found_pos = search_in.find(search_str, pos)
+                if found_pos < 0:
+                    break
+                matched_text = line_text[found_pos:found_pos + len(search_text)]
+                matches.append((found_pos, matched_text))
+                pos = found_pos + len(search_text)
+        
+        return matches
 
 
 class CommitMsgHandler:
@@ -79,8 +228,6 @@ class CommitMsgHandler:
     
     def create_commit_msg_tab(self):
         """Create a tab displaying the commit message"""
-        from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel
-
         commit_msg_text = self.tab_widget.afr_.read(self.commit_msg_rel_path)
 
         # The afr_.read() will return the lines as an array of
@@ -89,78 +236,22 @@ class CommitMsgHandler:
         # back together.
         commit_msg_text = '\n'.join(commit_msg_text)
 
-        # Create text widget
-        text_widget = QPlainTextEdit()
-        text_widget.setReadOnly(True)
-        text_widget.setPlainText(commit_msg_text)
-        text_widget.setFont(QFont("Courier", 12, QFont.Weight.Bold))
+        # Create commit message tab widget
+        tab_widget = CommitMessageTab(commit_msg_text, self)
 
-        # Store reference to handler for bookmark lookup
-        text_widget.commit_msg_handler = self
-
-        # Override paintEvent to draw bookmark indicators
-        original_paintEvent = text_widget.paintEvent
-        def paintEvent_with_bookmarks(event):
-            original_paintEvent(event)
-            from PyQt6.QtGui import QPainter, QPen, QBrush
-            from PyQt6.QtCore import Qt as QtCore_Qt, QRect
-
-            painter = QPainter(text_widget.viewport())
-
-            for line_idx in self.bookmarked_lines:
-                block = text_widget.document().findBlockByNumber(line_idx)
-                if block.isValid():
-                    rect = text_widget.blockBoundingGeometry(block).translated(
-                        text_widget.contentOffset())
-                    y = int(rect.top())
-                    height = int(rect.height())
-                    # Bright cyan vertical bar on left edge - 5px wide (same as diff viewer)
-                    painter.fillRect(0, y, 5, height, QColor(0, 255, 255))
-
-        text_widget.paintEvent = paintEvent_with_bookmarks
-
-        # Style commit message with subtle sepia tone
-        text_widget.setStyleSheet("""
-            QPlainTextEdit {
-                background-color: #fdf6e3;
-                color: #5c4a3a;
-            }
-        """)
+        # Store reference for bookmark label updates
+        self.bookmarks_label = tab_widget.bookmarks_label
 
         # Set up context menu
-        text_widget.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        text_widget.customContextMenuRequested.connect(
-            lambda pos: self.show_commit_msg_context_menu(pos, text_widget))
+        tab_widget.text_widget.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        tab_widget.text_widget.customContextMenuRequested.connect(
+            lambda pos: self.show_commit_msg_context_menu(pos, tab_widget.text_widget))
 
         # Install event filter for keyboard shortcuts
-        text_widget.installEventFilter(self.tab_widget)
-
-        # Store reference to tab widget for later use
-        text_widget.is_commit_msg = True
-
-        # Create status bar with bookmark count
-        status_widget = QWidget()
-        status_layout = QHBoxLayout(status_widget)
-        status_layout.setContentsMargins(5, 2, 5, 2)
-
-        self.bookmarks_label = QLabel("Bookmarks: 0")
-        self.bookmarks_label.setStyleSheet("color: #5c4a3a; font-weight: bold;")
-        status_layout.addWidget(self.bookmarks_label)
-        status_layout.addStretch()
-
-        # Create container with text widget and status bar
-        container = QWidget()
-        container_layout = QVBoxLayout(container)
-        container_layout.setContentsMargins(0, 0, 0, 0)
-        container_layout.setSpacing(0)
-        container_layout.addWidget(text_widget)
-        container_layout.addWidget(status_widget)
-
-        # Store reference to text widget on container
-        container.text_widget = text_widget
+        tab_widget.text_widget.installEventFilter(self.tab_widget)
 
         # Add to tabs
-        index = self.tab_widget.tab_widget.addTab(container, "Commit Message")
+        index = self.tab_widget.tab_widget.addTab(tab_widget, "Commit Message")
         self.tab_widget.file_to_tab_index['commit_msg'] = index
         self.tab_widget.tab_widget.setCurrentIndex(index)
 

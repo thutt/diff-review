@@ -18,6 +18,8 @@ from PyQt6.QtCore import Qt
 
 from search_dialogs import SearchDialog, SearchResultDialog
 import color_palettes
+from commit_msg_handler import CommitMessageTab
+from note_manager import ReviewNotesTab
 
 
 class SearchManager:
@@ -407,7 +409,7 @@ class SearchManager:
             review_notes_tab_index = self.tab_widget.file_to_tab_index['review_notes']
             if 0 <= review_notes_tab_index < self.tab_widget.tab_widget.count():
                 widget = self.tab_widget.tab_widget.widget(review_notes_tab_index)
-                if hasattr(widget, 'is_review_notes') and widget.is_review_notes:
+                if isinstance(widget, ReviewNotesTab):
                     review_notes_widget = widget
         
         if not review_notes_widget:
@@ -567,7 +569,7 @@ class SearchManager:
             commit_msg_tab_index = self.tab_widget.file_to_tab_index['commit_msg']
             if 0 <= commit_msg_tab_index < self.tab_widget.tab_widget.count():
                 widget = self.tab_widget.tab_widget.widget(commit_msg_tab_index)
-                if hasattr(widget, 'is_commit_msg') and widget.is_commit_msg:
+                if isinstance(widget, CommitMessageTab):
                     commit_msg_widget = widget
         
         if not commit_msg_widget:

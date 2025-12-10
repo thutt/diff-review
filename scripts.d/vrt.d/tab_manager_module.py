@@ -27,6 +27,9 @@ import file_watcher
 import commit_msg_handler
 import search_manager
 import file_tree_sidebar
+from commit_msg_handler import CommitMessageTab
+from note_manager import ReviewNotesTab
+from diff_viewer import DiffViewer
 
 
 class DiffViewerTabWidget(QMainWindow):
@@ -224,7 +227,7 @@ class DiffViewerTabWidget(QMainWindow):
         view_menu.addSeparator()
         
         self.show_diff_map_action = QAction("Show Diff Map", self)
-        self.show_diff_map_action.setShortcut(QKeySequence("Ctrl+H"))
+        self.show_diff_map_action.setShortcut(QKeySequence("Ctrl+D"))
         self.show_diff_map_action.setCheckable(True)
         self.show_diff_map_action.setChecked(show_diff_map)
         self.show_diff_map_action.triggered.connect(self.toggle_diff_map)
@@ -590,14 +593,11 @@ class DiffViewerTabWidget(QMainWindow):
             modified_name = diff_viewer.modified_file.split('/')[-1]
             tab_title = f"{base_name} vs {modified_name}"
         
-        # Add the viewer's central widget to the tab
-        viewer_widget = diff_viewer.centralWidget()
-        
-        index = self.tab_widget.addTab(viewer_widget, tab_title)
+        # Add the diff_viewer directly to the tab (it's now a QWidget)
+        index = self.tab_widget.addTab(diff_viewer, tab_title)
         
         # Store references
-        viewer_widget.diff_viewer = diff_viewer
-        viewer_widget.file_class = file_class
+        diff_viewer.file_class = file_class
         diff_viewer.tab_manager = self  # Back-reference for bookmark sync
         diff_viewer.tab_index = index  # Store tab index
         
@@ -813,8 +813,8 @@ class DiffViewerTabWidget(QMainWindow):
         viewers = []
         for i in range(self.tab_widget.count()):
             widget = self.tab_widget.widget(i)
-            if hasattr(widget, 'diff_viewer'):
-                viewers.append(widget.diff_viewer)
+            if isinstance(widget, DiffViewer):
+                viewers.append(widget)
         return viewers
     
     def get_current_viewer(self):
@@ -825,8 +825,8 @@ class DiffViewerTabWidget(QMainWindow):
             The DiffViewer instance in the current tab, or None if no tabs
         """
         current_widget = self.tab_widget.currentWidget()
-        if current_widget and hasattr(current_widget, 'diff_viewer'):
-            return current_widget.diff_viewer
+        if isinstance(current_widget, DiffViewer):
+            return current_widget
         return None
     
     def get_viewer_at_index(self, index):
@@ -841,8 +841,8 @@ class DiffViewerTabWidget(QMainWindow):
         """
         if 0 <= index < self.tab_widget.count():
             widget = self.tab_widget.widget(index)
-            if hasattr(widget, 'diff_viewer'):
-                return widget.diff_viewer
+            if isinstance(widget, DiffViewer):
+                return widget
         return None
     
     def close_tab(self, index):
@@ -860,7 +860,7 @@ class DiffViewerTabWidget(QMainWindow):
             self.global_bookmarks = self.bookmark_mgr.global_bookmarks
             
             # Check if this is the commit message tab
-            if hasattr(widget, 'is_commit_msg') and widget.is_commit_msg:
+            if isinstance(widget, CommitMessageTab):
                 if 'commit_msg' in self.file_to_tab_index:
                     del self.file_to_tab_index['commit_msg']
             # Regular file tab
@@ -877,8 +877,8 @@ class DiffViewerTabWidget(QMainWindow):
             # Update tab_index in remaining viewers
             for i in range(self.tab_widget.count()):
                 widget = self.tab_widget.widget(i)
-                if hasattr(widget, 'diff_viewer'):
-                    widget.diff_viewer.tab_index = i
+                if isinstance(widget, DiffViewer):
+                    widget.tab_index = i
             
             self.tab_widget.removeTab(index)
             
@@ -1005,34 +1005,19 @@ class DiffViewerTabWidget(QMainWindow):
         """Increase font size in current tab"""
         current_widget = self.tab_widget.currentWidget()
         if current_widget:
-            if hasattr(current_widget, 'is_commit_msg') and current_widget.is_commit_msg:
-                self._change_commit_msg_font_size(current_widget, 1)
-            elif hasattr(current_widget, 'is_review_notes') and current_widget.is_review_notes:
-                self._change_review_notes_font_size(current_widget, 1)
-            elif hasattr(current_widget, 'diff_viewer'):
-                current_widget.diff_viewer.increase_font_size()
+            current_widget.increase_font_size()
     
     def decrease_font_size(self):
         """Decrease font size in current tab"""
         current_widget = self.tab_widget.currentWidget()
         if current_widget:
-            if hasattr(current_widget, 'is_commit_msg') and current_widget.is_commit_msg:
-                self._change_commit_msg_font_size(current_widget, -1)
-            elif hasattr(current_widget, 'is_review_notes') and current_widget.is_review_notes:
-                self._change_review_notes_font_size(current_widget, -1)
-            elif hasattr(current_widget, 'diff_viewer'):
-                current_widget.diff_viewer.decrease_font_size()
+            current_widget.decrease_font_size()
     
     def reset_font_size(self):
         """Reset font size to default in current tab"""
         current_widget = self.tab_widget.currentWidget()
         if current_widget:
-            if hasattr(current_widget, 'is_commit_msg') and current_widget.is_commit_msg:
-                self._reset_commit_msg_font_size(current_widget)
-            elif hasattr(current_widget, 'is_review_notes') and current_widget.is_review_notes:
-                self._reset_review_notes_font_size(current_widget)
-            elif hasattr(current_widget, 'diff_viewer'):
-                current_widget.diff_viewer.reset_font_size()
+            current_widget.reset_font_size()
     
     def navigate_to_next_bookmark(self):
         """Navigate to next bookmark across all tabs"""
@@ -1180,36 +1165,6 @@ class DiffViewerTabWidget(QMainWindow):
                 if v != viewer:
                     v._needs_color_refresh = True
     
-    def _change_commit_msg_font_size(self, text_widget, delta):
-        """Change font size for commit message tab"""
-        self.commit_msg_mgr.change_commit_msg_font_size(text_widget, delta)
-    
-    def _reset_commit_msg_font_size(self, text_widget):
-        """Reset font size for commit message tab to default (12pt)"""
-        self.commit_msg_mgr.reset_commit_msg_font_size(text_widget)
-    
-    def _change_review_notes_font_size(self, text_widget, delta):
-        """Change font size for review notes tab"""
-        if not hasattr(text_widget, 'current_font_size'):
-            text_widget.current_font_size = 12  # Initialize if not set (review notes default is 12pt)
-        
-        new_size = text_widget.current_font_size + delta
-        # Clamp to range [6, 24]
-        new_size = max(6, min(24, new_size))
-        
-        if new_size != text_widget.current_font_size:
-            text_widget.current_font_size = new_size
-            font = QFont("Courier", new_size, QFont.Weight.Bold)
-            text_widget.setFont(font)
-            text_widget.viewport().update()
-    
-    def _reset_review_notes_font_size(self, text_widget):
-        """Reset font size for review notes tab to default (12pt)"""
-        text_widget.current_font_size = 12
-        font = QFont("Courier", 12, QFont.Weight.Bold)
-        text_widget.setFont(font)
-        text_widget.viewport().update()
-    
     def keyPressEvent(self, event):
         """Handle key press events"""
         key = event.key()
@@ -1220,35 +1175,17 @@ class DiffViewerTabWidget(QMainWindow):
             if key in (Qt.Key.Key_Plus, Qt.Key.Key_Equal):  # + or = key
                 current_widget = self.tab_widget.currentWidget()
                 if current_widget:
-                    # Check if it's a commit message tab
-                    if hasattr(current_widget, 'is_commit_msg') and current_widget.is_commit_msg:
-                        self._change_commit_msg_font_size(current_widget, 1)
-                    # Check if it's a review notes tab
-                    elif hasattr(current_widget, 'is_review_notes') and current_widget.is_review_notes:
-                        self._change_review_notes_font_size(current_widget, 1)
-                    # Otherwise it's a DiffViewer
-                    elif hasattr(current_widget, 'diff_viewer'):
-                        current_widget.diff_viewer.increase_font_size()
+                    current_widget.increase_font_size()
                 return
             elif key == Qt.Key.Key_Minus:
                 current_widget = self.tab_widget.currentWidget()
                 if current_widget:
-                    if hasattr(current_widget, 'is_commit_msg') and current_widget.is_commit_msg:
-                        self._change_commit_msg_font_size(current_widget, -1)
-                    elif hasattr(current_widget, 'is_review_notes') and current_widget.is_review_notes:
-                        self._change_review_notes_font_size(current_widget, -1)
-                    elif hasattr(current_widget, 'diff_viewer'):
-                        current_widget.diff_viewer.decrease_font_size()
+                    current_widget.decrease_font_size()
                 return
             elif key == Qt.Key.Key_0:
                 current_widget = self.tab_widget.currentWidget()
                 if current_widget:
-                    if hasattr(current_widget, 'is_commit_msg') and current_widget.is_commit_msg:
-                        self._reset_commit_msg_font_size(current_widget)
-                    elif hasattr(current_widget, 'is_review_notes') and current_widget.is_review_notes:
-                        self._reset_review_notes_font_size(current_widget)
-                    elif hasattr(current_widget, 'diff_viewer'):
-                        current_widget.diff_viewer.reset_font_size()
+                    current_widget.reset_font_size()
                 return
         
         # Get current viewer for most commands
@@ -1262,18 +1199,9 @@ class DiffViewerTabWidget(QMainWindow):
         
         # M - Toggle bookmark (works for both commit message and diff viewers)
         if key == Qt.Key.Key_M:
-            # Check if current tab is commit message
             current_widget = self.tab_widget.currentWidget()
             if current_widget:
-                if hasattr(current_widget, 'text_widget'):
-                    # Container widget with text_widget (commit message)
-                    text_widget = current_widget.text_widget
-                    if hasattr(text_widget, 'is_commit_msg') and text_widget.is_commit_msg:
-                        self.commit_msg_mgr.toggle_bookmark(text_widget)
-                        return
-            # Regular diff viewer
-            if viewer:
-                viewer.toggle_bookmark()
+                current_widget.toggle_bookmark()
             return
         
         # [ - Previous bookmark (works for both commit message and diff viewers)
@@ -1291,8 +1219,8 @@ class DiffViewerTabWidget(QMainWindow):
             super().keyPressEvent(event)
             return
         
-        # Ctrl+H - Toggle diff map
-        if key == Qt.Key.Key_H and modifiers & Qt.KeyboardModifier.ControlModifier:
+        # Ctrl+D - Toggle diff map
+        if key == Qt.Key.Key_D and modifiers & Qt.KeyboardModifier.ControlModifier:
             self.toggle_diff_map()
             return
         
@@ -1399,10 +1327,10 @@ class DiffViewerTabWidget(QMainWindow):
             modifiers = event.modifiers()
             
             # Check if this is the commit message widget
-            is_commit_msg = hasattr(obj, 'is_commit_msg') and obj.is_commit_msg
+            is_commit_msg = isinstance(obj.parent(), CommitMessageTab) if obj.parent() else False
             
             # Ctrl+S or Ctrl+F - Search (works for both commit message and diff viewers)
-            if ((key == Qt.Key.Key_S or key == Qt.Key.Key_F) and 
+            if ((key == Qt.Key.Key_S or key == Qt.Key.Key_F) and
                 modifiers & Qt.KeyboardModifier.ControlModifier):
                 self.show_search_dialog()
                 return True
