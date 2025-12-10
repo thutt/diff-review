@@ -27,7 +27,8 @@ import file_watcher
 import commit_msg_handler
 import search_manager
 import file_tree_sidebar
-from tab_content_base import CommitMessageTab, ReviewNotesTabBase, ReviewNotesTab
+from commit_msg_handler import CommitMessageTab
+from note_manager import ReviewNotesTab
 from diff_viewer import DiffViewer
 
 

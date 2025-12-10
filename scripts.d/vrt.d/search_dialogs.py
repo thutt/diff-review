@@ -14,7 +14,8 @@ from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
                               QListWidget, QListWidgetItem, QMessageBox, QStyledItemDelegate, QStyle)
 from PyQt6.QtCore import Qt, QRectF
 from PyQt6.QtGui import QColor, QTextDocument, QPalette
-from tab_content_base import CommitMessageTab, ReviewNotesTabBase, ReviewNotesTab
+from commit_msg_handler import CommitMessageTab
+from note_manager import ReviewNotesTab
 
 
 class HTMLDelegate(QStyledItemDelegate):
@@ -392,12 +393,8 @@ class SearchResultDialog(QDialog):
                                           line_num + 1, line_num, line_text, char_pos))
                 # Otherwise it's a diff viewer
                 elif not isinstance(tab_widget, (CommitMessageTab, ReviewNotesTab)):
-                    # Must be a diff viewer - access it via diff_viewer attribute
-                    if hasattr(tab_widget, 'diff_viewer'):
-                        viewer = tab_widget.diff_viewer
-                    else:
-                        # It's the DiffViewer itself (new style)
-                        viewer = tab_widget
+                    # TODO: Fix this properly - should use isinstance but causes circular import
+                    viewer = tab_widget
                     
                     # Search in base
                     if self.search_base:
@@ -448,12 +445,8 @@ class SearchResultDialog(QDialog):
                                       line_num + 1, line_num, line_text, char_pos))
             # Otherwise it's a diff viewer
             elif not isinstance(current_widget, (CommitMessageTab, ReviewNotesTab)):
-                # Must be a diff viewer - access it via diff_viewer attribute
-                if hasattr(current_widget, 'diff_viewer'):
-                    viewer = current_widget.diff_viewer
-                else:
-                    # It's the DiffViewer itself (new style)
-                    viewer = current_widget
+                # TODO: Fix this properly - should use isinstance but causes circular import
+                viewer = current_widget
                 
                 # Search in base
                 if self.search_base:

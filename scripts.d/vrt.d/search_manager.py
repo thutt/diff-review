@@ -18,7 +18,8 @@ from PyQt6.QtCore import Qt
 
 from search_dialogs import SearchDialog, SearchResultDialog
 import color_palettes
-from tab_content_base import CommitMessageTab, ReviewNotesTab
+from commit_msg_handler import CommitMessageTab
+from note_manager import ReviewNotesTab
 
 
 class SearchManager:

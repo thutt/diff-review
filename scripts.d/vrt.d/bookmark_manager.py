@@ -10,7 +10,7 @@ This module manages global bookmarks across all tabs including:
 - Navigation to next/previous bookmarks
 - Cross-tab bookmark jumping
 """
-from tab_content_base import CommitMessageTab
+from commit_msg_handler import CommitMessageTab
 
 
 class BookmarkManager:
