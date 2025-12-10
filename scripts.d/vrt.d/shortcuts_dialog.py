@@ -385,7 +385,7 @@ class ShortcutsDialog(QDialog):
                 <td>Toggle sidebar visibility</td>
             </tr>
             <tr>
-                <td><span class="shortcut">{mod_key}+H</span></td>
+                <td><span class="shortcut">{mod_key}+D</span></td>
                 <td>Toggle diff map</td>
             </tr>
             <tr>

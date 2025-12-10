@@ -1044,7 +1044,7 @@ class DiffViewer(QWidget, TabContentBase):
                 self.reset_font_size()
                 return
         
-        if key == Qt.Key.Key_H and modifiers & Qt.KeyboardModifier.ControlModifier:
+        if key == Qt.Key.Key_D and modifiers & Qt.KeyboardModifier.ControlModifier:
             self.toggle_diff_map()
             return
         

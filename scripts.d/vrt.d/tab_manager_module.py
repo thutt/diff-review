@@ -223,7 +223,7 @@ class DiffViewerTabWidget(QMainWindow):
         view_menu.addSeparator()
         
         self.show_diff_map_action = QAction("Show Diff Map", self)
-        self.show_diff_map_action.setShortcut(QKeySequence("Ctrl+H"))
+        self.show_diff_map_action.setShortcut(QKeySequence("Ctrl+D"))
         self.show_diff_map_action.setCheckable(True)
         self.show_diff_map_action.setChecked(show_diff_map)
         self.show_diff_map_action.triggered.connect(self.toggle_diff_map)
@@ -1215,8 +1215,8 @@ class DiffViewerTabWidget(QMainWindow):
             super().keyPressEvent(event)
             return
         
-        # Ctrl+H - Toggle diff map
-        if key == Qt.Key.Key_H and modifiers & Qt.KeyboardModifier.ControlModifier:
+        # Ctrl+D - Toggle diff map
+        if key == Qt.Key.Key_D and modifiers & Qt.KeyboardModifier.ControlModifier:
             self.toggle_diff_map()
             return
         
