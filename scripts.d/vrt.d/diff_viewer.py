@@ -1320,6 +1320,61 @@ class DiffViewer(QWidget, TabContentBase):
     def has_unsaved_changes(self):
         """Diff viewers don't have unsaved changes"""
         return False
+
+    def search_content(self, search_text, case_sensitive, regex, search_base=True, search_modi=True):
+        """
+        Search for text in diff viewer.
+
+        Returns:
+            List of tuples: (side, display_line_num, line_idx, line_text, char_pos)
+        """
+        results = []
+        
+        # Search in base
+        if search_base:
+            for line_idx, (line_text, line_num) in enumerate(zip(self.base_display, self.base_line_nums)):
+                if line_num is not None:
+                    matches = self._find_matches_in_line(line_text, search_text, case_sensitive, regex)
+                    for char_pos, matched_text in matches:
+                        results.append(('base', line_num, line_idx, line_text, char_pos))
+        
+        # Search in modified
+        if search_modi:
+            for line_idx, (line_text, line_num) in enumerate(zip(self.modified_display, self.modified_line_nums)):
+                if line_num is not None:
+                    matches = self._find_matches_in_line(line_text, search_text, case_sensitive, regex)
+                    for char_pos, matched_text in matches:
+                        results.append(('modified', line_num, line_idx, line_text, char_pos))
+        
+        return results
+
+    def _find_matches_in_line(self, line_text, search_text, case_sensitive, regex):
+        """Find all match positions in a line. Returns list of (start_pos, match_text) tuples."""
+        import re
+        matches = []
+        
+        if regex:
+            try:
+                flags = 0 if case_sensitive else re.IGNORECASE
+                pattern = re.compile(search_text, flags)
+                for match in pattern.finditer(line_text):
+                    matches.append((match.start(), match.group()))
+            except re.error:
+                pass
+        else:
+            search_str = search_text if case_sensitive else search_text.lower()
+            search_in = line_text if case_sensitive else line_text.lower()
+            
+            pos = 0
+            while True:
+                found_pos = search_in.find(search_str, pos)
+                if found_pos < 0:
+                    break
+                matched_text = line_text[found_pos:found_pos + len(search_text)]
+                matches.append((found_pos, matched_text))
+                pos = found_pos + len(search_text)
+        
+        return matches
     
     def run(self):
         self.show()

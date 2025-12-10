@@ -38,3 +38,20 @@ class TabContentBase:
             bool: True if there are unsaved changes, False otherwise
         """
         return False
+
+    def search_content(self, search_text, case_sensitive, regex, search_base=True, search_modi=True):
+        """
+        Search for text within this tab's content.
+
+        Args:
+            search_text: Text to search for
+            case_sensitive: Whether search is case-sensitive
+            regex: Whether to use regex matching
+            search_base: For diff viewers, whether to search base side
+            search_modi: For diff viewers, whether to search modified side
+
+        Returns:
+            List of tuples: (side, display_line_num, line_idx, line_text, char_pos)
+            where side is one of: 'commit_msg', 'review_notes', 'base', 'modified'
+        """
+        return []
