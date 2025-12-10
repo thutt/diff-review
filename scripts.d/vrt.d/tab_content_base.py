@@ -18,17 +18,9 @@ class TabContentBase:
     Abstract base class for all tab content types.
 
     All tab widgets should inherit from this to provide a consistent interface
-    for font management, type identification, and state queries.
+    for font management and state queries. Type identification is done via
+    isinstance() rather than a type string.
     """
-
-    def get_tab_type(self):
-        """
-        Return the type identifier for this tab.
-
-        Returns:
-            str: One of 'commit_msg', 'review_notes', 'diff_viewer'
-        """
-        raise NotImplementedError("Subclasses must implement get_tab_type()")
 
     def increase_font_size(self):
         """Increase font size - default implementation does nothing"""

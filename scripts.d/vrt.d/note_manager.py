@@ -32,10 +32,6 @@ class ReviewNotesTabBase(TabContentBase):
     - EmacsNotesTab: Uses external emacs editor (future)
     """
 
-    def get_tab_type(self):
-        """Return tab type identifier"""
-        return 'review_notes'
-
     def center_cursor(self):
         """Center cursor in view - must be implemented by subclass"""
         pass
@@ -87,10 +83,6 @@ class ReviewNotesTab(QPlainTextEdit, ReviewNotesTabBase):
 
         # Connect text changes to auto-save timer
         self.textChanged.connect(self._on_text_changed)
-
-    def get_tab_type(self):
-        """Return tab type identifier"""
-        return 'review_notes'
 
     def increase_font_size(self):
         """Increase font size in review notes"""

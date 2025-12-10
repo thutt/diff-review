@@ -91,10 +91,6 @@ class CommitMessageTab(QWidget, TabContentBase):
         layout.addWidget(self.text_widget)
         layout.addWidget(status_widget)
 
-    def get_tab_type(self):
-        """Return tab type identifier"""
-        return 'commit_msg'
-
     def increase_font_size(self):
         """Increase font size in commit message"""
         self.current_font_size += 1

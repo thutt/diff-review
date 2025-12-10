@@ -1317,10 +1317,6 @@ class DiffViewer(QWidget, TabContentBase):
         self.apply_highlighting()
         self.diff_map.update()
     
-    def get_tab_type(self):
-        """Return tab type identifier"""
-        return 'diff_viewer'
-    
     def has_unsaved_changes(self):
         """Diff viewers don't have unsaved changes"""
         return False
