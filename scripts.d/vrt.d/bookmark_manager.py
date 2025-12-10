@@ -10,6 +10,7 @@ This module manages global bookmarks across all tabs including:
 - Navigation to next/previous bookmarks
 - Cross-tab bookmark jumping
 """
+from tab_content_base import CommitMessageTab
 
 
 class BookmarkManager:
@@ -36,11 +37,9 @@ class BookmarkManager:
         current_widget = self.tab_widget.tab_widget.currentWidget()
         current_line = 0
 
-        if current_widget and hasattr(current_widget, 'text_widget'):
+        if isinstance(current_widget, CommitMessageTab):
             # Commit message tab
-            text_widget = current_widget.text_widget
-            if hasattr(text_widget, 'is_commit_msg') and text_widget.is_commit_msg:
-                current_line = text_widget.textCursor().blockNumber()
+            current_line = current_widget.text_widget.textCursor().blockNumber()
         else:
             # Regular diff viewer
             viewer = self.tab_widget.get_current_viewer()
@@ -75,11 +74,9 @@ class BookmarkManager:
         current_widget = self.tab_widget.tab_widget.currentWidget()
         current_line = 0
 
-        if current_widget and hasattr(current_widget, 'text_widget'):
+        if isinstance(current_widget, CommitMessageTab):
             # Commit message tab
-            text_widget = current_widget.text_widget
-            if hasattr(text_widget, 'is_commit_msg') and text_widget.is_commit_msg:
-                current_line = text_widget.textCursor().blockNumber()
+            current_line = current_widget.text_widget.textCursor().blockNumber()
         else:
             # Regular diff viewer
             viewer = self.tab_widget.get_current_viewer()
@@ -112,13 +109,11 @@ class BookmarkManager:
         current_widget = self.tab_widget.tab_widget.widget(tab_idx)
 
         # Check if it's a commit message tab
-        if current_widget and hasattr(current_widget, 'text_widget'):
-            text_widget = current_widget.text_widget
-            if hasattr(text_widget, 'is_commit_msg') and text_widget.is_commit_msg:
-                # It's a commit message - center on line
-                self.tab_widget.commit_msg_mgr.center_on_line(text_widget, line_idx)
-                text_widget.setFocus()
-                return
+        if isinstance(current_widget, CommitMessageTab):
+            # It's a commit message - center on line
+            self.tab_widget.commit_msg_mgr.center_on_line(current_widget.text_widget, line_idx)
+            current_widget.text_widget.setFocus()
+            return
 
         # Get viewer
         viewer = self.tab_widget.get_viewer_at_index(tab_idx)

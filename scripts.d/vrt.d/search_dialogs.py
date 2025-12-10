@@ -14,7 +14,7 @@ from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
                               QListWidget, QListWidgetItem, QMessageBox, QStyledItemDelegate, QStyle)
 from PyQt6.QtCore import Qt, QRectF
 from PyQt6.QtGui import QColor, QTextDocument, QPalette
-from tab_content_base import CommitMessageTab, ReviewNotesTabBase
+from tab_content_base import CommitMessageTab, ReviewNotesTabBase, ReviewNotesTab
 
 
 class HTMLDelegate(QStyledItemDelegate):
@@ -381,7 +381,7 @@ class SearchResultDialog(QDialog):
                             results.append((tab_index, tab_title, 'commit_msg',
                                           line_num + 1, line_num, line_text, char_pos))
                 # Check if it's a review notes tab
-                elif hasattr(tab_widget, 'is_review_notes') and tab_widget.is_review_notes:
+                elif isinstance(tab_widget, ReviewNotesTab):
                     text = tab_widget.toPlainText()
                     lines = text.split('\n')
                     for line_num, line_text in enumerate(lines):
@@ -432,7 +432,7 @@ class SearchResultDialog(QDialog):
                         results.append((tab_index, tab_title, 'commit_msg',
                                       line_num + 1, line_num, line_text, char_pos))
             # Check if it's a review notes tab
-            elif hasattr(current_widget, 'is_review_notes') and current_widget.is_review_notes:
+            elif isinstance(current_widget, ReviewNotesTab):
                 text = current_widget.toPlainText()
                 lines = text.split('\n')
                 for line_num, line_text in enumerate(lines):
