@@ -18,6 +18,192 @@ from PyQt6.QtCore import Qt, QFileSystemWatcher, QTimer
 from PyQt6.QtGui import QFont, QTextCursor, QColor, QTextCharFormat
 
 from utils import extract_display_path
+from tab_content_base import TabContentBase
+from commit_msg_handler import CommitMessageTab
+
+
+class ReviewNotesTabBase(TabContentBase):
+    """
+    Abstract base class for review notes tabs.
+
+    Subclasses include:
+    - ReviewNotesTab: Uses QPlainTextEdit
+    - VimNotesTab: Uses external vim editor (future)
+    - EmacsNotesTab: Uses external emacs editor (future)
+    """
+
+    def center_cursor(self):
+        """Center cursor in view - must be implemented by subclass"""
+        pass
+
+    def has_unsaved_changes(self):
+        """Check for unsaved changes - must be implemented by subclass"""
+        return False
+
+
+class ReviewNotesTab(QPlainTextEdit, ReviewNotesTabBase):
+    """
+    Built-in review notes tab using QPlainTextEdit.
+
+    This is an editable view of the notes file with auto-save,
+    ASCII filtering, and context menu support.
+    """
+
+    def __init__(self, notes_text, note_manager):
+        """
+        Initialize review notes tab.
+
+        Args:
+            notes_text: The initial notes text to display
+            note_manager: Reference to NoteManager for saving and operations
+        """
+        super().__init__()
+        self.note_manager = note_manager
+        self.current_font_size = 12
+        self._has_unsaved_changes = False
+        self.original_content = notes_text
+
+        # Configure as editable
+        self.setReadOnly(False)
+        self.setPlainText(notes_text)
+        self.setFont(QFont("Courier", self.current_font_size, QFont.Weight.Bold))
+
+        # Style with light blue tone
+        self.setStyleSheet("""
+            QPlainTextEdit {
+                background-color: #f5f9ff;
+                color: #2c3e50;
+            }
+        """)
+
+        # Create auto-save timer
+        self.save_timer = QTimer()
+        self.save_timer.setSingleShot(True)
+        self.save_timer.timeout.connect(self._save_notes)
+
+        # Connect text changes to auto-save timer
+        self.textChanged.connect(self._on_text_changed)
+
+    def increase_font_size(self):
+        """Increase font size in review notes"""
+        self.current_font_size += 1
+        font = self.font()
+        font.setPointSize(self.current_font_size)
+        self.setFont(font)
+
+    def decrease_font_size(self):
+        """Decrease font size in review notes"""
+        if self.current_font_size > 6:
+            self.current_font_size -= 1
+            font = self.font()
+            font.setPointSize(self.current_font_size)
+            self.setFont(font)
+
+    def reset_font_size(self):
+        """Reset font size to default (12pt)"""
+        self.current_font_size = 12
+        font = self.font()
+        font.setPointSize(self.current_font_size)
+        self.setFont(font)
+
+    def toggle_bookmark(self):
+        """Toggle bookmark - not supported for review notes"""
+        pass
+
+    def search_content(self, search_text, case_sensitive, regex, search_base=True, search_modi=True):
+        """
+        Search for text in review notes.
+
+        Returns:
+            List of tuples: (side, display_line_num, line_idx, line_text, char_pos)
+        """
+        results = []
+        text = self.toPlainText()
+        lines = text.split('\n')
+        
+        for line_idx, line_text in enumerate(lines):
+            # Find matches using same logic as search dialog
+            matches = self._find_matches_in_line(line_text, search_text, case_sensitive, regex)
+            for char_pos, matched_text in matches:
+                results.append(('review_notes', line_idx + 1, line_idx, line_text, char_pos))
+        
+        return results
+
+    def _find_matches_in_line(self, line_text, search_text, case_sensitive, regex):
+        """Find all match positions in a line. Returns list of (start_pos, match_text) tuples."""
+        import re
+        matches = []
+        
+        if regex:
+            try:
+                flags = 0 if case_sensitive else re.IGNORECASE
+                pattern = re.compile(search_text, flags)
+                for match in pattern.finditer(line_text):
+                    matches.append((match.start(), match.group()))
+            except re.error:
+                pass
+        else:
+            search_str = search_text if case_sensitive else search_text.lower()
+            search_in = line_text if case_sensitive else line_text.lower()
+            
+            pos = 0
+            while True:
+                found_pos = search_in.find(search_str, pos)
+                if found_pos < 0:
+                    break
+                matched_text = line_text[found_pos:found_pos + len(search_text)]
+                matches.append((found_pos, matched_text))
+                pos = found_pos + len(search_text)
+        
+        return matches
+
+    def center_cursor(self):
+        """Center the cursor in the view"""
+        cursor = self.textCursor()
+        self.setTextCursor(cursor)
+        self.centerCursor()
+
+    def has_unsaved_changes(self):
+        """Check if there are unsaved changes"""
+        return self._has_unsaved_changes
+
+    def _on_text_changed(self):
+        """Handle text changes - filter ASCII and trigger auto-save"""
+        # Filter out non-ASCII characters
+        cursor_pos = self.textCursor().position()
+        text = self.toPlainText()
+
+        # Filter to ASCII only
+        filtered_text = ''.join(char for char in text if ord(char) < 128)
+
+        if filtered_text != text:
+            # Non-ASCII characters were present - replace text
+            self.blockSignals(True)
+            self.setPlainText(filtered_text)
+            # Restore cursor position (adjusted for removed chars)
+            new_cursor = self.textCursor()
+            new_cursor.setPosition(min(cursor_pos, len(filtered_text)))
+            self.setTextCursor(new_cursor)
+            self.blockSignals(False)
+
+        # Mark as having unsaved changes
+        if not self._has_unsaved_changes:
+            self._has_unsaved_changes = True
+            self.note_manager.update_notes_tab_title(self, dirty=True)
+
+        # Restart auto-save timer (2.5 seconds)
+        self.save_timer.stop()
+        self.save_timer.start(2500)
+
+    def _save_notes(self):
+        """Save notes content via note manager"""
+        self.note_manager.save_notes_content(self)
+
+    def mark_saved(self):
+        """Mark the notes as saved (called by note manager)"""
+        self._has_unsaved_changes = False
+        self.original_content = self.toPlainText()
+        self.note_manager.update_notes_tab_title(self, dirty=False)
 
 
 class NoteManager:
@@ -131,7 +317,7 @@ class NoteManager:
             QMessageBox.information(self.tab_widget, 'No Note File',
                                   'No note file has been configured yet.')
             return
-        
+
         # Read note file content
         try:
             with open(note_file, 'r', encoding='utf-8') as f:
@@ -140,49 +326,23 @@ class NoteManager:
             notes_text = "# No notes yet\n"
         except Exception as e:
             notes_text = f"# Error reading note file:\n# {e}\n"
-        
-        # Create text widget - EDITABLE
-        text_widget = QPlainTextEdit()
-        text_widget.setReadOnly(False)
-        text_widget.setPlainText(notes_text)
-        text_widget.setFont(QFont("Courier", 12, QFont.Weight.Bold))
-        text_widget.current_font_size = 12
-        
-        # Style with light blue tone
-        text_widget.setStyleSheet("""
-            QPlainTextEdit {
-                background-color: #f5f9ff;
-                color: #2c3e50;
-            }
-        """)
-        
+
+        # Create review notes tab widget
+        text_widget = ReviewNotesTab(notes_text, self)
+
         # Set up context menu
         text_widget.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         text_widget.customContextMenuRequested.connect(
             lambda pos: self.show_notes_context_menu(pos, text_widget))
-        
-        # Install event filter for keyboard shortcuts AND ASCII filtering
+
+        # Install event filter for keyboard shortcuts
         text_widget.installEventFilter(self.tab_widget)
-        
-        # Store reference to tab widget for later use
-        text_widget.is_review_notes = True
-        text_widget.has_unsaved_changes = False
-        text_widget.original_content = notes_text
-        
-        # Create auto-save timer
-        save_timer = QTimer()
-        save_timer.setSingleShot(True)
-        save_timer.timeout.connect(lambda: self.save_notes_content(text_widget))
-        text_widget.save_timer = save_timer
-        
-        # Connect text changes to auto-save timer
-        text_widget.textChanged.connect(lambda: self.on_notes_text_changed(text_widget))
-        
+
         # Add to tabs with note file path as title
         index = self.tab_widget.tab_widget.addTab(text_widget, note_file)
         self.tab_widget.file_to_tab_index['review_notes'] = index
         self.tab_widget.tab_widget.setCurrentIndex(index)
-        
+
         # Update button state
         self.tab_widget.update_button_states()
     
@@ -201,60 +361,30 @@ class NoteManager:
         
         menu.exec(text_widget.mapToGlobal(pos))
     
-    def on_notes_text_changed(self, text_widget):
-        """Handle text changes in Review Notes tab"""
-        # Filter out non-ASCII characters
-        cursor_pos = text_widget.textCursor().position()
-        text = text_widget.toPlainText()
-        
-        # Filter to ASCII only
-        filtered_text = ''.join(char for char in text if ord(char) < 128)
-        
-        if filtered_text != text:
-            # Non-ASCII characters were present - replace text
-            text_widget.blockSignals(True)
-            text_widget.setPlainText(filtered_text)
-            # Restore cursor position (adjusted for removed chars)
-            new_cursor = text_widget.textCursor()
-            new_cursor.setPosition(min(cursor_pos, len(filtered_text)))
-            text_widget.setTextCursor(new_cursor)
-            text_widget.blockSignals(False)
-        
-        # Mark as having unsaved changes
-        if not text_widget.has_unsaved_changes:
-            text_widget.has_unsaved_changes = True
-            self.update_notes_tab_title(text_widget, dirty=True)
-        
-        # Restart auto-save timer (2.5 seconds)
-        text_widget.save_timer.stop()
-        text_widget.save_timer.start(2500)
-    
     def save_notes_content(self, text_widget):
         """Save the notes content to file"""
         note_file = self.get_note_file()
         if not note_file:
             return
-        
+
         try:
             content = text_widget.toPlainText()
-            
+
             # Temporarily disable file watcher to avoid triggering reload
             if self.note_file_watcher:
                 self.note_file_watcher.blockSignals(True)
-            
+
             # Write to file
             with open(note_file, 'w', encoding='utf-8') as f:
                 f.write(content)
-            
-            # Update tracking
-            text_widget.has_unsaved_changes = False
-            text_widget.original_content = content
-            self.update_notes_tab_title(text_widget, dirty=False)
-            
+
+            # Update tracking via tab's method
+            text_widget.mark_saved()
+
             # Re-enable file watcher
             if self.note_file_watcher:
                 self.note_file_watcher.blockSignals(False)
-            
+
         except Exception as e:
             QMessageBox.warning(self.tab_widget, 'Save Error',
                               f'Could not save notes file:\n{e}')
@@ -355,11 +485,11 @@ class NoteManager:
             return
         
         text_widget = self.tab_widget.tab_widget.widget(tab_index)
-        if not (hasattr(text_widget, 'is_review_notes') and text_widget.is_review_notes):
+        if not isinstance(text_widget, ReviewNotesTab):
             return
         
         # Check if there are unsaved changes
-        if text_widget.has_unsaved_changes:
+        if text_widget.has_unsaved_changes():
             # Show conflict dialog
             reply = QMessageBox.question(
                 self.tab_widget,
@@ -387,11 +517,9 @@ class NoteManager:
             text_widget.blockSignals(True)
             text_widget.setPlainText(notes_text)
             text_widget.blockSignals(False)
-            
-            # Update tracking
-            text_widget.has_unsaved_changes = False
-            text_widget.original_content = notes_text
-            self.update_notes_tab_title(text_widget, dirty=False)
+
+            # Mark as saved
+            text_widget.mark_saved()
             
             # Restore cursor position
             cursor = text_widget.textCursor()
@@ -425,7 +553,7 @@ class NoteManager:
         Args:
             file_path: Source file path (or "Commit Message")
             side: 'base', 'modified', or 'commit_msg'
-            line_numbers: List of line numbers (or None for commit message)
+            line_numbers: List of line numbers, or (start, end) tuple for commit message
             line_texts: List of line text content
             is_commit_msg: True if this is from commit message
             
@@ -442,8 +570,9 @@ class NoteManager:
         try:
             with open(note_file, 'a', encoding='utf-8') as f:
                 if is_commit_msg:
-                    # Commit message format (no line numbers)
-                    f.write("> (commit_msg): Commit Message\n")
+                    # Commit message format with line range [start, end)
+                    start_line, end_line = line_numbers
+                    f.write(f"> (commit_msg): Commit Message:[{start_line},{end_line})\n")
                     for line_text in line_texts:
                         f.write(f">   {line_text}\n")
                 else:
@@ -496,6 +625,143 @@ class NoteManager:
         # This line has a note - return the action
         return lambda: self.jump_to_note(viewer.base_file if side == 'base' else viewer.modified_file,
                                          side, line_num, viewer)
+    
+    def show_jump_to_note_menu_commit_msg(self, pos, text_widget):
+        """
+        Check if commit message line has a note and return jump action if it does.
+        
+        Args:
+            pos: Mouse position
+            text_widget: The commit message text widget
+            
+        Returns:
+            Callable to jump to note, or None if no note exists for this line
+        """
+        # Get the line under cursor
+        cursor = text_widget.cursorForPosition(pos)
+        line_idx = cursor.blockNumber()
+        
+        # Check if this line has yellow highlighting (indicating a note was taken)
+        block = text_widget.document().findBlockByNumber(line_idx)
+        if not block.isValid():
+            return None
+        
+        # Check for yellow background format
+        cursor_check = QTextCursor(block)
+        cursor_check.movePosition(cursor_check.MoveOperation.StartOfBlock)
+        cursor_check.movePosition(cursor_check.MoveOperation.EndOfBlock, cursor_check.MoveMode.KeepAnchor)
+        
+        char_format = cursor_check.charFormat()
+        bg_color = char_format.background().color()
+        
+        # Check if it's yellow (RGB: 255, 255, 200 - light yellow)
+        if bg_color.red() > 200 and bg_color.green() > 200 and bg_color.blue() > 150:
+            # This line has a note - return the jump action
+            return lambda: self.jump_to_note_commit_msg(line_idx)
+        
+        return None
+    
+    def jump_to_note_commit_msg(self, line_idx):
+        """
+        Jump to the note for a specific line in the commit message.
+        
+        Args:
+            line_idx: Line index in the commit message display
+        """
+        note_file = self.get_note_file()
+        if not note_file:
+            return
+        
+        # Get the commit message tab
+        commit_msg_widget = None
+        if 'commit_msg' in self.tab_widget.file_to_tab_index:
+            commit_msg_tab_index = self.tab_widget.file_to_tab_index['commit_msg']
+            if 0 <= commit_msg_tab_index < self.tab_widget.tab_widget.count():
+                widget = self.tab_widget.tab_widget.widget(commit_msg_tab_index)
+                if isinstance(widget, CommitMessageTab):
+                    commit_msg_widget = widget
+        
+        if not commit_msg_widget:
+            return
+        
+        # Search for the note
+        try:
+            with open(note_file, 'r', encoding='utf-8') as f:
+                content = f.read()
+        except Exception:
+            return
+        
+        # Parse to find the note containing this line index
+        lines = content.split('\n')
+        found_line_idx = None
+        note_end_idx = None
+        
+        for i, line in enumerate(lines):
+            if line.startswith("> (commit_msg): Commit Message:"):
+                # Extract range [start,end)
+                if ':[' in line:
+                    range_part = line.split(':[')[1].split(')')[0]
+                    try:
+                        start, end = map(int, range_part.split(','))
+                        if start <= line_idx < end:
+                            found_line_idx = i
+                            # Find the end of this note (blank line with just '>')
+                            for j in range(i + 1, len(lines)):
+                                if lines[j].strip() == '>':
+                                    note_end_idx = j
+                                    break
+                            break
+                    except (ValueError, IndexError):
+                        continue
+        
+        if found_line_idx is None:
+            # Note not found - remove yellow highlighting from this line
+            block = commit_msg_widget.text_widget.document().findBlockByNumber(line_idx)
+            if block.isValid():
+                cursor = QTextCursor(block)
+                cursor.movePosition(cursor.MoveOperation.StartOfBlock)
+                cursor.movePosition(cursor.MoveOperation.EndOfBlock, cursor.MoveMode.KeepAnchor)
+                
+                # Clear the background by setting a format with no background
+                char_format = QTextCharFormat()
+                char_format.clearBackground()
+                cursor.mergeCharFormat(char_format)
+            
+            QMessageBox.information(self.tab_widget, 'Note Not Found',
+                                  'The note for this line was not found in the note file.\n'
+                                  'The highlighting has been removed.')
+            return
+        
+        # Open or switch to review notes tab
+        self.on_notes_clicked()
+        
+        # Navigate to the found line
+        if 'review_notes' in self.tab_widget.file_to_tab_index:
+            review_notes_tab_index = self.tab_widget.file_to_tab_index['review_notes']
+            if 0 <= review_notes_tab_index < self.tab_widget.tab_widget.count():
+                notes_widget = self.tab_widget.tab_widget.widget(review_notes_tab_index)
+                
+                # Move cursor to the line
+                cursor = notes_widget.textCursor()
+                cursor.movePosition(cursor.MoveOperation.Start)
+                for _ in range(found_line_idx):
+                    cursor.movePosition(cursor.MoveOperation.Down)
+                
+                # Select the entire note section (from header to blank '>' line)
+                cursor.movePosition(cursor.MoveOperation.StartOfBlock)
+                end_cursor = notes_widget.textCursor()
+                end_cursor.movePosition(end_cursor.MoveOperation.Start)
+                if note_end_idx is not None:
+                    for _ in range(note_end_idx):
+                        end_cursor.movePosition(end_cursor.MoveOperation.Down)
+                    end_cursor.movePosition(end_cursor.MoveOperation.EndOfBlock)
+                else:
+                    end_cursor.movePosition(end_cursor.MoveOperation.End)
+                
+                cursor.setPosition(end_cursor.position(), cursor.MoveMode.KeepAnchor)
+                notes_widget.setTextCursor(cursor)
+                notes_widget.ensureCursorVisible()
+
     
     def jump_to_note(self, file_path, side, line_num, viewer):
         """
@@ -554,7 +820,7 @@ class NoteManager:
                 tab_index = self.tab_widget.file_to_tab_index['review_notes']
                 text_widget = self.tab_widget.tab_widget.widget(tab_index)
                 
-                if hasattr(text_widget, 'is_review_notes') and text_widget.is_review_notes:
+                if isinstance(text_widget, ReviewNotesTab):
                     # Select the entire note for visual feedback
                     cursor = text_widget.textCursor()
                     

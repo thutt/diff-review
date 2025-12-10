@@ -10,6 +10,7 @@ This module manages global bookmarks across all tabs including:
 - Navigation to next/previous bookmarks
 - Cross-tab bookmark jumping
 """
+from commit_msg_handler import CommitMessageTab
 
 
 class BookmarkManager:
@@ -29,29 +30,34 @@ class BookmarkManager:
         """Navigate to next bookmark across all tabs"""
         if not self.global_bookmarks:
             return
-        
+
         current_tab = self.tab_widget.tab_widget.currentIndex()
-        viewer = self.tab_widget.get_current_viewer()
-        if not viewer:
-            return
-        
-        # Get current line
-        if viewer.base_text.hasFocus():
-            current_line = viewer.base_text.textCursor().blockNumber()
-        elif viewer.modified_text.hasFocus():
-            current_line = viewer.modified_text.textCursor().blockNumber()
+
+        # Get current line based on widget type
+        current_widget = self.tab_widget.tab_widget.currentWidget()
+        current_line = 0
+
+        if isinstance(current_widget, CommitMessageTab):
+            # Commit message tab
+            current_line = current_widget.text_widget.textCursor().blockNumber()
         else:
-            current_line = 0
-        
+            # Regular diff viewer
+            viewer = self.tab_widget.get_current_viewer()
+            if viewer:
+                if viewer.base_text.hasFocus():
+                    current_line = viewer.base_text.textCursor().blockNumber()
+                elif viewer.modified_text.hasFocus():
+                    current_line = viewer.modified_text.textCursor().blockNumber()
+
         # Sort all bookmarks
         sorted_bookmarks = sorted(self.global_bookmarks.keys())
-        
+
         # Find next bookmark
         for tab_idx, line_idx in sorted_bookmarks:
             if tab_idx > current_tab or (tab_idx == current_tab and line_idx > current_line):
                 self._jump_to_bookmark(tab_idx, line_idx)
                 return
-        
+
         # Wrap around to first bookmark
         if sorted_bookmarks:
             tab_idx, line_idx = sorted_bookmarks[0]
@@ -61,29 +67,34 @@ class BookmarkManager:
         """Navigate to previous bookmark across all tabs"""
         if not self.global_bookmarks:
             return
-        
+
         current_tab = self.tab_widget.tab_widget.currentIndex()
-        viewer = self.tab_widget.get_current_viewer()
-        if not viewer:
-            return
-        
-        # Get current line
-        if viewer.base_text.hasFocus():
-            current_line = viewer.base_text.textCursor().blockNumber()
-        elif viewer.modified_text.hasFocus():
-            current_line = viewer.modified_text.textCursor().blockNumber()
+
+        # Get current line based on widget type
+        current_widget = self.tab_widget.tab_widget.currentWidget()
+        current_line = 0
+
+        if isinstance(current_widget, CommitMessageTab):
+            # Commit message tab
+            current_line = current_widget.text_widget.textCursor().blockNumber()
         else:
-            current_line = 0
-        
+            # Regular diff viewer
+            viewer = self.tab_widget.get_current_viewer()
+            if viewer:
+                if viewer.base_text.hasFocus():
+                    current_line = viewer.base_text.textCursor().blockNumber()
+                elif viewer.modified_text.hasFocus():
+                    current_line = viewer.modified_text.textCursor().blockNumber()
+
         # Sort all bookmarks in reverse
         sorted_bookmarks = sorted(self.global_bookmarks.keys(), reverse=True)
-        
+
         # Find previous bookmark
         for tab_idx, line_idx in sorted_bookmarks:
             if tab_idx < current_tab or (tab_idx == current_tab and line_idx < current_line):
                 self._jump_to_bookmark(tab_idx, line_idx)
                 return
-        
+
         # Wrap around to last bookmark
         if sorted_bookmarks:
             tab_idx, line_idx = sorted_bookmarks[0]
@@ -93,15 +104,25 @@ class BookmarkManager:
         """Jump to a specific bookmark"""
         # Switch to tab
         self.tab_widget.tab_widget.setCurrentIndex(tab_idx)
-        
+
+        # Get the widget at this tab
+        current_widget = self.tab_widget.tab_widget.widget(tab_idx)
+
+        # Check if it's a commit message tab
+        if isinstance(current_widget, CommitMessageTab):
+            # It's a commit message - center on line
+            self.tab_widget.commit_msg_mgr.center_on_line(current_widget.text_widget, line_idx)
+            current_widget.text_widget.setFocus()
+            return
+
         # Get viewer
         viewer = self.tab_widget.get_viewer_at_index(tab_idx)
         if not viewer:
             return
-        
+
         # Center on line
         viewer.center_on_line(line_idx)
-        
+
         # Set focus to base text (arbitrary choice)
         viewer.base_text.setFocus()
     

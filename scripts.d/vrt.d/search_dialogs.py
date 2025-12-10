@@ -9,8 +9,8 @@ This module contains the search input dialog and search results dialog
 with unified search across base, modified, and commit message files.
 """
 import re
-from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, 
-                              QPlainTextEdit, QCheckBox, QPushButton, 
+from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
+                              QPlainTextEdit, QCheckBox, QPushButton,
                               QListWidget, QListWidgetItem, QMessageBox, QStyledItemDelegate, QStyle)
 from PyQt6.QtCore import Qt, QRectF
 from PyQt6.QtGui import QColor, QTextDocument, QPalette
@@ -369,102 +369,36 @@ class SearchResultDialog(QDialog):
                 tab_widget = self.parent_tab_widget.tab_widget.widget(tab_index)
                 tab_title = self.parent_tab_widget.tab_widget.tabText(tab_index)
                 
-                # Check if it's a commit message tab
-                if hasattr(tab_widget, 'is_commit_msg') and tab_widget.is_commit_msg:
-                    text = tab_widget.toPlainText()
-                    lines = text.split('\n')
-                    for line_num, line_text in enumerate(lines):
-                        # Find ALL matches in this line
-                        matches = self.find_all_matches_in_line(line_text)
-                        for char_pos, matched_text in matches:
-                            results.append((tab_index, tab_title, 'commit_msg', 
-                                          line_num + 1, line_num, line_text, char_pos))
-                # Check if it's a review notes tab
-                elif hasattr(tab_widget, 'is_review_notes') and tab_widget.is_review_notes:
-                    text = tab_widget.toPlainText()
-                    lines = text.split('\n')
-                    for line_num, line_text in enumerate(lines):
-                        # Find ALL matches in this line
-                        matches = self.find_all_matches_in_line(line_text)
-                        for char_pos, matched_text in matches:
-                            results.append((tab_index, tab_title, 'review_notes', 
-                                          line_num + 1, line_num, line_text, char_pos))
-                # Otherwise it's a diff viewer
-                elif hasattr(tab_widget, 'diff_viewer'):
-                    viewer = tab_widget.diff_viewer
-                    
-                    # Search in base
-                    if self.search_base:
-                        for i, (line_text, line_num) in enumerate(zip(viewer.base_display, 
-                                                                       viewer.base_line_nums)):
-                            if line_num is not None:
-                                # Find ALL matches in this line
-                                matches = self.find_all_matches_in_line(line_text)
-                                for char_pos, matched_text in matches:
-                                    results.append((tab_index, tab_title, 'base', 
-                                                  line_num, i, line_text, char_pos))
-                    
-                    # Search in modified
-                    if self.search_modi:
-                        for i, (line_text, line_num) in enumerate(zip(viewer.modified_display, 
-                                                                       viewer.modified_line_nums)):
-                            if line_num is not None:
-                                # Find ALL matches in this line
-                                matches = self.find_all_matches_in_line(line_text)
-                                for char_pos, matched_text in matches:
-                                    results.append((tab_index, tab_title, 'modified', 
-                                                  line_num, i, line_text, char_pos))
+                # Ask the tab to search itself
+                tab_results = tab_widget.search_content(
+                    self.search_text,
+                    self.case_sensitive,
+                    self.use_regex,
+                    self.search_base,
+                    self.search_modi
+                )
+                
+                # Add tab_index and tab_title to each result
+                for side, display_line_num, line_idx, line_text, char_pos in tab_results:
+                    results.append((tab_index, tab_title, side, display_line_num, line_idx, line_text, char_pos))
         else:
             # Search current tab only
             current_widget = self.parent_tab_widget.tab_widget.currentWidget()
             tab_index = self.parent_tab_widget.tab_widget.currentIndex()
             tab_title = self.parent_tab_widget.tab_widget.tabText(tab_index)
             
-            # Check if it's a commit message tab
-            if hasattr(current_widget, 'is_commit_msg') and current_widget.is_commit_msg:
-                text = current_widget.toPlainText()
-                lines = text.split('\n')
-                for line_num, line_text in enumerate(lines):
-                    # Find ALL matches in this line
-                    matches = self.find_all_matches_in_line(line_text)
-                    for char_pos, matched_text in matches:
-                        results.append((tab_index, tab_title, 'commit_msg', 
-                                      line_num + 1, line_num, line_text, char_pos))
-            # Check if it's a review notes tab
-            elif hasattr(current_widget, 'is_review_notes') and current_widget.is_review_notes:
-                text = current_widget.toPlainText()
-                lines = text.split('\n')
-                for line_num, line_text in enumerate(lines):
-                    # Find ALL matches in this line
-                    matches = self.find_all_matches_in_line(line_text)
-                    for char_pos, matched_text in matches:
-                        results.append((tab_index, tab_title, 'review_notes', 
-                                      line_num + 1, line_num, line_text, char_pos))
-            # Otherwise it's a diff viewer
-            elif hasattr(current_widget, 'diff_viewer'):
-                viewer = current_widget.diff_viewer
-                
-                # Search in base
-                if self.search_base:
-                    for i, (line_text, line_num) in enumerate(zip(viewer.base_display, 
-                                                                   viewer.base_line_nums)):
-                        if line_num is not None:
-                            # Find ALL matches in this line
-                            matches = self.find_all_matches_in_line(line_text)
-                            for char_pos, matched_text in matches:
-                                results.append((tab_index, tab_title, 'base', 
-                                              line_num, i, line_text, char_pos))
-                
-                # Search in modified
-                if self.search_modi:
-                    for i, (line_text, line_num) in enumerate(zip(viewer.modified_display, 
-                                                                   viewer.modified_line_nums)):
-                        if line_num is not None:
-                            # Find ALL matches in this line
-                            matches = self.find_all_matches_in_line(line_text)
-                            for char_pos, matched_text in matches:
-                                results.append((tab_index, tab_title, 'modified', 
-                                              line_num, i, line_text, char_pos))
+            # Ask the tab to search itself
+            tab_results = current_widget.search_content(
+                self.search_text,
+                self.case_sensitive,
+                self.use_regex,
+                self.search_base,
+                self.search_modi
+            )
+            
+            # Add tab_index and tab_title to each result
+            for side, display_line_num, line_idx, line_text, char_pos in tab_results:
+                results.append((tab_index, tab_title, side, display_line_num, line_idx, line_text, char_pos))
         
         # Update info label
         tab_info = " across all tabs" if self.search_all_tabs else " in current tab"

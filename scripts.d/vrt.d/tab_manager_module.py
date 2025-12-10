@@ -10,11 +10,11 @@ with a sidebar for file selection.
 """
 import os
 import sys
-from PyQt6.QtWidgets import (QApplication, QTabWidget, QMainWindow, QHBoxLayout,
+from PyQt6.QtWidgets import (QApplication, QTabWidget, QMainWindow, QHBoxLayout, 
                               QVBoxLayout, QWidget, QPushButton, QSplitter,
                               QPlainTextEdit, QMenu, QMessageBox, QProgressDialog, QFileDialog)
 from PyQt6.QtCore import Qt, QFileSystemWatcher, QTimer
-from PyQt6.QtGui import (QAction, QFont, QKeySequence, QActionGroup, QFontMetrics,
+from PyQt6.QtGui import (QAction, QFont, QKeySequence, QActionGroup, QFontMetrics, 
                          QColor, QTextDocument, QShortcut)
 
 from help_dialog import HelpDialog
@@ -28,6 +28,9 @@ import commit_msg_handler
 import search_manager
 import file_tree_sidebar
 import keybindings
+from commit_msg_handler import CommitMessageTab
+from note_manager import ReviewNotesTab
+from diff_viewer import DiffViewer
 
 
 class DiffViewerTabWidget(QMainWindow):
@@ -108,7 +111,7 @@ class DiffViewerTabWidget(QMainWindow):
         # Initialize key bindings
         self.keybindings = keybindings.KeyBindings(keybindings_file)
         self.pending_keys = []  # For multi-key sequences
-        
+
         # Create bookmark manager
         self.bookmark_mgr = bookmark_manager.BookmarkManager(self)
         
@@ -226,7 +229,7 @@ class DiffViewerTabWidget(QMainWindow):
         view_menu.addSeparator()
         
         self.show_diff_map_action = QAction("Show Diff Map", self)
-        self.show_diff_map_action.setShortcut(QKeySequence("Ctrl+H"))
+        self.show_diff_map_action.setShortcut(QKeySequence("Ctrl+D"))
         self.show_diff_map_action.setCheckable(True)
         self.show_diff_map_action.setChecked(show_diff_map)
         self.show_diff_map_action.triggered.connect(self.toggle_diff_map)
@@ -592,14 +595,11 @@ class DiffViewerTabWidget(QMainWindow):
             modified_name = diff_viewer.modified_file.split('/')[-1]
             tab_title = f"{base_name} vs {modified_name}"
         
-        # Add the viewer's central widget to the tab
-        viewer_widget = diff_viewer.centralWidget()
-        
-        index = self.tab_widget.addTab(viewer_widget, tab_title)
+        # Add the diff_viewer directly to the tab (it's now a QWidget)
+        index = self.tab_widget.addTab(diff_viewer, tab_title)
         
         # Store references
-        viewer_widget.diff_viewer = diff_viewer
-        viewer_widget.file_class = file_class
+        diff_viewer.file_class = file_class
         diff_viewer.tab_manager = self  # Back-reference for bookmark sync
         diff_viewer.tab_index = index  # Store tab index
         
@@ -815,8 +815,8 @@ class DiffViewerTabWidget(QMainWindow):
         viewers = []
         for i in range(self.tab_widget.count()):
             widget = self.tab_widget.widget(i)
-            if hasattr(widget, 'diff_viewer'):
-                viewers.append(widget.diff_viewer)
+            if isinstance(widget, DiffViewer):
+                viewers.append(widget)
         return viewers
     
     def get_current_viewer(self):
@@ -827,8 +827,8 @@ class DiffViewerTabWidget(QMainWindow):
             The DiffViewer instance in the current tab, or None if no tabs
         """
         current_widget = self.tab_widget.currentWidget()
-        if current_widget and hasattr(current_widget, 'diff_viewer'):
-            return current_widget.diff_viewer
+        if isinstance(current_widget, DiffViewer):
+            return current_widget
         return None
     
     def get_viewer_at_index(self, index):
@@ -843,8 +843,8 @@ class DiffViewerTabWidget(QMainWindow):
         """
         if 0 <= index < self.tab_widget.count():
             widget = self.tab_widget.widget(index)
-            if hasattr(widget, 'diff_viewer'):
-                return widget.diff_viewer
+            if isinstance(widget, DiffViewer):
+                return widget
         return None
     
     def close_tab(self, index):
@@ -862,7 +862,7 @@ class DiffViewerTabWidget(QMainWindow):
             self.global_bookmarks = self.bookmark_mgr.global_bookmarks
             
             # Check if this is the commit message tab
-            if hasattr(widget, 'is_commit_msg') and widget.is_commit_msg:
+            if isinstance(widget, CommitMessageTab):
                 if 'commit_msg' in self.file_to_tab_index:
                     del self.file_to_tab_index['commit_msg']
             # Regular file tab
@@ -879,8 +879,8 @@ class DiffViewerTabWidget(QMainWindow):
             # Update tab_index in remaining viewers
             for i in range(self.tab_widget.count()):
                 widget = self.tab_widget.widget(i)
-                if hasattr(widget, 'diff_viewer'):
-                    widget.diff_viewer.tab_index = i
+                if isinstance(widget, DiffViewer):
+                    widget.tab_index = i
             
             self.tab_widget.removeTab(index)
             
@@ -1007,34 +1007,19 @@ class DiffViewerTabWidget(QMainWindow):
         """Increase font size in current tab"""
         current_widget = self.tab_widget.currentWidget()
         if current_widget:
-            if hasattr(current_widget, 'is_commit_msg') and current_widget.is_commit_msg:
-                self._change_commit_msg_font_size(current_widget, 1)
-            elif hasattr(current_widget, 'is_review_notes') and current_widget.is_review_notes:
-                self._change_review_notes_font_size(current_widget, 1)
-            elif hasattr(current_widget, 'diff_viewer'):
-                current_widget.diff_viewer.increase_font_size()
+            current_widget.increase_font_size()
     
     def decrease_font_size(self):
         """Decrease font size in current tab"""
         current_widget = self.tab_widget.currentWidget()
         if current_widget:
-            if hasattr(current_widget, 'is_commit_msg') and current_widget.is_commit_msg:
-                self._change_commit_msg_font_size(current_widget, -1)
-            elif hasattr(current_widget, 'is_review_notes') and current_widget.is_review_notes:
-                self._change_review_notes_font_size(current_widget, -1)
-            elif hasattr(current_widget, 'diff_viewer'):
-                current_widget.diff_viewer.decrease_font_size()
+            current_widget.decrease_font_size()
     
     def reset_font_size(self):
         """Reset font size to default in current tab"""
         current_widget = self.tab_widget.currentWidget()
         if current_widget:
-            if hasattr(current_widget, 'is_commit_msg') and current_widget.is_commit_msg:
-                self._reset_commit_msg_font_size(current_widget)
-            elif hasattr(current_widget, 'is_review_notes') and current_widget.is_review_notes:
-                self._reset_review_notes_font_size(current_widget)
-            elif hasattr(current_widget, 'diff_viewer'):
-                current_widget.diff_viewer.reset_font_size()
+            current_widget.reset_font_size()
     
     def navigate_to_next_bookmark(self):
         """Navigate to next bookmark across all tabs"""
@@ -1181,30 +1166,30 @@ class DiffViewerTabWidget(QMainWindow):
             for v in self.get_all_viewers():
                 if v != viewer:
                     v._needs_color_refresh = True
-    
+
     def _change_commit_msg_font_size(self, text_widget, delta):
         """Change font size for commit message tab"""
         self.commit_msg_mgr.change_commit_msg_font_size(text_widget, delta)
-    
+
     def _reset_commit_msg_font_size(self, text_widget):
         """Reset font size for commit message tab to default (12pt)"""
         self.commit_msg_mgr.reset_commit_msg_font_size(text_widget)
-    
+
     def _change_review_notes_font_size(self, text_widget, delta):
         """Change font size for review notes tab"""
         if not hasattr(text_widget, 'current_font_size'):
             text_widget.current_font_size = 12  # Initialize if not set (review notes default is 12pt)
-        
+
         new_size = text_widget.current_font_size + delta
         # Clamp to range [6, 24]
         new_size = max(6, min(24, new_size))
-        
+
         if new_size != text_widget.current_font_size:
             text_widget.current_font_size = new_size
             font = QFont("Courier", new_size, QFont.Weight.Bold)
             text_widget.setFont(font)
             text_widget.viewport().update()
-    
+
     def _reset_review_notes_font_size(self, text_widget):
         """Reset font size for review notes tab to default (12pt)"""
         text_widget.current_font_size = 12
@@ -1414,7 +1399,6 @@ class DiffViewerTabWidget(QMainWindow):
                 viewer.base_text.setFocus()
             else:
                 viewer.modified_text.setFocus()
-
     
     def eventFilter(self, obj, event):
         """Filter events from text widgets to handle Tab key and configurable shortcuts"""
@@ -1485,6 +1469,14 @@ class DiffViewerTabWidget(QMainWindow):
                     viewer.base_text.setFocus()
                     viewer.base_text.ensureCursorVisible()
                     return True
+
+            # Check if we have pending keys from a multi-key sequence
+            # If so, we need to let this event bubble up to keyPressEvent
+            if self.pending_keys:
+                # Manually trigger keyPressEvent with this event
+                self.keyPressEvent(event)
+                return True
+
         return False
     
     def run(self):
