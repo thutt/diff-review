@@ -10,7 +10,7 @@ the entire diff viewing application.
 """
 import sys
 from typing import Optional
-from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
+from PyQt6.QtWidgets import (QApplication, QWidget, QVBoxLayout,
                               QHBoxLayout, QLabel, QScrollBar, QFrame, QMenu,
                               QMessageBox, QDialog, QPushButton)
 from PyQt6.QtCore import Qt, QTimer
@@ -21,9 +21,10 @@ from utils import extract_display_path
 from search_dialogs import SearchDialog, SearchResultDialog
 from ui_components import LineNumberArea, DiffMapWidget, SyncedPlainTextEdit
 import color_palettes
+from tab_content_base import TabContentBase
 
 
-class DiffViewer(QMainWindow):
+class DiffViewer(QWidget, TabContentBase):
     def __init__(self,
                  base_file: str,
                  modified_file: str,
@@ -80,11 +81,9 @@ class DiffViewer(QMainWindow):
         self.setup_gui()
     
     def setup_gui(self):
-        self.setWindowTitle(f"Diff Viewer: {self.base_file} vs {self.modified_file}")
+        # Note: No window title needed when used in tabs
         
-        central = QWidget()
-        self.setCentralWidget(central)
-        main_layout = QVBoxLayout(central)
+        main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
         
@@ -1317,6 +1316,14 @@ class DiffViewer(QMainWindow):
         """Refresh all colors from the current palette"""
         self.apply_highlighting()
         self.diff_map.update()
+    
+    def get_tab_type(self):
+        """Return tab type identifier"""
+        return 'diff_viewer'
+    
+    def has_unsaved_changes(self):
+        """Diff viewers don't have unsaved changes"""
+        return False
     
     def run(self):
         self.show()

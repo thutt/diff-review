@@ -391,8 +391,13 @@ class SearchResultDialog(QDialog):
                             results.append((tab_index, tab_title, 'review_notes',
                                           line_num + 1, line_num, line_text, char_pos))
                 # Otherwise it's a diff viewer
-                elif hasattr(tab_widget, 'diff_viewer'):
-                    viewer = tab_widget.diff_viewer
+                elif not isinstance(tab_widget, (CommitMessageTab, ReviewNotesTab)):
+                    # Must be a diff viewer - access it via diff_viewer attribute
+                    if hasattr(tab_widget, 'diff_viewer'):
+                        viewer = tab_widget.diff_viewer
+                    else:
+                        # It's the DiffViewer itself (new style)
+                        viewer = tab_widget
                     
                     # Search in base
                     if self.search_base:
@@ -442,8 +447,13 @@ class SearchResultDialog(QDialog):
                         results.append((tab_index, tab_title, 'review_notes',
                                       line_num + 1, line_num, line_text, char_pos))
             # Otherwise it's a diff viewer
-            elif hasattr(current_widget, 'diff_viewer'):
-                viewer = current_widget.diff_viewer
+            elif not isinstance(current_widget, (CommitMessageTab, ReviewNotesTab)):
+                # Must be a diff viewer - access it via diff_viewer attribute
+                if hasattr(current_widget, 'diff_viewer'):
+                    viewer = current_widget.diff_viewer
+                else:
+                    # It's the DiffViewer itself (new style)
+                    viewer = current_widget
                 
                 # Search in base
                 if self.search_base:

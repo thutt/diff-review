@@ -27,7 +27,8 @@ import file_watcher
 import commit_msg_handler
 import search_manager
 import file_tree_sidebar
-from tab_content_base import CommitMessageTab, ReviewNotesTabBase
+from tab_content_base import CommitMessageTab, ReviewNotesTabBase, ReviewNotesTab
+from diff_viewer import DiffViewer
 
 
 class DiffViewerTabWidget(QMainWindow):
@@ -587,14 +588,11 @@ class DiffViewerTabWidget(QMainWindow):
             modified_name = diff_viewer.modified_file.split('/')[-1]
             tab_title = f"{base_name} vs {modified_name}"
         
-        # Add the viewer's central widget to the tab
-        viewer_widget = diff_viewer.centralWidget()
-        
-        index = self.tab_widget.addTab(viewer_widget, tab_title)
+        # Add the diff_viewer directly to the tab (it's now a QWidget)
+        index = self.tab_widget.addTab(diff_viewer, tab_title)
         
         # Store references
-        viewer_widget.diff_viewer = diff_viewer
-        viewer_widget.file_class = file_class
+        diff_viewer.file_class = file_class
         diff_viewer.tab_manager = self  # Back-reference for bookmark sync
         diff_viewer.tab_index = index  # Store tab index
         
@@ -810,8 +808,8 @@ class DiffViewerTabWidget(QMainWindow):
         viewers = []
         for i in range(self.tab_widget.count()):
             widget = self.tab_widget.widget(i)
-            if hasattr(widget, 'diff_viewer'):
-                viewers.append(widget.diff_viewer)
+            if isinstance(widget, DiffViewer):
+                viewers.append(widget)
         return viewers
     
     def get_current_viewer(self):
@@ -822,8 +820,8 @@ class DiffViewerTabWidget(QMainWindow):
             The DiffViewer instance in the current tab, or None if no tabs
         """
         current_widget = self.tab_widget.currentWidget()
-        if current_widget and hasattr(current_widget, 'diff_viewer'):
-            return current_widget.diff_viewer
+        if isinstance(current_widget, DiffViewer):
+            return current_widget
         return None
     
     def get_viewer_at_index(self, index):
@@ -838,8 +836,8 @@ class DiffViewerTabWidget(QMainWindow):
         """
         if 0 <= index < self.tab_widget.count():
             widget = self.tab_widget.widget(index)
-            if hasattr(widget, 'diff_viewer'):
-                return widget.diff_viewer
+            if isinstance(widget, DiffViewer):
+                return widget
         return None
     
     def close_tab(self, index):
@@ -874,8 +872,8 @@ class DiffViewerTabWidget(QMainWindow):
             # Update tab_index in remaining viewers
             for i in range(self.tab_widget.count()):
                 widget = self.tab_widget.widget(i)
-                if hasattr(widget, 'diff_viewer'):
-                    widget.diff_viewer.tab_index = i
+                if isinstance(widget, DiffViewer):
+                    widget.tab_index = i
             
             self.tab_widget.removeTab(index)
             
@@ -1004,10 +1002,10 @@ class DiffViewerTabWidget(QMainWindow):
         if current_widget:
             if isinstance(current_widget, CommitMessageTab):
                 current_widget.increase_font_size()
-            elif hasattr(current_widget, 'is_review_notes') and current_widget.is_review_notes:
-                self._change_review_notes_font_size(current_widget, 1)
-            elif hasattr(current_widget, 'diff_viewer'):
-                current_widget.diff_viewer.increase_font_size()
+            elif isinstance(current_widget, ReviewNotesTab):
+                current_widget.increase_font_size()
+            elif isinstance(current_widget, DiffViewer):
+                current_widget.increase_font_size()
     
     def decrease_font_size(self):
         """Decrease font size in current tab"""
@@ -1015,10 +1013,10 @@ class DiffViewerTabWidget(QMainWindow):
         if current_widget:
             if isinstance(current_widget, CommitMessageTab):
                 current_widget.decrease_font_size()
-            elif hasattr(current_widget, 'is_review_notes') and current_widget.is_review_notes:
-                self._change_review_notes_font_size(current_widget, -1)
-            elif hasattr(current_widget, 'diff_viewer'):
-                current_widget.diff_viewer.decrease_font_size()
+            elif isinstance(current_widget, ReviewNotesTab):
+                current_widget.decrease_font_size()
+            elif isinstance(current_widget, DiffViewer):
+                current_widget.decrease_font_size()
     
     def reset_font_size(self):
         """Reset font size to default in current tab"""
@@ -1026,10 +1024,10 @@ class DiffViewerTabWidget(QMainWindow):
         if current_widget:
             if isinstance(current_widget, CommitMessageTab):
                 self._reset_commit_msg_font_size(current_widget)
-            elif hasattr(current_widget, 'is_review_notes') and current_widget.is_review_notes:
+            elif isinstance(current_widget, ReviewNotesTab):
                 self._reset_review_notes_font_size(current_widget)
-            elif hasattr(current_widget, 'diff_viewer'):
-                current_widget.diff_viewer.reset_font_size()
+            elif isinstance(current_widget, DiffViewer):
+                current_widget.reset_font_size()
     
     def navigate_to_next_bookmark(self):
         """Navigate to next bookmark across all tabs"""
@@ -1221,31 +1219,31 @@ class DiffViewerTabWidget(QMainWindow):
                     if isinstance(current_widget, CommitMessageTab):
                         current_widget.increase_font_size()
                     # Check if it's a review notes tab
-                    elif hasattr(current_widget, 'is_review_notes') and current_widget.is_review_notes:
-                        self._change_review_notes_font_size(current_widget, 1)
+                    elif isinstance(current_widget, ReviewNotesTab):
+                        current_widget.increase_font_size()
                     # Otherwise it's a DiffViewer
-                    elif hasattr(current_widget, 'diff_viewer'):
-                        current_widget.diff_viewer.increase_font_size()
+                    elif isinstance(current_widget, DiffViewer):
+                        current_widget.increase_font_size()
                 return
             elif key == Qt.Key.Key_Minus:
                 current_widget = self.tab_widget.currentWidget()
                 if current_widget:
                     if isinstance(current_widget, CommitMessageTab):
                         current_widget.decrease_font_size()
-                    elif hasattr(current_widget, 'is_review_notes') and current_widget.is_review_notes:
-                        self._change_review_notes_font_size(current_widget, -1)
-                    elif hasattr(current_widget, 'diff_viewer'):
-                        current_widget.diff_viewer.decrease_font_size()
+                    elif isinstance(current_widget, ReviewNotesTab):
+                        current_widget.decrease_font_size()
+                    elif isinstance(current_widget, DiffViewer):
+                        current_widget.decrease_font_size()
                 return
             elif key == Qt.Key.Key_0:
                 current_widget = self.tab_widget.currentWidget()
                 if current_widget:
                     if isinstance(current_widget, CommitMessageTab):
                         self._reset_commit_msg_font_size(current_widget)
-                    elif hasattr(current_widget, 'is_review_notes') and current_widget.is_review_notes:
+                    elif isinstance(current_widget, ReviewNotesTab):
                         self._reset_review_notes_font_size(current_widget)
-                    elif hasattr(current_widget, 'diff_viewer'):
-                        current_widget.diff_viewer.reset_font_size()
+                    elif isinstance(current_widget, DiffViewer):
+                        current_widget.reset_font_size()
                 return
         
         # Get current viewer for most commands
