@@ -30,6 +30,10 @@ class TabContentBase:
         """Decrease font size - default implementation does nothing"""
         pass
 
+    def reset_font_size(self):
+        """Reset font size to default - default implementation does nothing"""
+        pass
+
     def has_unsaved_changes(self):
         """
         Check if tab has unsaved changes.

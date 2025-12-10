@@ -152,6 +152,13 @@ class TerminalWidget(QTextEdit, TabContentBase):
         self.setFont(font)
         self.update_terminal_size()
 
+    def reset_font_size(self):
+        """Reset terminal font size to default (10pt)"""
+        self.current_font_size = 10
+        font = QFont("Courier New", self.current_font_size)
+        self.setFont(font)
+        self.update_terminal_size()
+
     def has_unsaved_changes(self):
         """Terminal has no concept of unsaved changes"""
         return False

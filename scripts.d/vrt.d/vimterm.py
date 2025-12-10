@@ -62,15 +62,15 @@ class VimWidget(TerminalWidget):
                 os.write(self.master_fd, b'\x1b[5~')
             elif key == Qt.Key.Key_PageDown:
                 os.write(self.master_fd, b'\x1b[6~')
+            elif key == Qt.Key.Key_Backspace:
+                os.write(self.master_fd, b'\x7f')
+            elif key == Qt.Key.Key_Return or key == Qt.Key.Key_Enter:
+                os.write(self.master_fd, b'\r')
             elif modifiers & Qt.KeyboardModifier.AltModifier and text:
                 os.write(self.master_fd, b'\x1b')
                 os.write(self.master_fd, text.encode('utf-8'))
             elif text:
                 os.write(self.master_fd, text.encode('utf-8'))
-            elif key == Qt.Key.Key_Return or key == Qt.Key.Key_Enter:
-                os.write(self.master_fd, b'\r')
-            elif key == Qt.Key.Key_Backspace:
-                os.write(self.master_fd, b'\x7f')
         else:
             super().keyPressEvent(event)
 
