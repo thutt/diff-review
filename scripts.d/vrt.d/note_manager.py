@@ -99,6 +99,17 @@ class ReviewNotesTab(QPlainTextEdit, ReviewNotesTabBase):
             font.setPointSize(self.current_font_size)
             self.setFont(font)
 
+    def reset_font_size(self):
+        """Reset font size to default (12pt)"""
+        self.current_font_size = 12
+        font = self.font()
+        font.setPointSize(self.current_font_size)
+        self.setFont(font)
+
+    def toggle_bookmark(self):
+        """Toggle bookmark - not supported for review notes"""
+        pass
+
     def center_cursor(self):
         """Center the cursor in the view"""
         cursor = self.textCursor()

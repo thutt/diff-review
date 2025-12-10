@@ -1012,11 +1012,7 @@ class DiffViewerTabWidget(QMainWindow):
     def reset_font_size(self):
         """Reset font size to default in current tab"""
         current_widget = self.tab_widget.currentWidget()
-        if isinstance(current_widget, CommitMessageTab):
-            self._reset_commit_msg_font_size(current_widget)
-        elif isinstance(current_widget, ReviewNotesTab):
-            self._reset_review_notes_font_size(current_widget)
-        elif isinstance(current_widget, DiffViewer):
+        if current_widget:
             current_widget.reset_font_size()
     
     def navigate_to_next_bookmark(self):
@@ -1165,36 +1161,6 @@ class DiffViewerTabWidget(QMainWindow):
                 if v != viewer:
                     v._needs_color_refresh = True
     
-    def _change_commit_msg_font_size(self, text_widget, delta):
-        """Change font size for commit message tab"""
-        self.commit_msg_mgr.change_commit_msg_font_size(text_widget, delta)
-    
-    def _reset_commit_msg_font_size(self, text_widget):
-        """Reset font size for commit message tab to default (12pt)"""
-        self.commit_msg_mgr.reset_commit_msg_font_size(text_widget)
-    
-    def _change_review_notes_font_size(self, text_widget, delta):
-        """Change font size for review notes tab"""
-        if not hasattr(text_widget, 'current_font_size'):
-            text_widget.current_font_size = 12  # Initialize if not set (review notes default is 12pt)
-        
-        new_size = text_widget.current_font_size + delta
-        # Clamp to range [6, 24]
-        new_size = max(6, min(24, new_size))
-        
-        if new_size != text_widget.current_font_size:
-            text_widget.current_font_size = new_size
-            font = QFont("Courier", new_size, QFont.Weight.Bold)
-            text_widget.setFont(font)
-            text_widget.viewport().update()
-    
-    def _reset_review_notes_font_size(self, text_widget):
-        """Reset font size for review notes tab to default (12pt)"""
-        text_widget.current_font_size = 12
-        font = QFont("Courier", 12, QFont.Weight.Bold)
-        text_widget.setFont(font)
-        text_widget.viewport().update()
-    
     def keyPressEvent(self, event):
         """Handle key press events"""
         key = event.key()
@@ -1214,11 +1180,7 @@ class DiffViewerTabWidget(QMainWindow):
                 return
             elif key == Qt.Key.Key_0:
                 current_widget = self.tab_widget.currentWidget()
-                if isinstance(current_widget, CommitMessageTab):
-                    self._reset_commit_msg_font_size(current_widget)
-                elif isinstance(current_widget, ReviewNotesTab):
-                    self._reset_review_notes_font_size(current_widget)
-                elif isinstance(current_widget, DiffViewer):
+                if current_widget:
                     current_widget.reset_font_size()
                 return
         
@@ -1233,15 +1195,9 @@ class DiffViewerTabWidget(QMainWindow):
         
         # M - Toggle bookmark (works for both commit message and diff viewers)
         if key == Qt.Key.Key_M:
-            # Check if current tab is commit message
             current_widget = self.tab_widget.currentWidget()
-            # Check if this is a commit message tab
-            if isinstance(current_widget, CommitMessageTab):
-                self.commit_msg_mgr.toggle_bookmark(current_widget.text_widget)
-                return
-            # Regular diff viewer
-            if viewer:
-                viewer.toggle_bookmark()
+            if current_widget:
+                current_widget.toggle_bookmark()
             return
         
         # [ - Previous bookmark (works for both commit message and diff viewers)

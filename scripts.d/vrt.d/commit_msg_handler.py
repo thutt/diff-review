@@ -106,6 +106,17 @@ class CommitMessageTab(QWidget, TabContentBase):
             font.setPointSize(self.current_font_size)
             self.text_widget.setFont(font)
 
+    def reset_font_size(self):
+        """Reset font size to default (12pt)"""
+        self.current_font_size = 12
+        font = self.text_widget.font()
+        font.setPointSize(self.current_font_size)
+        self.text_widget.setFont(font)
+
+    def toggle_bookmark(self):
+        """Toggle bookmark on current line"""
+        self.commit_msg_handler.toggle_bookmark(self.text_widget)
+
 
 class CommitMsgHandler:
     """Manages commit message tab creation and interaction"""
