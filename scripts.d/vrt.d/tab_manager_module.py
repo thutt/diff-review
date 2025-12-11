@@ -142,6 +142,12 @@ class DiffViewerTabWidget(QMainWindow):
         # Keep reference for compatibility
         self.search_result_dialogs = self.search_mgr.search_result_dialogs
         
+        # Focus mode: 'sidebar' or 'content'
+        self.focus_mode = 'sidebar'  # Start with sidebar focused (files must be selected first)
+        self.sidebar_base_stylesheet = ""  # Will be set after sidebar is created
+        self.tab_widget_base_stylesheet = ""  # Will be set after tab_widget is created
+        self.focus_mode_label = None  # Label for showing focus mode in status bar
+        
         # Create main layout
         central = QWidget()
         main_layout = QHBoxLayout(central)
@@ -187,6 +193,28 @@ class DiffViewerTabWidget(QMainWindow):
         main_layout.addWidget(self.splitter)
         
         self.setCentralWidget(central)
+        
+        # Store base stylesheets for focus tinting
+        self.sidebar_base_stylesheet = self.sidebar_widget.styleSheet()
+        self.tab_widget_base_stylesheet = self.tab_widget.styleSheet()
+        
+        # Create overlay widgets for dimming without affecting layout
+        self.sidebar_overlay = QWidget(self.sidebar_widget)
+        self.sidebar_overlay.setStyleSheet("background-color: rgba(0, 0, 0, 0.5);")
+        self.sidebar_overlay.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self.sidebar_overlay.hide()
+        
+        self.tab_overlay = QWidget(self.tab_widget)
+        self.tab_overlay.setStyleSheet("background-color: rgba(0, 0, 0, 0.5);")
+        self.tab_overlay.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self.tab_overlay.hide()
+        
+        # Install event filters to handle resizing
+        self.sidebar_widget.installEventFilter(self)
+        self.tab_widget.installEventFilter(self)
+        
+        # Don't apply initial focus tinting - wait until first file loads
+        # self.update_focus_tinting()
         
         # Create menu bar
         menubar = self.menuBar()
@@ -643,6 +671,10 @@ class DiffViewerTabWidget(QMainWindow):
         
         # Update button states immediately
         self.update_button_states()
+        
+        # If this is the first tab, apply focus tinting now that we have content
+        if self.tab_widget.count() == 1:
+            self.update_focus_tinting()
         
         return index
     
@@ -1166,6 +1198,11 @@ class DiffViewerTabWidget(QMainWindow):
         key = event.key()
         modifiers = event.modifiers()
         
+        # Backtick (`) - Toggle focus mode
+        if key == Qt.Key.Key_QuoteLeft:  # Backtick key
+            self.toggle_focus_mode()
+            return
+        
         # Font size changes - Ctrl + Plus/Minus/0
         if modifiers & Qt.KeyboardModifier.ControlModifier:
             if key in (Qt.Key.Key_Plus, Qt.Key.Key_Equal):  # + or = key
@@ -1317,6 +1354,13 @@ class DiffViewerTabWidget(QMainWindow):
     
     def eventFilter(self, obj, event):
         """Filter events from text widgets to handle Tab key and Ctrl+N"""
+        # Handle resize events for overlay widgets
+        if event.type() == event.Type.Resize:
+            if obj == self.sidebar_widget and self.sidebar_overlay.isVisible():
+                self.sidebar_overlay.setGeometry(self.sidebar_widget.rect())
+            elif obj == self.tab_widget and self.tab_overlay.isVisible():
+                self.tab_overlay.setGeometry(self.tab_widget.rect())
+        
         if event.type() == event.Type.KeyPress:
             viewer = self.get_current_viewer()
             key = event.key()
@@ -1380,6 +1424,45 @@ class DiffViewerTabWidget(QMainWindow):
                     viewer.base_text.ensureCursorVisible()
                     return True
         return False
+    
+    def toggle_focus_mode(self):
+        """Toggle between sidebar and content focus modes"""
+        if self.focus_mode == 'content':
+            self.focus_mode = 'sidebar'
+        else:
+            self.focus_mode = 'content'
+        
+        self.update_focus_tinting()
+        self.update_status_focus_indicator()
+    
+    def update_focus_tinting(self):
+        """Apply background tinting based on current focus mode"""
+        if self.focus_mode == 'sidebar':
+            # Sidebar focused: hide sidebar overlay, show tab overlay
+            self.sidebar_overlay.hide()
+            self.tab_overlay.setGeometry(self.tab_widget.rect())
+            self.tab_overlay.raise_()
+            self.tab_overlay.show()
+        else:  # content focused
+            # Content focused: hide tab overlay, show sidebar overlay
+            self.tab_overlay.hide()
+            self.sidebar_overlay.setGeometry(self.sidebar_widget.rect())
+            self.sidebar_overlay.raise_()
+            self.sidebar_overlay.show()
+    
+    def update_status_focus_indicator(self):
+        """Update status bar in current tab to show focus mode"""
+        current_widget = self.tab_widget.currentWidget()
+        if not current_widget:
+            return
+        
+        # Check if it's a DiffViewer with a region_label
+        if isinstance(current_widget, DiffViewer):
+            focus_text = f"Focus: {'Sidebar' if self.focus_mode == 'sidebar' else 'Content'}"
+            # The region_label is directly accessible on the DiffViewer
+            # We'll update it to include focus mode, or add a separate label
+            # For now, let's just print to console to verify it works
+            print(f"Focus mode changed to: {self.focus_mode}")
     
     def run(self):
         """Show the window and start the application event loop"""
