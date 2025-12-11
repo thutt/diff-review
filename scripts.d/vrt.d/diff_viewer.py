@@ -982,6 +982,30 @@ class DiffViewer(QWidget, TabContentBase):
         self.modified_text.viewport().update()
         self.update_status()
     
+    def jump_to_note_from_cursor(self):
+        """Jump to note for the line at cursor position (Ctrl+J handler)"""
+        # Determine which text widget has focus
+        if self.base_text.hasFocus():
+            text_widget = self.base_text
+            side = 'base'
+        elif self.modified_text.hasFocus():
+            text_widget = self.modified_text
+            side = 'modified'
+        else:
+            return
+        
+        # Get cursor position
+        cursor = text_widget.textCursor()
+        pos = text_widget.cursorRect(cursor).center()
+        
+        # Use note_manager's show_jump_to_note_menu to check and get jump action
+        if not hasattr(self, 'tab_manager') or not hasattr(self.tab_manager, 'note_mgr'):
+            return
+        
+        jump_action_func = self.tab_manager.note_mgr.show_jump_to_note_menu(pos, text_widget, side, self)
+        if jump_action_func:
+            jump_action_func()
+    
     def increase_font_size(self):
         """Increase font size (max 24pt)"""
         if self.current_font_size < 24:
@@ -1054,6 +1078,10 @@ class DiffViewer(QWidget, TabContentBase):
         
         if key == Qt.Key.Key_S and modifiers & Qt.KeyboardModifier.ControlModifier:
             self.show_search_dialog()
+            return
+        
+        if key == Qt.Key.Key_J and modifiers & Qt.KeyboardModifier.ControlModifier:
+            self.jump_to_note_from_cursor()
             return
         
         # M - Toggle bookmark
