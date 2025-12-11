@@ -1080,10 +1080,6 @@ class DiffViewer(QWidget, TabContentBase):
             self.show_search_dialog()
             return
         
-        if key == Qt.Key.Key_J and modifiers & Qt.KeyboardModifier.ControlModifier:
-            self.jump_to_note_from_cursor()
-            return
-        
         # M - Toggle bookmark
         if key == Qt.Key.Key_M:
             self.toggle_bookmark()

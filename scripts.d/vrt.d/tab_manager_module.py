@@ -1393,6 +1393,8 @@ class DiffViewerTabWidget(QMainWindow):
                 viewer.take_note_from_widget('base')
             elif viewer.modified_text.hasFocus():
                 viewer.take_note_from_widget('modified')
+        elif action == 'jump_to_note':
+            viewer.jump_to_note_from_cursor()
         elif action == 'focus_next':
             if not viewer.base_text.hasFocus():
                 viewer.base_text.setFocus()

@@ -70,6 +70,7 @@ class KeyBindings:
         'increase_font': ['Ctrl++', 'Ctrl+='],
         'decrease_font': ['Ctrl+-'],
         'reset_font': ['Ctrl+0'],
+        'jump_to_note': ['Ctrl+j'],
     }
 
     # Reserved keys that should not be rebound (hardcoded behavior)
