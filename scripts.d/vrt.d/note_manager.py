@@ -775,13 +775,17 @@ class NoteManager:
         """
         note_file = self.get_note_file()
         if not note_file:
+            QMessageBox.warning(self.tab_widget, 'Error',
+                              'No note file has been configured.')
             return
         
         # Search for the note
         try:
             with open(note_file, 'r', encoding='utf-8') as f:
                 content = f.read()
-        except Exception:
+        except Exception as e:
+            QMessageBox.warning(self.tab_widget, 'Error',
+                              f'Could not read note file:\n{e}')
             return
         
         # Parse to find the note
@@ -811,40 +815,57 @@ class NoteManager:
                     except (ValueError, IndexError):
                         continue
         
+        # Open or switch to Review Notes tab
+        self.on_notes_clicked()
+        
+        # Get the Review Notes tab widget
+        if 'review_notes' not in self.tab_widget.file_to_tab_index:
+            QMessageBox.warning(self.tab_widget, 'Error',
+                              'Could not open Review Notes tab.')
+            return
+        
+        tab_index = self.tab_widget.file_to_tab_index['review_notes']
+        if not (0 <= tab_index < self.tab_widget.tab_widget.count()):
+            QMessageBox.warning(self.tab_widget, 'Error',
+                              'Review Notes tab index is invalid.')
+            return
+        
+        text_widget = self.tab_widget.tab_widget.widget(tab_index)
+        if not isinstance(text_widget, ReviewNotesTab):
+            QMessageBox.warning(self.tab_widget, 'Error',
+                              'Review Notes tab has unexpected type.')
+            return
+        
         if found_line_idx is not None:
-            # Note found - open/switch to Review Notes tab and highlight it
-            self.on_notes_clicked()  # This will open or switch to the tab
+            # Note found - highlight it
+            cursor = text_widget.textCursor()
             
-            # Get the Review Notes tab widget
-            if 'review_notes' in self.tab_widget.file_to_tab_index:
-                tab_index = self.tab_widget.file_to_tab_index['review_notes']
-                text_widget = self.tab_widget.tab_widget.widget(tab_index)
-                
-                if isinstance(text_widget, ReviewNotesTab):
-                    # Select the entire note for visual feedback
-                    cursor = text_widget.textCursor()
-                    
-                    # Move to start of note header
-                    cursor.movePosition(QTextCursor.MoveOperation.Start)
-                    for _ in range(found_line_idx):
-                        cursor.movePosition(QTextCursor.MoveOperation.Down)
-                    
-                    # Select to end of note (or end of doc if no end found)
-                    cursor.movePosition(QTextCursor.MoveOperation.StartOfLine)
-                    if note_end_idx:
-                        for _ in range(found_line_idx, note_end_idx + 1):
-                            cursor.movePosition(QTextCursor.MoveOperation.Down, 
-                                              QTextCursor.MoveMode.KeepAnchor)
-                    else:
-                        # No end found, select just the header and first few lines
-                        for _ in range(5):  # Select ~5 lines
-                            cursor.movePosition(QTextCursor.MoveOperation.Down,
-                                              QTextCursor.MoveMode.KeepAnchor)
-                    
-                    text_widget.setTextCursor(cursor)
-                    text_widget.centerCursor()
+            # Move to start of note header
+            cursor.movePosition(QTextCursor.MoveOperation.Start)
+            for _ in range(found_line_idx):
+                cursor.movePosition(QTextCursor.MoveOperation.Down)
+            
+            # Select to end of note (or end of doc if no end found)
+            cursor.movePosition(QTextCursor.MoveOperation.StartOfLine)
+            if note_end_idx:
+                for _ in range(found_line_idx, note_end_idx + 1):
+                    cursor.movePosition(QTextCursor.MoveOperation.Down,
+                                      QTextCursor.MoveMode.KeepAnchor)
+            else:
+                # No end found, select just the header and first few lines
+                for _ in range(5):
+                    cursor.movePosition(QTextCursor.MoveOperation.Down,
+                                      QTextCursor.MoveMode.KeepAnchor)
+            
+            text_widget.setTextCursor(cursor)
+            text_widget.centerCursor()
         else:
-            # Note not found - remove highlighting and show dialog
+            # Note not found - position cursor at top
+            cursor = text_widget.textCursor()
+            cursor.movePosition(QTextCursor.MoveOperation.Start)
+            text_widget.setTextCursor(cursor)
+            
+            # Remove highlighting
             if side == 'base':
                 viewer.base_noted_lines.discard(line_num)
                 # Remove yellow highlighting from display
@@ -867,14 +888,6 @@ class NoteManager:
                         viewer.modified_text.viewport().update()
                         viewer.modified_line_area.noted_lines.discard(i)
                         viewer.modified_line_area.update()
-            
-            # Show dialog
-            QMessageBox.information(
-                self.tab_widget,
-                'Note Deleted',
-                f'The note for line {line_num} has been deleted from the note file.\n\n'
-                'The highlighting has been removed.'
-            )
     
     def update_button_state(self, is_open, is_active):
         """Update Review Notes button style based on state"""

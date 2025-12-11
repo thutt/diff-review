@@ -369,8 +369,16 @@ class ShortcutsDialog(QDialog):
                 <td>Take note of selected text</td>
             </tr>
             <tr>
+                <td><span class="shortcut">{mod_key}+J</span></td>
+                <td>Jump to note for current line (if exists)</td>
+            </tr>
+            <tr>
                 <td><span class="shortcut">Right-click -> Take Note</span></td>
                 <td>Add selected text to notes file</td>
+            </tr>
+            <tr>
+                <td><span class="shortcut">Right-click -> Jump to Note</span></td>
+                <td>Jump to note for clicked line</td>
             </tr>
         </table>
         
