@@ -65,7 +65,9 @@ class ViewStateManager:
     
     def toggle_tab_visibility(self):
         """Toggle tab character visibility in all viewers"""
-        self.ignore_tab = not self.tab_widget.show_tab_action.isChecked()
+        self.ignore_tab = not self.ignore_tab
+        # Update the menu action checkbox to stay in sync
+        self.tab_widget.show_tab_action.setChecked(not self.ignore_tab)
         # Update current viewer immediately
         viewer = self.tab_widget.get_current_viewer()
         if viewer:
@@ -79,7 +81,9 @@ class ViewStateManager:
     
     def toggle_trailing_ws_visibility(self):
         """Toggle trailing whitespace visibility in all viewers"""
-        self.ignore_trailing_ws = not self.tab_widget.show_trailing_ws_action.isChecked()
+        self.ignore_trailing_ws = not self.ignore_trailing_ws
+        # Update the menu action checkbox to stay in sync
+        self.tab_widget.show_trailing_ws_action.setChecked(not self.ignore_trailing_ws)
         # Update current viewer immediately
         viewer = self.tab_widget.get_current_viewer()
         if viewer:
@@ -93,7 +97,9 @@ class ViewStateManager:
     
     def toggle_intraline_visibility(self):
         """Toggle intraline changes visibility in all viewers"""
-        self.ignore_intraline = not self.tab_widget.show_intraline_action.isChecked()
+        self.ignore_intraline = not self.ignore_intraline
+        # Update the menu action checkbox to stay in sync
+        self.tab_widget.show_intraline_action.setChecked(not self.ignore_intraline)
         # Update current viewer immediately
         viewer = self.tab_widget.get_current_viewer()
         if viewer:

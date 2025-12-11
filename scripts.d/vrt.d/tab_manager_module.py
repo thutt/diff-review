@@ -733,6 +733,10 @@ class DiffViewerTabWidget(QMainWindow):
     
     def on_tab_changed(self, index):
         """Handle tab change to update sidebar button states"""
+        # Clear any pending keybinding sequence when switching tabs
+        # This prevents stale multi-key sequences from carrying over
+        self.pending_keys = []
+        
         self.update_button_states()
         
         # Update scrollbars in the newly activated viewer
@@ -1202,6 +1206,13 @@ class DiffViewerTabWidget(QMainWindow):
         key = event.key()
         modifiers = event.modifiers()
 
+        # Ignore modifier-only key presses (Shift, Ctrl, Alt, Meta by themselves)
+        # These don't count as part of a key sequence - we only care about them
+        # when they modify another key
+        if key in (Qt.Key.Key_Shift, Qt.Key.Key_Control, Qt.Key.Key_Alt, 
+                   Qt.Key.Key_Meta, Qt.Key.Key_AltGr, Qt.Key.Key_CapsLock):
+            return
+
         # Build current key press as (qt_key, modifiers)
         current_key = (key, modifiers)
 
@@ -1237,6 +1248,11 @@ class DiffViewerTabWidget(QMainWindow):
                 if valid_seq.keys[:len(sequence.keys)] == sequence.keys:
                     return True
         return False
+
+    def _is_potential_sequence_start(self, key_tuple):
+        """Check if a single key press could be the start of a multi-key sequence"""
+        test_seq = keybindings.KeySequence([key_tuple])
+        return self._is_sequence_prefix(test_seq)
 
     def _execute_action(self, action):
         """Execute the action associated with a keybinding"""
@@ -1314,6 +1330,18 @@ class DiffViewerTabWidget(QMainWindow):
         elif action == 'toggle_sidebar':
             self.toggle_sidebar()
             return
+        elif action == 'toggle_diff_map':
+            self.toggle_diff_map()
+            return
+        elif action == 'toggle_line_numbers':
+            self.toggle_line_numbers()
+            return
+        elif action == 'toggle_tab_highlight':
+            self.toggle_tab_visibility()
+            return
+        elif action == 'toggle_eol_highlight':
+            self.toggle_trailing_ws_visibility()
+            return
 
         # Actions that require a viewer
         if not viewer:
@@ -1365,35 +1393,6 @@ class DiffViewerTabWidget(QMainWindow):
                 viewer.take_note_from_widget('base')
             elif viewer.modified_text.hasFocus():
                 viewer.take_note_from_widget('modified')
-        elif action == 'toggle_diff_map':
-            self.toggle_diff_map()
-        elif action == 'toggle_line_numbers':
-            self.toggle_line_numbers()
-        elif action == 'toggle_tab_highlight':
-            self.toggle_tab_visibility()
-        elif action == 'toggle_eol_highlight':
-            self.toggle_trailing_ws_visibility()
-        elif action == 'focus_toggle':
-            if viewer.base_text.hasFocus():
-                cursor = viewer.base_text.textCursor()
-                current_line = cursor.blockNumber()
-                new_cursor = viewer.modified_text.textCursor()
-                new_cursor.movePosition(new_cursor.MoveOperation.Start)
-                for _ in range(current_line):
-                    new_cursor.movePosition(new_cursor.MoveOperation.Down)
-                viewer.modified_text.setTextCursor(new_cursor)
-                viewer.modified_text.setFocus()
-                viewer.modified_text.ensureCursorVisible()
-            elif viewer.modified_text.hasFocus():
-                cursor = viewer.modified_text.textCursor()
-                current_line = cursor.blockNumber()
-                new_cursor = viewer.base_text.textCursor()
-                new_cursor.movePosition(new_cursor.MoveOperation.Start)
-                for _ in range(current_line):
-                    new_cursor.movePosition(new_cursor.MoveOperation.Down)
-                viewer.base_text.setTextCursor(new_cursor)
-                viewer.base_text.setFocus()
-                viewer.base_text.ensureCursorVisible()
         elif action == 'focus_next':
             if not viewer.base_text.hasFocus():
                 viewer.base_text.setFocus()
@@ -1470,10 +1469,10 @@ class DiffViewerTabWidget(QMainWindow):
                     viewer.base_text.ensureCursorVisible()
                     return True
 
-            # Check if we have pending keys from a multi-key sequence
-            # If so, we need to let this event bubble up to keyPressEvent
-            if self.pending_keys:
-                # Manually trigger keyPressEvent with this event
+            # Check if current key could be part of a multi-key sequence
+            # by checking if it's a valid prefix OR continuing an existing sequence
+            if self.pending_keys or self._is_potential_sequence_start(current_key):
+                # Forward to keyPressEvent for keybinding processing
                 self.keyPressEvent(event)
                 return True
 

@@ -10,7 +10,7 @@
     "- zc/zC: collapse region/all",
     "- /: search (n/N for next/prev match)",
     "- m: toggle bookmark",
-    "- Ctrl+w w/l: switch windows",
+    "- w: switch between 'base' and 'modi' in diff viewer tabs",
     "- gt/gT: next/prev tab",
     "- ZQ: close tab (vim-style quit without save)"
   ],
@@ -36,8 +36,7 @@
     "toggle_tab_highlight": ["Ctrl+Shift+t"],
     "toggle_eol_highlight": ["Ctrl+Shift+e"],
     "toggle_sidebar": ["Ctrl+Shift+b"],
-    "focus_toggle": ["Ctrl+w w"],
-    "focus_next": ["Ctrl+w l"],
+    "focus_next": ["w"],
     "shortcuts_help": ["F1", "Ctrl+Shift+?"],
     "close_tab": ["Shift+z Shift+q"],
     "next_tab": ["g t"],
