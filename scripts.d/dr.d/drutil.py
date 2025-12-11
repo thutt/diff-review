@@ -54,11 +54,16 @@ def execute(verbose, cmd):
     rc = p.returncode
 
     if len(stdout) > 0:
-        stdout = stdout[:-1].replace("\r", "").split("\n")
+        stdout = stdout.replace("\r", "").split("\n")
+        if len(stdout[len(stdout) - 1]) == 0:
+            del stdout[len(stdout) - 1] # Remove last line if it was just '\n'.
     else:
         stdout = [ ]
+
     if len(stderr) > 0:
-        stderr = stderr[:-1].replace("\r", "").split("\n"),
+        stderr = stderr.replace("\r", "").split("\n"),
+        if len(stderr[len(stderr) - 1]) == 0:
+            del stderr[len(stderr) - 1] # Remove last line if it was just '\n'.
     else:
         stderr = [ ]
 
