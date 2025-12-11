@@ -899,12 +899,8 @@ class NoteManager:
             QMessageBox.warning(self.tab_widget, 'Error',
                               'Review Notes tab index is invalid.')
             return
-        
+
         text_widget = self.tab_widget.tab_widget.widget(tab_index)
-        if not isinstance(text_widget, ReviewNotesTab):
-            QMessageBox.warning(self.tab_widget, 'Error',
-                              'Review Notes tab has unexpected type.')
-            return
         
         if found_line_idx is not None:
             # Note found - highlight it

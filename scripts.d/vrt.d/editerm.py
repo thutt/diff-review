@@ -163,6 +163,10 @@ class TerminalWidget(QTextEdit, TabContentBase):
         """Terminal has no concept of unsaved changes"""
         return False
 
+    def centerCursor(self):
+        """External editors manage their own cursor positioning"""
+        pass
+
     def search_content(self, search_text, case_sensitive, regex, search_base=True, search_modi=True):
         """Terminal content is not searchable via the normal search mechanism"""
         return []
