@@ -212,6 +212,16 @@ class DiffViewerTabWidget(QMainWindow):
         # Install event filters to handle resizing
         self.sidebar_widget.installEventFilter(self)
         self.tab_widget.installEventFilter(self)
+
+        # Install event filters on sidebar children to capture clicks
+        self.sidebar_widget.tree.installEventFilter(self)
+        self.sidebar_widget.open_all_button.installEventFilter(self)
+
+        # Install event filter on tab bar to capture clicks on tabs
+        self.tab_widget.tabBar().installEventFilter(self)
+
+        # Install global event filter on application to catch ALL mouse clicks
+        self._app.installEventFilter(self)
         
         # Don't apply initial focus tinting - wait until first file loads
         # self.update_focus_tinting()
@@ -626,8 +636,21 @@ class DiffViewerTabWidget(QMainWindow):
         diff_viewer.tab_index = index  # Store tab index
         
         # Install event filter on text widgets to handle Tab key
+        diff_viewer.installEventFilter(self)
         diff_viewer.base_text.installEventFilter(self)
         diff_viewer.modified_text.installEventFilter(self)
+
+        # Install event filter on other visible child widgets to capture clicks
+        if diff_viewer.base_line_area:
+            diff_viewer.base_line_area.installEventFilter(self)
+        if diff_viewer.modified_line_area:
+            diff_viewer.modified_line_area.installEventFilter(self)
+        if diff_viewer.diff_map:
+            diff_viewer.diff_map.installEventFilter(self)
+        if diff_viewer.v_scrollbar:
+            diff_viewer.v_scrollbar.installEventFilter(self)
+        if diff_viewer.h_scrollbar:
+            diff_viewer.h_scrollbar.installEventFilter(self)
         
         # Force proper repaints on horizontal scroll to avoid visual artifacts
         # Use repaint() instead of update() to force immediate redraw
@@ -1354,6 +1377,35 @@ class DiffViewerTabWidget(QMainWindow):
     
     def eventFilter(self, obj, event):
         """Filter events from text widgets to handle Tab key and Ctrl+N"""
+        # Handle mouse press events for focus switching
+        if event.type() == event.Type.MouseButtonPress:
+            # Determine if the click is in the sidebar or content area
+            # by walking up the widget hierarchy
+            widget = obj
+            in_sidebar = False
+            in_content = False
+            
+            while widget is not None:
+                if widget == self.sidebar_widget:
+                    in_sidebar = True
+                    break
+                elif widget == self.tab_widget:
+                    in_content = True
+                    break
+                widget = widget.parent()
+            
+            # Switch focus based on which area was clicked
+            if in_sidebar and self.focus_mode != 'sidebar':
+                print(f"Mouse click switching focus to: sidebar (clicked on {obj.__class__.__name__})")
+                self.focus_mode = 'sidebar'
+                self.update_focus_tinting()
+                self.update_status_focus_indicator()
+            elif in_content and self.focus_mode != 'content':
+                print(f"Mouse click switching focus to: content (clicked on {obj.__class__.__name__})")
+                self.focus_mode = 'content'
+                self.update_focus_tinting()
+                self.update_status_focus_indicator()
+
         # Handle resize events for overlay widgets
         if event.type() == event.Type.Resize:
             if obj == self.sidebar_widget and self.sidebar_overlay.isVisible():
@@ -1424,7 +1476,7 @@ class DiffViewerTabWidget(QMainWindow):
                     viewer.base_text.ensureCursorVisible()
                     return True
         return False
-    
+
     def toggle_focus_mode(self):
         """Toggle between sidebar and content focus modes"""
         if self.focus_mode == 'content':
