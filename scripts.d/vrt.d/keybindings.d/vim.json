@@ -27,6 +27,7 @@
     "first_file": ["1 g t"],
     "focus_next": ["w"],
     "increase_font": ["Ctrl++", "Ctrl+="],
+    "jump_to_note" : ["Ctrl-J"],
     "last_file": ["9 g t"],
     "next_bookmark": ["] b"],
     "next_change": ["] c"],
