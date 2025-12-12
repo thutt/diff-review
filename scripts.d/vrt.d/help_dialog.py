@@ -116,7 +116,37 @@ class HelpDialog(QDialog):
         
         {mac_note}
         <h3>Overview</h3>
-        <p>This diff viewer displays side-by-side comparison of files with synchronized scrolling and highlighting of changes. Multiple diffs can be opened in tabs with a sidebar for file navigation.</p>
+        <p>view-review-tabs is a graphical diff viewer for examining side-by-side file comparisons. It works with pre-generated diff directories containing base.d/ (original files) and modi.d/ (modified files) subdirectories.</p>
+        
+        <h3>Basic Usage</h3>
+        <ul>
+            <li><b>Start the viewer:</b> view-review-tabs --diff-dir /path/to/diff/directory</li>
+            <li><b>Remote diffs:</b> view-review-tabs --diff-url https://example.com/diffs/review</li>
+            <li><b>Multiple files:</b> Files are shown in a sidebar tree; click to open tabs</li>
+            <li><b>Synchronized scrolling:</b> Both panes scroll together for easy comparison</li>
+            <li><b>Change highlighting:</b> Insertions, deletions, and modifications are color-coded</li>
+        </ul>
+        
+        <h3>Focus Modes</h3>
+        <p>The viewer operates in two focus modes that control which area responds to keyboard input:</p>
+        <ul>
+            <li><b>Content Mode:</b> Keyboard input goes to the active tab (diff viewer, commit message, or review notes)</li>
+            <li><b>Sidebar Mode:</b> Keyboard input goes to the file tree sidebar for navigation</li>
+            <li><b>{mod_key}+\\:</b> Toggle between Content and Sidebar modes</li>
+            <li><b>Visual feedback:</b> Unfocused area has a semi-transparent gray overlay</li>
+            <li><b>Mouse clicks:</b> Clicking in an area automatically switches focus to that area</li>
+            <li><b>Status bar:</b> Shows current focus mode (Content or Sidebar)</li>
+        </ul>
+        
+        <h3>Tab Types and Their Shortcuts</h3>
+        <p>Different tab types support different keyboard shortcuts when in Content mode:</p>
+        <ul>
+            <li><b>Diff Viewer Tabs:</b> Full navigation (N/P/C/T/B), collapse regions (X), all common shortcuts</li>
+            <li><b>Commit Message Tab:</b> Search ({mod_key}+S/{mod_key}+F), Take Note ({mod_key}+N), Jump to Note ({mod_key}+J), Bookmarks (M/[/])</li>
+            <li><b>Review Notes Tab:</b> Search ({mod_key}+S/{mod_key}+F), standard text navigation</li>
+            <li><b>All Tabs:</b> Tab switching (Ctrl+Tab/Ctrl+Shift+Tab), Close tab ({mod_key}+W), Search (F3/Shift+F3)</li>
+        </ul>
+        <p><i>Note: Diff-specific shortcuts (N, P, C, T, B, X) only work in diff viewer tabs, not in commit message or review notes tabs.</i></p>
         
         <h3>Sidebar</h3>
         <ul>
