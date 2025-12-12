@@ -98,9 +98,6 @@ class DiffViewerTabWidget(QMainWindow):
         self.line_numbers_visible = show_line_numbers  # Initial state for line numbers
         self.global_note_file = None  # Global note file for all viewers
         
-        # Global bookmarks: maps (tab_index, line_idx) -> True
-        self.global_bookmarks = {}
-        
         # Create view state manager
         self.view_state_mgr = view_state_manager.ViewStateManager(
             self, show_diff_map, show_line_numbers,
@@ -108,9 +105,6 @@ class DiffViewerTabWidget(QMainWindow):
         
         # Create bookmark manager
         self.bookmark_mgr = bookmark_manager.BookmarkManager(self)
-        
-        # Keep reference to global_bookmarks for compatibility
-        self.global_bookmarks = self.bookmark_mgr.global_bookmarks
         
         # Dialog instance tracking to prevent multiple instances
         self.help_dialog = None
@@ -907,8 +901,6 @@ class DiffViewerTabWidget(QMainWindow):
             
             # Clean up bookmarks for this tab
             self.bookmark_mgr.cleanup_tab_bookmarks(index)
-            # Update local reference
-            self.global_bookmarks = self.bookmark_mgr.global_bookmarks
             
             # Check if this is the commit message tab
             if isinstance(widget, CommitMessageTab):
@@ -1069,18 +1061,6 @@ class DiffViewerTabWidget(QMainWindow):
         current_widget = self.tab_widget.currentWidget()
         if current_widget:
             current_widget.reset_font_size()
-    
-    def navigate_to_next_bookmark(self):
-        """Navigate to next bookmark across all tabs"""
-        self.bookmark_mgr.navigate_to_next_bookmark()
-    
-    def navigate_to_prev_bookmark(self):
-        """Navigate to previous bookmark across all tabs"""
-        self.bookmark_mgr.navigate_to_prev_bookmark()
-    
-    def _jump_to_bookmark(self, tab_idx, line_idx):
-        """Jump to a specific bookmark"""
-        self.bookmark_mgr._jump_to_bookmark(tab_idx, line_idx)
     
     def toggle_tab_visibility(self):
         """Toggle tab character visibility in all viewers"""

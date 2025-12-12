@@ -973,9 +973,9 @@ class DiffViewer(QWidget, TabContentBase):
         if hasattr(self, 'tab_manager') and hasattr(self, 'tab_index'):
             key = (self.tab_index, line_idx)
             if line_idx in self.bookmarked_lines:
-                self.tab_manager.global_bookmarks[key] = True
-            elif key in self.tab_manager.global_bookmarks:
-                del self.tab_manager.global_bookmarks[key]
+                self.tab_manager.bookmark_mgr.global_bookmarks[key] = True
+            elif key in self.tab_manager.bookmark_mgr.global_bookmarks:
+                del self.tab_manager.bookmark_mgr.global_bookmarks[key]
         
         # Update visuals
         self.base_text.viewport().update()
