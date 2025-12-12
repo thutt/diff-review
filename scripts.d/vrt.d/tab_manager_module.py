@@ -1289,8 +1289,8 @@ class DiffViewerTabWidget(QMainWindow):
             key = event.key()
             modifiers = event.modifiers()
             
-            # Backtick (`) - Toggle focus mode (handle before focus filtering)
-            if key == Qt.Key.Key_QuoteLeft:  # Backtick key
+            # Ctrl-\ - Toggle focus mode (handle before focus filtering)
+            if key == Qt.Key.Key_Backslash and modifiers & Qt.KeyboardModifier.ControlModifier:
                 self.toggle_focus_mode()
                 return True
             
