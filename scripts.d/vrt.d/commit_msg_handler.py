@@ -127,6 +127,10 @@ class CommitMessageTab(QWidget, TabContentBase):
         if jump_action_func:
             jump_action_func()
 
+    def focus_content(self):
+        """Set Qt focus to the text widget"""
+        self.text_widget.setFocus()
+
     def keyPressEvent(self, event):
         """Handle key press events"""
         key = event.key()

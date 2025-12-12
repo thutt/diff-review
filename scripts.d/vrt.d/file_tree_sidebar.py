@@ -227,20 +227,38 @@ class FileTreeSidebar(QWidget):
     
     def _focus_current_diff_viewer(self):
         """Set focus to the base text widget of the current diff viewer"""
+        # Skip during bulk loading to avoid unnecessary slowness
+        if self.tab_widget._bulk_loading:
+            return
+        
         viewer = self.tab_widget.get_current_viewer()
         if viewer:
-            viewer.base_text.setFocus()
-    
+            viewer.focus_content()
+            # Update focus mode to content
+            if self.tab_widget.focus_mode != 'content':
+                self.tab_widget.focus_mode = 'content'
+                self.tab_widget.update_focus_tinting()
+                self.tab_widget.update_status_focus_indicator()
+
     def _focus_current_tab_widget(self):
         """Set focus to the current tab's main widget (commit msg or review notes)"""
+        # Skip during bulk loading to avoid unnecessary slowness
+        if self.tab_widget._bulk_loading:
+            return
+        
         current_widget = self.tab_widget.tab_widget.currentWidget()
         if current_widget:
-            current_widget.setFocus()
+            current_widget.focus_content()
+            # Update focus mode to content
+            if self.tab_widget.focus_mode != 'content':
+                self.tab_widget.focus_mode = 'content'
+                self.tab_widget.update_focus_tinting()
+                self.tab_widget.update_status_focus_indicator()
     
     def eventFilter(self, obj, event):
-        """Filter events from tree widget to handle spacebar"""
+        """Filter events from tree widget to handle spacebar and enter"""
         if obj == self.tree and event.type() == event.Type.KeyPress:
-            if event.key() == Qt.Key.Key_Space:
+            if event.key() == Qt.Key.Key_Space or event.key() == Qt.Key.Key_Return or event.key() == Qt.Key.Key_Enter:
                 current_item = self.tree.currentItem()
                 if current_item:
                     # Trigger the item as if it was clicked

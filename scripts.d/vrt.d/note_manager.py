@@ -110,6 +110,10 @@ class ReviewNotesTab(QPlainTextEdit, ReviewNotesTabBase):
         """Toggle bookmark - not supported for review notes"""
         pass
 
+    def focus_content(self):
+        """Set Qt focus to self (ReviewNotesTab is itself the text widget)"""
+        self.setFocus()
+
     def reload(self):
         """Reload notes from file, prompting if there are unsaved changes"""
         if self.has_unsaved_changes():
