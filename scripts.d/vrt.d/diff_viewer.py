@@ -1112,6 +1112,18 @@ class DiffViewer(QWidget, TabContentBase):
         if key == Qt.Key.Key_M:
             self.toggle_bookmark()
             return
+
+        # [ - Previous bookmark
+        if key == Qt.Key.Key_BracketLeft:
+            if self.tab_manager:
+                self.tab_manager.bookmark_mgr.navigate_to_prev_bookmark()
+            return
+
+        # ] - Next bookmark
+        if key == Qt.Key.Key_BracketRight:
+            if self.tab_manager:
+                self.tab_manager.bookmark_mgr.navigate_to_next_bookmark()
+            return
         
         # X - Toggle collapse change region / Shift+X - Toggle collapse all
         if key == Qt.Key.Key_X:

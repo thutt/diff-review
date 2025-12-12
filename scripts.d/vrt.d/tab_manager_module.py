@@ -1253,23 +1253,6 @@ class DiffViewerTabWidget(QMainWindow):
             self.show_shortcuts()
             return
         
-        # M - Toggle bookmark (works for both commit message and diff viewers)
-        if key == Qt.Key.Key_M:
-            current_widget = self.tab_widget.currentWidget()
-            if current_widget:
-                current_widget.toggle_bookmark()
-            return
-        
-        # [ - Previous bookmark (works for both commit message and diff viewers)
-        if key == Qt.Key.Key_BracketLeft:
-            self.navigate_to_prev_bookmark()
-            return
-        
-        # ] - Next bookmark (works for both commit message and diff viewers)
-        if key == Qt.Key.Key_BracketRight:
-            self.navigate_to_next_bookmark()
-            return
-        
         # All other shortcuts require an active viewer
         if not viewer:
             super().keyPressEvent(event)
