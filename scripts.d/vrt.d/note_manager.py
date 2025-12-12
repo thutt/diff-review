@@ -110,6 +110,34 @@ class ReviewNotesTab(QPlainTextEdit, ReviewNotesTabBase):
         """Toggle bookmark - not supported for review notes"""
         pass
 
+    def reload(self):
+        """Reload notes from file, prompting if there are unsaved changes"""
+        if self.has_unsaved_changes():
+            reply = QMessageBox.question(
+                self,
+                'Unsaved Changes',
+                'You have unsaved changes. Discard them and reload from file?',
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No
+            )
+            if reply != QMessageBox.StandardButton.Yes:
+                return
+
+        notes_text = self.note_manager.load_note_text()
+        self.setPlainText(notes_text)
+        self._has_unsaved_changes = False
+        self.original_content = notes_text
+
+    def keyPressEvent(self, event):
+        """Handle key press events"""
+        key = event.key()
+
+        if key == Qt.Key.Key_F5:
+            self.reload()
+            return
+
+        super().keyPressEvent(event)
+
     def search_content(self, search_text, case_sensitive, regex, search_base=True, search_modi=True):
         """
         Search for text in review notes.
@@ -309,6 +337,20 @@ class NoteManager:
         
         # Create new Review Notes tab
         self.create_notes_tab()
+
+    def load_note_text(self):
+        """Load note file text and return as string"""
+        note_file = self.get_note_file()
+        if not note_file:
+            return "# No note file configured\n"
+
+        try:
+            with open(note_file, 'r', encoding='utf-8') as f:
+                return f.read()
+        except FileNotFoundError:
+            return "# No notes yet\n"
+        except Exception as e:
+            return f"# Error reading note file:\n# {e}\n"
     
     def create_notes_tab(self):
         """Create a tab displaying the review notes"""
@@ -318,14 +360,7 @@ class NoteManager:
                                   'No note file has been configured yet.')
             return
 
-        # Read note file content
-        try:
-            with open(note_file, 'r', encoding='utf-8') as f:
-                notes_text = f.read()
-        except FileNotFoundError:
-            notes_text = "# No notes yet\n"
-        except Exception as e:
-            notes_text = f"# Error reading note file:\n# {e}\n"
+        notes_text = self.load_note_text()
 
         # Create review notes tab widget
         text_widget = ReviewNotesTab(notes_text, self)
