@@ -1324,12 +1324,10 @@ class DiffViewerTabWidget(QMainWindow):
             
             # Switch focus based on which area was clicked
             if in_sidebar and self.focus_mode != 'sidebar':
-                print(f"Mouse click switching focus to: sidebar (clicked on {obj.__class__.__name__})")
                 self.focus_mode = 'sidebar'
                 self.update_focus_tinting()
                 self.update_status_focus_indicator()
             elif in_content and self.focus_mode != 'content':
-                print(f"Mouse click switching focus to: content (clicked on {obj.__class__.__name__})")
                 self.focus_mode = 'content'
                 self.update_focus_tinting()
                 self.update_status_focus_indicator()
@@ -1441,8 +1439,6 @@ class DiffViewerTabWidget(QMainWindow):
             focus_text = f"Focus: {'Sidebar' if self.focus_mode == 'sidebar' else 'Content'}"
             # The region_label is directly accessible on the DiffViewer
             # We'll update it to include focus mode, or add a separate label
-            # For now, let's just print to console to verify it works
-            print(f"Focus mode changed to: {self.focus_mode}")
     
     def run(self):
         """Show the window and start the application event loop"""
