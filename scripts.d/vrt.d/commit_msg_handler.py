@@ -144,6 +144,18 @@ class CommitMessageTab(QWidget, TabContentBase):
             self.jump_to_note_from_cursor()
             return
 
+        if ((key == Qt.Key.Key_S or key == Qt.Key.Key_F) and
+            modifiers & Qt.KeyboardModifier.ControlModifier):
+            self.commit_msg_handler.tab_widget.show_search_dialog()
+            return
+
+        if key == Qt.Key.Key_F3:
+            if modifiers & Qt.KeyboardModifier.ShiftModifier:
+                self.commit_msg_handler.tab_widget.search_mgr.find_previous()
+            else:
+                self.commit_msg_handler.tab_widget.search_mgr.find_next()
+            return
+
         super().keyPressEvent(event)
 
     def toggle_bookmark(self):

@@ -1076,8 +1076,18 @@ class DiffViewer(QWidget, TabContentBase):
             self.toggle_line_numbers()
             return
         
-        if key == Qt.Key.Key_S and modifiers & Qt.KeyboardModifier.ControlModifier:
-            self.show_search_dialog()
+        if ((key == Qt.Key.Key_S or key == Qt.Key.Key_F) and
+            modifiers & Qt.KeyboardModifier.ControlModifier):
+            if self.tab_manager:
+                self.tab_manager.show_search_dialog()
+            return
+
+        if key == Qt.Key.Key_F3:
+            if self.tab_manager:
+                if modifiers & Qt.KeyboardModifier.ShiftModifier:
+                    self.tab_manager.search_mgr.find_previous()
+                else:
+                    self.tab_manager.search_mgr.find_next()
             return
         
         if key == Qt.Key.Key_J and modifiers & Qt.KeyboardModifier.ControlModifier:

@@ -131,9 +131,22 @@ class ReviewNotesTab(QPlainTextEdit, ReviewNotesTabBase):
     def keyPressEvent(self, event):
         """Handle key press events"""
         key = event.key()
+        modifiers = event.modifiers()
 
         if key == Qt.Key.Key_F5:
             self.reload()
+            return
+
+        if ((key == Qt.Key.Key_S or key == Qt.Key.Key_F) and
+            modifiers & Qt.KeyboardModifier.ControlModifier):
+            self.note_manager.tab_widget.show_search_dialog()
+            return
+
+        if key == Qt.Key.Key_F3:
+            if modifiers & Qt.KeyboardModifier.ShiftModifier:
+                self.note_manager.tab_widget.search_mgr.find_previous()
+            else:
+                self.note_manager.tab_widget.search_mgr.find_next()
             return
 
         super().keyPressEvent(event)

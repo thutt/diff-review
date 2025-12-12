@@ -1275,22 +1275,6 @@ class DiffViewerTabWidget(QMainWindow):
             super().keyPressEvent(event)
             return
         
-        # Ctrl+S or Ctrl+F - Search
-        if ((key == Qt.Key.Key_S or key == Qt.Key.Key_F) and 
-            modifiers & Qt.KeyboardModifier.ControlModifier):
-            self.show_search_dialog()
-            return
-        
-        # F3 - Find Next
-        if key == Qt.Key.Key_F3 and not (modifiers & Qt.KeyboardModifier.ShiftModifier):
-            self.search_mgr.find_next()
-            return
-        
-        # Shift+F3 - Find Previous
-        if key == Qt.Key.Key_F3 and modifiers & Qt.KeyboardModifier.ShiftModifier:
-            self.search_mgr.find_previous()
-            return
-        
         # Pass other events to parent
         super().keyPressEvent(event)
     
