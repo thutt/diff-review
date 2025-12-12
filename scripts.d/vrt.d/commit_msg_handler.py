@@ -132,6 +132,18 @@ class CommitMessageTab(QWidget, TabContentBase):
         key = event.key()
         modifiers = event.modifiers()
 
+        # Font size changes - Ctrl + Plus/Minus/0
+        if modifiers & Qt.KeyboardModifier.ControlModifier:
+            if key in (Qt.Key.Key_Plus, Qt.Key.Key_Equal):
+                self.increase_font_size()
+                return
+            elif key == Qt.Key.Key_Minus:
+                self.decrease_font_size()
+                return
+            elif key == Qt.Key.Key_0:
+                self.reset_font_size()
+                return
+
         if key == Qt.Key.Key_F5:
             self.reload()
             return

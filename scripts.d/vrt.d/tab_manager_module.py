@@ -1206,24 +1206,6 @@ class DiffViewerTabWidget(QMainWindow):
             self.toggle_focus_mode()
             return
         
-        # Font size changes - Ctrl + Plus/Minus/0
-        if modifiers & Qt.KeyboardModifier.ControlModifier:
-            if key in (Qt.Key.Key_Plus, Qt.Key.Key_Equal):  # + or = key
-                current_widget = self.tab_widget.currentWidget()
-                if current_widget:
-                    current_widget.increase_font_size()
-                return
-            elif key == Qt.Key.Key_Minus:
-                current_widget = self.tab_widget.currentWidget()
-                if current_widget:
-                    current_widget.decrease_font_size()
-                return
-            elif key == Qt.Key.Key_0:
-                current_widget = self.tab_widget.currentWidget()
-                if current_widget:
-                    current_widget.reset_font_size()
-                return
-        
         # Get current viewer for most commands
         viewer = self.get_current_viewer()
         
