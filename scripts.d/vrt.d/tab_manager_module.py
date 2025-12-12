@@ -1306,16 +1306,6 @@ class DiffViewerTabWidget(QMainWindow):
                 viewer.take_note_from_widget('modified')
             return
         
-        # N - Next change
-        if key == Qt.Key.Key_N:
-            viewer.next_change()
-            return
-        
-        # P - Previous change
-        if key == Qt.Key.Key_P:
-            viewer.prev_change()
-            return
-        
         # C - Center on current region
         if key == Qt.Key.Key_C:
             viewer.center_current_region()
