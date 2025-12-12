@@ -113,6 +113,21 @@ class CommitMessageTab(QWidget, TabContentBase):
         font.setPointSize(self.current_font_size)
         self.text_widget.setFont(font)
 
+    def reload(self):
+        """Reload commit message from file"""
+        commit_msg_text = self.commit_msg_handler.load_commit_msg_text()
+        self.text_widget.setPlainText(commit_msg_text)
+
+    def keyPressEvent(self, event):
+        """Handle key press events"""
+        key = event.key()
+
+        if key == Qt.Key.Key_F5:
+            self.reload()
+            return
+
+        super().keyPressEvent(event)
+
     def toggle_bookmark(self):
         """Toggle bookmark on current line"""
         self.commit_msg_handler.toggle_bookmark(self.text_widget)
@@ -226,15 +241,19 @@ class CommitMsgHandler:
         # Create new commit message tab
         self.create_commit_msg_tab()
     
-    def create_commit_msg_tab(self):
-        """Create a tab displaying the commit message"""
+    def load_commit_msg_text(self):
+        """Load commit message text from file and return as string"""
         commit_msg_text = self.tab_widget.afr_.read(self.commit_msg_rel_path)
 
         # The afr_.read() will return the lines as an array of
         # non-'\n' strings.  The setPlainText() function seems to need
         # a single string.  So, for this special case, put the lines
         # back together.
-        commit_msg_text = '\n'.join(commit_msg_text)
+        return '\n'.join(commit_msg_text)
+
+    def create_commit_msg_tab(self):
+        """Create a tab displaying the commit message"""
+        commit_msg_text = self.load_commit_msg_text()
 
         # Create commit message tab widget
         tab_widget = CommitMessageTab(commit_msg_text, self)
