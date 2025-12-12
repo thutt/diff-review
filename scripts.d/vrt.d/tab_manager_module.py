@@ -1306,31 +1306,6 @@ class DiffViewerTabWidget(QMainWindow):
                 viewer.take_note_from_widget('modified')
             return
         
-        # X - Toggle collapse change region / Shift+X - Toggle collapse all
-        if key == Qt.Key.Key_X:
-            if modifiers & Qt.KeyboardModifier.ShiftModifier:
-                # Shift+X - Toggle collapse all change regions (deleted and added)
-                if viewer.collapsed_regions:
-                    viewer.uncollapse_all_regions()
-                else:
-                    viewer.collapse_all_change_regions()
-            else:
-                # X - Toggle collapse for current line's region
-                if viewer.base_text.hasFocus():
-                    line_idx = viewer.base_text.textCursor().blockNumber()
-                elif viewer.modified_text.hasFocus():
-                    line_idx = viewer.modified_text.textCursor().blockNumber()
-                else:
-                    return
-                
-                # Check if line is in a collapsed region - if so, uncollapse
-                if viewer.is_line_in_collapsed_region(line_idx):
-                    viewer.uncollapse_region(line_idx)
-                # Check if line is in a change region - if so, collapse
-                elif viewer.is_change_region(line_idx):
-                    viewer.collapse_change_region(line_idx)
-            return
-        
         # N - Next change
         if key == Qt.Key.Key_N:
             viewer.next_change()
