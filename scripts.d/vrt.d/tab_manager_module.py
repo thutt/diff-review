@@ -1306,27 +1306,6 @@ class DiffViewerTabWidget(QMainWindow):
                 viewer.take_note_from_widget('modified')
             return
         
-        # C - Center on current region
-        if key == Qt.Key.Key_C:
-            viewer.center_current_region()
-            return
-        
-        # T - Top of file
-        if key == Qt.Key.Key_T:
-            viewer.current_region = 0
-            if viewer.change_regions:
-                viewer.center_on_line(0)
-            viewer.update_status()
-            return
-        
-        # B - Bottom of file
-        if key == Qt.Key.Key_B:
-            if viewer.change_regions:
-                viewer.current_region = len(viewer.change_regions) - 1
-                viewer.center_on_line(len(viewer.base_display) - 1)
-            viewer.update_status()
-            return
-        
         # Pass other events to parent
         super().keyPressEvent(event)
     
