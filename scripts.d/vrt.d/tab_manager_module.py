@@ -1275,16 +1275,6 @@ class DiffViewerTabWidget(QMainWindow):
             super().keyPressEvent(event)
             return
         
-        # Ctrl+D - Toggle diff map
-        if key == Qt.Key.Key_D and modifiers & Qt.KeyboardModifier.ControlModifier:
-            self.toggle_diff_map()
-            return
-        
-        # Ctrl+L - Toggle line numbers
-        if key == Qt.Key.Key_L and modifiers & Qt.KeyboardModifier.ControlModifier:
-            self.toggle_line_numbers()
-            return
-        
         # Ctrl+S or Ctrl+F - Search
         if ((key == Qt.Key.Key_S or key == Qt.Key.Key_F) and 
             modifiers & Qt.KeyboardModifier.ControlModifier):
