@@ -1291,15 +1291,6 @@ class DiffViewerTabWidget(QMainWindow):
             self.search_mgr.find_previous()
             return
         
-        # Ctrl+N - Take note
-        if key == Qt.Key.Key_N and modifiers & Qt.KeyboardModifier.ControlModifier:
-            # Determine which side has focus
-            if viewer.base_text.hasFocus():
-                viewer.take_note_from_widget('base')
-            elif viewer.modified_text.hasFocus():
-                viewer.take_note_from_widget('modified')
-            return
-        
         # Pass other events to parent
         super().keyPressEvent(event)
     

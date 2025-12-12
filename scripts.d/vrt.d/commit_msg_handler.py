@@ -118,12 +118,30 @@ class CommitMessageTab(QWidget, TabContentBase):
         commit_msg_text = self.commit_msg_handler.load_commit_msg_text()
         self.text_widget.setPlainText(commit_msg_text)
 
+    def jump_to_note_from_cursor(self):
+        """Jump to note for the line at cursor position (Ctrl+J handler)"""
+        cursor = self.text_widget.textCursor()
+        pos = self.text_widget.cursorRect(cursor).center()
+
+        jump_action_func = self.commit_msg_handler.tab_widget.note_mgr.show_jump_to_note_menu_commit_msg(pos, self.text_widget)
+        if jump_action_func:
+            jump_action_func()
+
     def keyPressEvent(self, event):
         """Handle key press events"""
         key = event.key()
+        modifiers = event.modifiers()
 
         if key == Qt.Key.Key_F5:
             self.reload()
+            return
+
+        if key == Qt.Key.Key_N and modifiers & Qt.KeyboardModifier.ControlModifier:
+            self.commit_msg_handler.take_commit_msg_note(self.text_widget)
+            return
+
+        if key == Qt.Key.Key_J and modifiers & Qt.KeyboardModifier.ControlModifier:
+            self.jump_to_note_from_cursor()
             return
 
         super().keyPressEvent(event)

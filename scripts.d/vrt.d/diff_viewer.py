@@ -1089,6 +1089,14 @@ class DiffViewer(QWidget, TabContentBase):
             if self.tab_manager:
                 self.tab_manager.reload_viewer(self)
             return
+
+        # Ctrl+N - Take note
+        if key == Qt.Key.Key_N and modifiers & Qt.KeyboardModifier.ControlModifier:
+            if self.base_text.hasFocus():
+                self.take_note_from_widget('base')
+            elif self.modified_text.hasFocus():
+                self.take_note_from_widget('modified')
+            return
         
         # M - Toggle bookmark
         if key == Qt.Key.Key_M:
