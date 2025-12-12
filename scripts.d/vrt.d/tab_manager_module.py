@@ -1291,12 +1291,6 @@ class DiffViewerTabWidget(QMainWindow):
             self.search_mgr.find_previous()
             return
         
-        # F5 - Manual reload
-        if key == Qt.Key.Key_F5:
-            if viewer and hasattr(viewer, 'base_file'):
-                self.reload_viewer(viewer)
-            return
-        
         # Ctrl+N - Take note
         if key == Qt.Key.Key_N and modifiers & Qt.KeyboardModifier.ControlModifier:
             # Determine which side has focus

@@ -1083,6 +1083,12 @@ class DiffViewer(QWidget, TabContentBase):
         if key == Qt.Key.Key_J and modifiers & Qt.KeyboardModifier.ControlModifier:
             self.jump_to_note_from_cursor()
             return
+
+        # F5 - Manual reload
+        if key == Qt.Key.Key_F5:
+            if self.tab_manager:
+                self.tab_manager.reload_viewer(self)
+            return
         
         # M - Toggle bookmark
         if key == Qt.Key.Key_M:
