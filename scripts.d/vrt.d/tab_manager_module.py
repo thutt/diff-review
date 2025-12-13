@@ -207,10 +207,6 @@ class DiffViewerTabWidget(QMainWindow):
         self.sidebar_widget.installEventFilter(self)
         self.tab_widget.installEventFilter(self)
 
-        # Install event filters on sidebar children to capture clicks
-        self.sidebar_widget.tree.installEventFilter(self)
-        self.sidebar_widget.open_all_button.installEventFilter(self)
-
         # Install event filter on tab bar to capture clicks on tabs
         self.tab_widget.tabBar().installEventFilter(self)
 

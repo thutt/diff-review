@@ -8,11 +8,26 @@ File tree sidebar for diff_review
 This module provides a tree view for organizing files by directory structure
 in the sidebar, with collapsible directory nodes.
 """
-from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QTreeWidget, QTreeWidgetItem, 
+from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QTreeWidget, QTreeWidgetItem,
                               QPushButton, QApplication)
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont, QColor
 import color_palettes
+
+
+class FileTreeWidget(QTreeWidget):
+    """Custom tree widget that handles Space key like Enter"""
+
+    def keyPressEvent(self, event):
+        """Handle Space key to activate current item"""
+        if event.key() == Qt.Key.Key_Space:
+            current_item = self.currentItem()
+            if current_item:
+                # Emit itemActivated signal as if Enter was pressed
+                self.itemActivated.emit(current_item, 0)
+                return
+        # Let default handling proceed for all other keys
+        super().keyPressEvent(event)
 
 
 class FileTreeSidebar(QWidget):
@@ -47,19 +62,17 @@ class FileTreeSidebar(QWidget):
         """)
         layout.addWidget(self.open_all_button)
         
-        # Tree widget
-        self.tree = QTreeWidget()
+        # Tree widget (custom class handles Space key)
+        self.tree = FileTreeWidget()
         self.tree.setHeaderHidden(True)
         self.tree.setIndentation(20)
         self.tree.setAnimated(True)
         self.tree.itemClicked.connect(self.on_item_clicked)
+        self.tree.itemActivated.connect(self.on_item_clicked)
         
         # Set up context menu for right-click to focus tree
         self.tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.tree.customContextMenuRequested.connect(self.on_tree_right_click)
-        
-        # Install event filter to intercept spacebar
-        self.tree.installEventFilter(self)
         
         layout.addWidget(self.tree)
         
@@ -254,19 +267,6 @@ class FileTreeSidebar(QWidget):
                 self.tab_widget.focus_mode = 'content'
                 self.tab_widget.update_focus_tinting()
                 self.tab_widget.update_status_focus_indicator()
-    
-    def eventFilter(self, obj, event):
-        """Filter events from tree widget to handle spacebar and enter"""
-        if obj == self.tree and event.type() == event.Type.KeyPress:
-            if event.key() == Qt.Key.Key_Space or event.key() == Qt.Key.Key_Return or event.key() == Qt.Key.Key_Enter:
-                current_item = self.tree.currentItem()
-                if current_item:
-                    # Trigger the item as if it was clicked
-                    self.on_item_clicked(current_item, 0)
-                    return True  # Event handled
-        
-        # Let default handling proceed
-        return super().eventFilter(obj, event)
     
     def update_file_state(self, file_class, is_open, is_active):
         """Update visual state of a file item"""
