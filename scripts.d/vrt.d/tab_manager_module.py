@@ -1325,61 +1325,6 @@ class DiffViewerTabWidget(QMainWindow):
             
             # Check if this is the commit message widget
             is_commit_msg = isinstance(obj.parent(), CommitMessageTab) if obj.parent() else False
-            
-            # Ctrl+S or Ctrl+F - Search (works for both commit message and diff viewers)
-            if ((key == Qt.Key.Key_S or key == Qt.Key.Key_F) and
-                modifiers & Qt.KeyboardModifier.ControlModifier):
-                self.show_search_dialog()
-                return True
-            
-            # Ctrl+N - Take note (works for both)
-            if key == Qt.Key.Key_N and modifiers & Qt.KeyboardModifier.ControlModifier:
-                if is_commit_msg:
-                    self.take_commit_msg_note(obj)
-                    return True
-                elif viewer:
-                    if obj == viewer.base_text:
-                        viewer.take_note_from_widget('base')
-                        return True
-                    elif obj == viewer.modified_text:
-                        viewer.take_note_from_widget('modified')
-                        return True
-            
-            # Tab/Shift+Tab - Switch focus between base and modified (only for diff viewers, only when content has focus)
-            if self.focus_mode == 'content' and not is_commit_msg and viewer and (key == Qt.Key.Key_Tab or key == Qt.Key.Key_Backtab):
-                if obj == viewer.base_text:
-                    # Get current line in base
-                    cursor = viewer.base_text.textCursor()
-                    current_line = cursor.blockNumber()
-                    
-                    # Move cursor in modified BEFORE switching focus
-                    new_cursor = viewer.modified_text.textCursor()
-                    new_cursor.movePosition(new_cursor.MoveOperation.Start)
-                    for _ in range(current_line):
-                        new_cursor.movePosition(new_cursor.MoveOperation.Down)
-                    viewer.modified_text.setTextCursor(new_cursor)
-                    
-                    # Now switch focus
-                    viewer.modified_text.setFocus()
-                    viewer.modified_text.ensureCursorVisible()
-                    return True
-                    
-                elif obj == viewer.modified_text:
-                    # Get current line in modified
-                    cursor = viewer.modified_text.textCursor()
-                    current_line = cursor.blockNumber()
-                    
-                    # Move cursor in base BEFORE switching focus
-                    new_cursor = viewer.base_text.textCursor()
-                    new_cursor.movePosition(new_cursor.MoveOperation.Start)
-                    for _ in range(current_line):
-                        new_cursor.movePosition(new_cursor.MoveOperation.Down)
-                    viewer.base_text.setTextCursor(new_cursor)
-                    
-                    # Now switch focus
-                    viewer.base_text.setFocus()
-                    viewer.base_text.ensureCursorVisible()
-                    return True
         return False
 
     def toggle_focus_mode(self):
