@@ -32,6 +32,31 @@ from note_manager import ReviewNotesTab
 from diff_viewer import DiffViewer
 
 
+class OverlayWidget(QWidget):
+    """Widget that can have a dimming overlay that auto-resizes"""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.overlay = QWidget(self)
+        self.overlay.setStyleSheet("background-color: rgba(0, 0, 0, 0.5);")
+        self.overlay.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self.overlay.hide()
+        # Ensure overlay fills the entire container
+        self.overlay.setGeometry(0, 0, self.width(), self.height())
+
+    def resizeEvent(self, event):
+        """Resize overlay to match widget size"""
+        super().resizeEvent(event)
+        # Always update overlay geometry when container resizes
+        self.overlay.setGeometry(0, 0, self.width(), self.height())
+
+    def showEvent(self, event):
+        """Ensure overlay is sized correctly when shown"""
+        super().showEvent(event)
+        if self.overlay.isVisible():
+            self.overlay.setGeometry(0, 0, self.width(), self.height())
+
+
 class DiffViewerTabWidget(QMainWindow):
     """Main window containing tabs of DiffViewer instances with file sidebar"""
     
@@ -151,18 +176,26 @@ class DiffViewerTabWidget(QMainWindow):
         # Create splitter for resizable sidebar
         self.splitter = QSplitter(Qt.Orientation.Horizontal)
         
-        # Create sidebar with tree view
+        # Create sidebar with overlay container
+        self.sidebar_container = OverlayWidget()
+        sidebar_layout = QVBoxLayout(self.sidebar_container)
+        sidebar_layout.setContentsMargins(0, 0, 0, 0)
         self.sidebar_widget = file_tree_sidebar.FileTreeSidebar(self)
+        sidebar_layout.addWidget(self.sidebar_widget)
+        self.sidebar_overlay = self.sidebar_container.overlay
         
         # Keep references for backward compatibility
         self.open_all_button = self.sidebar_widget.open_all_button
         self.button_layout = None  # No longer used
         self.button_container = None  # No longer used
         
-        # Add sidebar and tab widget to splitter
-        self.splitter.addWidget(self.sidebar_widget)
+        # Add sidebar container to splitter
+        self.splitter.addWidget(self.sidebar_container)
         
-        # Create tab widget
+        # Create tab widget with overlay container
+        self.tab_container = OverlayWidget()
+        tab_layout = QVBoxLayout(self.tab_container)
+        tab_layout.setContentsMargins(0, 0, 0, 0)
         self.tab_widget = QTabWidget()
         self.tab_widget.setTabsClosable(True)
         self.tab_widget.setMovable(True)  # Allow tabs to be reordered by dragging
@@ -178,8 +211,10 @@ class DiffViewerTabWidget(QMainWindow):
         
         self.tab_widget.tabCloseRequested.connect(self.close_tab)
         self.tab_widget.currentChanged.connect(self.on_tab_changed)
+        tab_layout.addWidget(self.tab_widget)
+        self.tab_overlay = self.tab_container.overlay
         
-        self.splitter.addWidget(self.tab_widget)
+        self.splitter.addWidget(self.tab_container)
         
         # Set initial splitter sizes (sidebar: 250px, main area: rest)
         self.splitter.setSizes([250, 1350])
@@ -188,25 +223,6 @@ class DiffViewerTabWidget(QMainWindow):
         
         self.setCentralWidget(central)
         
-        # Store base stylesheets for focus tinting
-        self.sidebar_base_stylesheet = self.sidebar_widget.styleSheet()
-        self.tab_widget_base_stylesheet = self.tab_widget.styleSheet()
-        
-        # Create overlay widgets for dimming without affecting layout
-        self.sidebar_overlay = QWidget(self.sidebar_widget)
-        self.sidebar_overlay.setStyleSheet("background-color: rgba(0, 0, 0, 0.5);")
-        self.sidebar_overlay.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
-        self.sidebar_overlay.hide()
-        
-        self.tab_overlay = QWidget(self.tab_widget)
-        self.tab_overlay.setStyleSheet("background-color: rgba(0, 0, 0, 0.5);")
-        self.tab_overlay.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
-        self.tab_overlay.hide()
-        
-        # Install event filters to handle resizing
-        self.sidebar_widget.installEventFilter(self)
-        self.tab_widget.installEventFilter(self)
-
         # Install event filter on tab bar to capture clicks on tabs
         self.tab_widget.tabBar().installEventFilter(self)
 
@@ -1273,13 +1289,6 @@ class DiffViewerTabWidget(QMainWindow):
                 self.focus_mode = 'content'
                 self.update_focus_tinting()
                 self.update_status_focus_indicator()
-
-        # Handle resize events for overlay widgets
-        if event.type() == event.Type.Resize:
-            if obj == self.sidebar_widget and self.sidebar_overlay.isVisible():
-                self.sidebar_overlay.setGeometry(self.sidebar_widget.rect())
-            elif obj == self.tab_widget and self.tab_overlay.isVisible():
-                self.tab_overlay.setGeometry(self.tab_widget.rect())
         
         if event.type() == event.Type.KeyPress:
             key = event.key()
@@ -1344,13 +1353,11 @@ class DiffViewerTabWidget(QMainWindow):
         if self.focus_mode == 'sidebar':
             # Sidebar focused: hide sidebar overlay, show tab overlay
             self.sidebar_overlay.hide()
-            self.tab_overlay.setGeometry(self.tab_widget.rect())
             self.tab_overlay.raise_()
             self.tab_overlay.show()
         else:  # content focused
             # Content focused: hide tab overlay, show sidebar overlay
             self.tab_overlay.hide()
-            self.sidebar_overlay.setGeometry(self.sidebar_widget.rect())
             self.sidebar_overlay.raise_()
             self.sidebar_overlay.show()
     
