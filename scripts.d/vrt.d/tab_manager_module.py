@@ -1345,8 +1345,8 @@ class DiffViewerTabWidget(QMainWindow):
                         viewer.take_note_from_widget('modified')
                         return True
             
-            # Tab - Switch focus between base and modified (only for diff viewers, only when content has focus)
-            if self.focus_mode == 'content' and not is_commit_msg and viewer and key == Qt.Key.Key_Tab and not modifiers:
+            # Tab/Shift+Tab - Switch focus between base and modified (only for diff viewers, only when content has focus)
+            if self.focus_mode == 'content' and not is_commit_msg and viewer and (key == Qt.Key.Key_Tab or key == Qt.Key.Key_Backtab):
                 if obj == viewer.base_text:
                     # Get current line in base
                     cursor = viewer.base_text.textCursor()

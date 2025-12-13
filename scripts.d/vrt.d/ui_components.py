@@ -235,7 +235,8 @@ class SyncedPlainTextEdit(QPlainTextEdit):
         if not self._in_key_event:
             self._in_key_event = True
             
-            if event.key() == Qt.Key.Key_Tab:
+            if (event.key() == Qt.Key.Key_Tab or
+                event.key() == Qt.Key.Key_Backtab):
                 parent = self.parent()
                 while parent and not hasattr(parent, 'base_text'):
                     parent = parent.parent()
