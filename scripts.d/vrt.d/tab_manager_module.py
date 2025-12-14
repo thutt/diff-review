@@ -214,6 +214,9 @@ class DiffViewerTabWidget(QMainWindow):
         tab_layout.addWidget(self.tab_widget)
         self.tab_overlay = self.tab_container.overlay
         
+        # Disable keyboard focus on tab bar to prevent Tab/Shift+Tab from reaching it
+        self.tab_widget.tabBar().setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        
         self.splitter.addWidget(self.tab_container)
         
         # Set initial splitter sizes (sidebar: 250px, main area: rest)
@@ -1313,16 +1316,16 @@ class DiffViewerTabWidget(QMainWindow):
                     break
                 widget = widget.parent()
             
+            # Block Tab/Shift+Tab when in sidebar mode to prevent any focus navigation
+            if self.focus_mode == 'sidebar' and key == Qt.Key.Key_Tab:
+                return True
+            
             # Block keyboard events based on focus mode
             if self.focus_mode == 'sidebar' and in_content:
                 # Sidebar has focus, block content area keyboard events
                 return True
             elif self.focus_mode == 'content' and in_sidebar:
                 # Content has focus, block sidebar keyboard events
-                return True
-            
-            # Block Tab key in sidebar mode (prevent Qt's default tab navigation)
-            if self.focus_mode == 'sidebar' and in_sidebar and key == Qt.Key.Key_Tab:
                 return True
             
             # If we reach here, the keyboard event is allowed for the current focus mode

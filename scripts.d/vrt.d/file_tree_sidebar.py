@@ -19,7 +19,12 @@ class FileTreeWidget(QTreeWidget):
     """Custom tree widget that handles Space key like Enter"""
 
     def keyPressEvent(self, event):
-        """Handle Space key to activate current item"""
+        """Handle Space key to activate current item, block Tab navigation"""
+        # Block Tab and Shift+Tab to prevent focus navigation
+        if event.key() == Qt.Key.Key_Tab:
+            event.accept()
+            return
+        
         if event.key() == Qt.Key.Key_Space:
             current_item = self.currentItem()
             if current_item:
@@ -47,6 +52,7 @@ class FileTreeSidebar(QWidget):
         # "Open All Files" button at top
         self.open_all_button = QPushButton("Open All Files")
         self.open_all_button.clicked.connect(self.tab_widget.open_all_files)
+        self.open_all_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)  # Prevent Tab navigation to button
         self.open_all_button.setStyleSheet("""
             QPushButton {
                 text-align: left;
