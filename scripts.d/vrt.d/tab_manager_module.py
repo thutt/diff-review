@@ -987,10 +987,11 @@ class DiffViewerTabWidget(QMainWindow):
     
     def toggle_sidebar(self):
         """Toggle sidebar visibility"""
+        # Cannot hide sidebar when in sidebar context
+        if self.sidebar_visible and self.focus_mode == 'sidebar':
+            return
+
         if self.sidebar_visible:
-            # Cannot hide sidebar when in sidebar context
-            if self.focus_mode == 'sidebar':
-                return
             # Save current splitter sizes before hiding
             self.saved_splitter_sizes = self.splitter.sizes()
             self.sidebar_container.hide()
