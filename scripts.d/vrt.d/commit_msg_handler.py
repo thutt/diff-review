@@ -44,9 +44,17 @@ class CommitMessageTab(QWidget, TabContentBase):
 
         # Create text widget
         self.text_widget = QPlainTextEdit()
-        self.text_widget.setReadOnly(True)
+        # Use TextInteractionFlags instead of setReadOnly to allow cursor display
+        # TextSelectableByMouse | TextSelectableByKeyboard allows selection and cursor
+        # but prevents editing
+        self.text_widget.setTextInteractionFlags(
+            Qt.TextInteractionFlag.TextSelectableByMouse |
+            Qt.TextInteractionFlag.TextSelectableByKeyboard)
         self.text_widget.setPlainText(commit_msg_text)
         self.text_widget.setFont(QFont("Courier", self.current_font_size, QFont.Weight.Bold))
+
+        # Initialize cursor as hidden
+        self.text_widget.setCursorWidth(0)
 
         # Store reference to handler for bookmark lookup
         self.text_widget.commit_msg_handler = commit_msg_handler
@@ -68,6 +76,27 @@ class CommitMessageTab(QWidget, TabContentBase):
                     painter.fillRect(0, y, 5, height, QColor(0, 255, 255))
 
         self.text_widget.paintEvent = paintEvent_with_bookmarks
+
+        # Override mousePressEvent to hide cursor on mouse click
+        original_mousePressEvent = self.text_widget.mousePressEvent
+        def mousePressEvent_with_cursor_hide(event):
+            self.text_widget.setCursorWidth(0)
+            original_mousePressEvent(event)
+
+        self.text_widget.mousePressEvent = mousePressEvent_with_cursor_hide
+
+        # Override keyPressEvent to show cursor on navigation keys
+        original_keyPressEvent = self.text_widget.keyPressEvent
+        def keyPressEvent_with_cursor_show(event):
+            key = event.key()
+            is_nav_key = key in (Qt.Key.Key_Up, Qt.Key.Key_Down, Qt.Key.Key_PageUp,
+                                 Qt.Key.Key_PageDown, Qt.Key.Key_Home, Qt.Key.Key_End,
+                                 Qt.Key.Key_Left, Qt.Key.Key_Right, Qt.Key.Key_Space)
+            if is_nav_key:
+                self.text_widget.setCursorWidth(2)
+            original_keyPressEvent(event)
+
+        self.text_widget.keyPressEvent = keyPressEvent_with_cursor_show
 
         # Style commit message with subtle sepia tone
         self.text_widget.setStyleSheet("""
