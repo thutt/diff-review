@@ -117,6 +117,7 @@ class DiffViewerTabWidget(QMainWindow):
         self.file_to_tab_index = {}  # Maps file_class to tab index
         self.current_file_class = None  # Track which file is being added
         self.sidebar_visible = True
+        self.saved_splitter_sizes = None  # Stores splitter sizes when sidebar is hidden
         
         # Global view state for all tabs
         self.diff_map_visible = show_diff_map  # Initial state for diff map
@@ -987,15 +988,25 @@ class DiffViewerTabWidget(QMainWindow):
     def toggle_sidebar(self):
         """Toggle sidebar visibility"""
         if self.sidebar_visible:
-            self.sidebar_widget.hide()
+            # Save current splitter sizes before hiding
+            self.saved_splitter_sizes = self.splitter.sizes()
+            self.sidebar_container.hide()
             self.sidebar_visible = False
+            # Expand content area to fill the freed space
+            total_width = sum(self.saved_splitter_sizes)
+            self.splitter.setSizes([0, total_width])
         else:
-            self.sidebar_widget.show()
+            self.sidebar_container.show()
             self.sidebar_visible = True
-        
+            # Restore previous splitter sizes, or use default if not saved
+            if self.saved_splitter_sizes:
+                self.splitter.setSizes(self.saved_splitter_sizes)
+            else:
+                self.splitter.setSizes([250, 1350])
+
         # Update checkbox state
         self.show_sidebar_action.setChecked(self.sidebar_visible)
-        
+
         # Update scrollbars in current viewer after sidebar toggle
         current_viewer = self.get_current_viewer()
         if current_viewer:
