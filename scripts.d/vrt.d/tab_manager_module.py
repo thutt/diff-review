@@ -652,22 +652,10 @@ class DiffViewerTabWidget(QMainWindow):
         diff_viewer.tab_manager = self  # Back-reference for bookmark sync
         diff_viewer.tab_index = index  # Store tab index
         
-        # Install event filter on text widgets to handle Tab key
+        # Install event filter on DiffViewer itself to capture mouse clicks
+        # on all its children (line areas, diff map, scrollbars, etc.)
+        # Mouse events bubble up, so filtering the parent catches all clicks
         diff_viewer.installEventFilter(self)
-        diff_viewer.base_text.installEventFilter(self)
-        diff_viewer.modified_text.installEventFilter(self)
-
-        # Install event filter on other visible child widgets to capture clicks
-        if diff_viewer.base_line_area:
-            diff_viewer.base_line_area.installEventFilter(self)
-        if diff_viewer.modified_line_area:
-            diff_viewer.modified_line_area.installEventFilter(self)
-        if diff_viewer.diff_map:
-            diff_viewer.diff_map.installEventFilter(self)
-        if diff_viewer.v_scrollbar:
-            diff_viewer.v_scrollbar.installEventFilter(self)
-        if diff_viewer.h_scrollbar:
-            diff_viewer.h_scrollbar.installEventFilter(self)
         
         # Force proper repaints on horizontal scroll to avoid visual artifacts
         # Use repaint() instead of update() to force immediate redraw
@@ -1264,6 +1252,11 @@ class DiffViewerTabWidget(QMainWindow):
     
     def eventFilter(self, obj, event):
         """Filter events from text widgets to handle Tab key and Ctrl+N"""
+        # DEBUG: Track Tab events to ALL objects
+        if event.type() == event.Type.KeyPress:
+            if event.key() == Qt.Key.Key_Tab or event.key() == Qt.Key.Key_Backtab:
+                pass  # Could add logging here if needed
+        
         # Handle mouse press events for focus switching
         if event.type() == event.Type.MouseButtonPress:
             # Determine if the click is in the sidebar or content area
@@ -1319,7 +1312,43 @@ class DiffViewerTabWidget(QMainWindow):
             # Block Tab/Shift+Tab when in sidebar mode to prevent any focus navigation
             if self.focus_mode == 'sidebar' and key == Qt.Key.Key_Tab:
                 return True
-            
+
+            # Handle Tab/Shift+Tab for SyncedPlainTextEdit when in content mode
+            if key == Qt.Key.Key_Tab or key == Qt.Key.Key_Backtab:
+                if self.focus_mode == 'content' and in_content:
+                    from ui_components import SyncedPlainTextEdit
+                    if isinstance(obj, SyncedPlainTextEdit):
+                        # Find the parent DiffViewer
+                        parent = obj.parent()
+                        while parent and not hasattr(parent, 'base_text'):
+                            parent = parent.parent()
+                        
+                        if parent and hasattr(parent, 'base_text') and hasattr(parent, 'modified_text'):
+                            current_line = obj.textCursor().blockNumber()
+                            
+                            # Determine which pane we're in and switch to the other
+                            if parent.base_text == obj:
+                                target_widget = parent.modified_text
+                            else:
+                                target_widget = parent.base_text
+                            
+                            # Move cursor in target widget to the same line
+                            block = target_widget.document().findBlockByNumber(current_line)
+                            if block.isValid():
+                                cursor = target_widget.textCursor()
+                                cursor.setPosition(block.position())
+                                target_widget.setTextCursor(cursor)
+                            
+                            # Set focus to target widget
+                            target_widget.setFocus(Qt.FocusReason.TabFocusReason)
+                            
+                            # Update focused line markers
+                            obj.set_focused_line(current_line)
+                            target_widget.set_focused_line(current_line)
+                            
+                            # Return True to consume the event and prevent default Tab handling
+                            return True
+
             # Block keyboard events based on focus mode
             if self.focus_mode == 'sidebar' and in_content:
                 # Sidebar has focus, block content area keyboard events
@@ -1333,6 +1362,7 @@ class DiffViewerTabWidget(QMainWindow):
             
             # Check if this is the commit message widget
             is_commit_msg = isinstance(obj.parent(), CommitMessageTab) if obj.parent() else False
+
         return False
 
     def toggle_focus_mode(self):
