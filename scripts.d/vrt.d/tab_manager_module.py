@@ -988,6 +988,9 @@ class DiffViewerTabWidget(QMainWindow):
     def toggle_sidebar(self):
         """Toggle sidebar visibility"""
         if self.sidebar_visible:
+            # Cannot hide sidebar when in sidebar context
+            if self.focus_mode == 'sidebar':
+                return
             # Save current splitter sizes before hiding
             self.saved_splitter_sizes = self.splitter.sizes()
             self.sidebar_container.hide()
@@ -1344,6 +1347,9 @@ class DiffViewerTabWidget(QMainWindow):
         """Toggle between sidebar and content focus modes"""
         if self.focus_mode == 'content':
             self.focus_mode = 'sidebar'
+            # Ensure sidebar is visible when switching to sidebar context
+            if not self.sidebar_visible:
+                self.toggle_sidebar()
             # Give Qt focus to the tree widget
             self.sidebar_widget.tree.setFocus()
         else:
@@ -1352,7 +1358,7 @@ class DiffViewerTabWidget(QMainWindow):
             current_widget = self.tab_widget.currentWidget()
             if current_widget:
                 current_widget.focus_content()
-        
+
         self.update_focus_tinting()
         self.update_status_focus_indicator()
     
