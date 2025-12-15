@@ -19,18 +19,21 @@ class FileTreeWidget(QTreeWidget):
     """Custom tree widget that handles Space key like Enter"""
 
     def keyPressEvent(self, event):
-        """Handle Space key to activate current item, block Tab navigation"""
+        """Handle Space and Enter keys to activate current item, block Tab navigation"""
         # Block Tab and Shift+Tab to prevent focus navigation
         if event.key() == Qt.Key.Key_Tab:
             event.accept()
             return
-        
-        if event.key() == Qt.Key.Key_Space:
+
+        # Handle both Enter and Space to activate items (needed for macOS compatibility)
+        if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Space):
             current_item = self.currentItem()
             if current_item:
-                # Emit itemActivated signal as if Enter was pressed
+                # Emit itemActivated signal
                 self.itemActivated.emit(current_item, 0)
+                event.accept()
                 return
+
         # Let default handling proceed for all other keys
         super().keyPressEvent(event)
 
