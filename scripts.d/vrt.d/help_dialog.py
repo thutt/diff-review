@@ -180,7 +180,7 @@ class HelpDialog(QDialog):
             <li><b>Space:</b> Page down (both panels scroll together)</li>
             <li><b>Shift+Space:</b> Page up (both panels scroll together)</li>
             <li><b>Home/End:</b> Jump to start/end of file</li>
-            <li><b>Tab:</b> When focus is in a text pane, switch focus between base and modified panes (stays on same line). When focus is elsewhere, navigate between UI elements.</li>
+            <li><b>Tab:</b> In Diff Viewer tabs (when in Content mode), switch focus between base and modified panes (stays on same line). Tab key is blocked when in Sidebar mode.</li>
             <li><b>N:</b> Jump to next change region</li>
             <li><b>P:</b> Jump to previous change region</li>
             <li><b>C:</b> Center on the currently selected region</li>

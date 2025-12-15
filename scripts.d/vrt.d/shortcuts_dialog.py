@@ -387,7 +387,7 @@ class ShortcutsDialog(QDialog):
             </tr>
             <tr>
                 <td><span class="shortcut">Tab</span></td>
-                <td>Switch focus between base and modified panes</td>
+                <td>Switch focus between base and modified panes (Content mode only)</td>
             </tr>
             <tr>
                 <td><span class="shortcut">X</span></td>
