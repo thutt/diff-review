@@ -1324,42 +1324,6 @@ class DiffViewerTabWidget(QMainWindow):
             if self.focus_mode == 'sidebar' and key == Qt.Key.Key_Tab:
                 return True
 
-            # Handle Tab/Shift+Tab for SyncedPlainTextEdit when in content mode
-            if key == Qt.Key.Key_Tab or key == Qt.Key.Key_Backtab:
-                if self.focus_mode == 'content' and in_content:
-                    from ui_components import SyncedPlainTextEdit
-                    if isinstance(obj, SyncedPlainTextEdit):
-                        # Find the parent DiffViewer
-                        parent = obj.parent()
-                        while parent and not hasattr(parent, 'base_text'):
-                            parent = parent.parent()
-                        
-                        if parent and hasattr(parent, 'base_text') and hasattr(parent, 'modified_text'):
-                            current_line = obj.textCursor().blockNumber()
-                            
-                            # Determine which pane we're in and switch to the other
-                            if parent.base_text == obj:
-                                target_widget = parent.modified_text
-                            else:
-                                target_widget = parent.base_text
-                            
-                            # Move cursor in target widget to the same line
-                            block = target_widget.document().findBlockByNumber(current_line)
-                            if block.isValid():
-                                cursor = target_widget.textCursor()
-                                cursor.setPosition(block.position())
-                                target_widget.setTextCursor(cursor)
-                            
-                            # Set focus to target widget
-                            target_widget.setFocus(Qt.FocusReason.TabFocusReason)
-                            
-                            # Update focused line markers
-                            obj.set_focused_line(current_line)
-                            target_widget.set_focused_line(current_line)
-                            
-                            # Return True to consume the event and prevent default Tab handling
-                            return True
-
             # Block keyboard events based on focus mode
             if self.focus_mode == 'sidebar' and in_content:
                 # Sidebar has focus, block content area keyboard events
