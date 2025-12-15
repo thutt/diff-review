@@ -256,6 +256,7 @@ class FileTreeSidebar(QWidget):
             # Update focus mode to content
             if self.tab_widget.focus_mode != 'content':
                 self.tab_widget.focus_mode = 'content'
+                self.tab_widget.last_content_tab_index = self.tab_widget.tab_widget.currentIndex()
                 self.tab_widget.update_focus_tinting()
                 self.tab_widget.update_status_focus_indicator()
 
@@ -271,6 +272,7 @@ class FileTreeSidebar(QWidget):
             # Update focus mode to content
             if self.tab_widget.focus_mode != 'content':
                 self.tab_widget.focus_mode = 'content'
+                self.tab_widget.last_content_tab_index = self.tab_widget.tab_widget.currentIndex()
                 self.tab_widget.update_focus_tinting()
                 self.tab_widget.update_status_focus_indicator()
     

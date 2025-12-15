@@ -164,6 +164,7 @@ class DiffViewerTabWidget(QMainWindow):
         
         # Focus mode: 'sidebar' or 'content'
         self.focus_mode = 'sidebar'  # Start with sidebar focused (files must be selected first)
+        self.last_content_tab_index = None  # Track last focused content tab for restoring focus
         self.sidebar_base_stylesheet = ""  # Will be set after sidebar is created
         self.tab_widget_base_stylesheet = ""  # Will be set after tab_widget is created
         self.focus_mode_label = None  # Label for showing focus mode in status bar
@@ -790,7 +791,11 @@ class DiffViewerTabWidget(QMainWindow):
     def on_tab_changed(self, index):
         """Handle tab change to update sidebar button states"""
         self.update_button_states()
-        
+
+        # Track last content tab if in content mode
+        if self.focus_mode == 'content' and index >= 0:
+            self.last_content_tab_index = index
+
         # Update scrollbars in the newly activated viewer
         viewer = self.get_viewer_at_index(index)
         if viewer:
@@ -987,11 +992,26 @@ class DiffViewerTabWidget(QMainWindow):
     
     def toggle_sidebar(self):
         """Toggle sidebar visibility"""
-        # Cannot hide sidebar when in sidebar context
-        if self.sidebar_visible and self.focus_mode == 'sidebar':
+        # Cannot hide sidebar when no content tabs are open
+        if self.sidebar_visible and self.tab_widget.count() == 0:
             return
 
         if self.sidebar_visible:
+            # Hiding the sidebar
+            # If currently in sidebar context, switch to content and focus last content tab
+            if self.focus_mode == 'sidebar':
+                self.focus_mode = 'content'
+                # Focus the last focused content tab, or leftmost if none
+                if self.last_content_tab_index is not None and self.last_content_tab_index < self.tab_widget.count():
+                    self.tab_widget.setCurrentIndex(self.last_content_tab_index)
+                else:
+                    self.tab_widget.setCurrentIndex(0)
+                current_widget = self.tab_widget.currentWidget()
+                if current_widget:
+                    current_widget.focus_content()
+                self.update_focus_tinting()
+                self.update_status_focus_indicator()
+
             # Save current splitter sizes before hiding
             self.saved_splitter_sizes = self.splitter.sizes()
             self.sidebar_container.hide()
@@ -1000,6 +1020,7 @@ class DiffViewerTabWidget(QMainWindow):
             total_width = sum(self.saved_splitter_sizes)
             self.splitter.setSizes([0, total_width])
         else:
+            # Showing the sidebar
             self.sidebar_container.show()
             self.sidebar_visible = True
             # Restore previous splitter sizes, or use default if not saved
@@ -1359,6 +1380,8 @@ class DiffViewerTabWidget(QMainWindow):
             current_widget = self.tab_widget.currentWidget()
             if current_widget:
                 current_widget.focus_content()
+            # Track which content tab is focused
+            self.last_content_tab_index = self.tab_widget.currentIndex()
 
         self.update_focus_tinting()
         self.update_status_focus_indicator()
