@@ -310,7 +310,7 @@ class GitStaged(Git):
 
         else:
             raise NotImplementedError("Unknown action: '%s' '%s'  '%s'" %
-                                      (idx_ch, wrk_ch, rel_pat))
+                                      (idx_ch, wrk_ch, rel_path))
 
         return action;
 
