@@ -888,20 +888,17 @@ class NoteManager:
         # Open or switch to Review Notes tab
         self.on_notes_clicked()
         
-        # Get the Review Notes tab widget
+        # Get the Review Notes tab widget - reopen if needed
         if 'review_notes' not in self.tab_widget.file_to_tab_index:
-            QMessageBox.warning(self.tab_widget, 'Error',
-                              'Could not open Review Notes tab.')
-            return
-        
-        tab_index = self.tab_widget.file_to_tab_index['review_notes']
-        if not (0 <= tab_index < self.tab_widget.tab_widget.count()):
-            QMessageBox.warning(self.tab_widget, 'Error',
-                              'Review Notes tab index is invalid.')
-            return
+            self.open_review_notes()
+            if 'review_notes' not in self.tab_widget.file_to_tab_index:
+                QMessageBox.warning(self.tab_widget, 'Error',
+                                  'Could not open Review Notes tab.')
+                return
 
+        tab_index = self.tab_widget.file_to_tab_index['review_notes']
         text_widget = self.tab_widget.tab_widget.widget(tab_index)
-        
+
         if found_line_idx is not None:
             # Note found - highlight it
             cursor = text_widget.textCursor()

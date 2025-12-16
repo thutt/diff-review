@@ -46,6 +46,15 @@ class EmacsWidget(TerminalWidget):
         self.timer.timeout.connect(self.read_output)
         self.timer.start(50)
 
+    def center_cursor(self):
+        """Center the cursor in the emacs window by sending Ctrl-G, Esc, x, recenter, Enter"""
+        if self.master_fd is not None and self.process_pid is not None:
+            os.write(self.master_fd, b'\x07')  # Ctrl-G
+            os.write(self.master_fd, b'\x1b')  # Esc
+            os.write(self.master_fd, b'x')     # x
+            os.write(self.master_fd, b'recenter')  # recenter
+            os.write(self.master_fd, b'\r')    # Enter
+
     def keyPressEvent(self, event):
         if self.master_fd is not None and self.process_pid is not None:
             modifiers = event.modifiers()

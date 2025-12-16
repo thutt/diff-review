@@ -28,7 +28,7 @@ import commit_msg_handler
 import search_manager
 import file_tree_sidebar
 from commit_msg_handler import CommitMessageTab
-from note_manager import ReviewNotesTab
+from note_manager import ReviewNotesTab, ReviewNotesTabBase
 from diff_viewer import DiffViewer
 
 
@@ -863,6 +863,10 @@ class DiffViewerTabWidget(QMainWindow):
             if isinstance(widget, CommitMessageTab):
                 if 'commit_msg' in self.file_to_tab_index:
                     del self.file_to_tab_index['commit_msg']
+            # Check if this is the review notes tab
+            elif isinstance(widget, ReviewNotesTabBase):
+                if 'review_notes' in self.file_to_tab_index:
+                    del self.file_to_tab_index['review_notes']
             # Regular file tab
             elif hasattr(widget, 'file_class'):
                 file_class = widget.file_class
