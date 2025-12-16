@@ -232,49 +232,66 @@ class ShortcutsDialog(QDialog):
                 white-space: nowrap; 
                 font-weight: bold; 
             }}
+            h3 {{
+                color: {header_color};
+                margin-top: 15px;
+                margin-bottom: 8px;
+                font-size: 1.1em;
+            }}
         </style>
         
-        <h2>Essential Shortcuts</h2>
+        <h2>Mode Selection</h2>
         <table>
             <tr>
                 <th width="30%">Shortcut</th>
                 <th>Action</th>
             </tr>
             <tr>
-                <td><span class="shortcut">N</span></td>
-                <td>Next change region</td>
+                <td><span class="shortcut">{mod_key}+\\</span></td>
+                <td>Toggle between File Selection mode and Viewer mode</td>
+            </tr>
+        </table>
+        <p style="color: {note_color}; margin-left: 10px; margin-top: 5px; font-size: 0.95em;">
+            The viewer has two modes. In <b>File Selection</b> mode, keyboard input navigates the file tree sidebar.
+            In <b>Viewer</b> mode, keyboard input controls the active tab. The unfocused area is shown with a gray overlay.
+            Click in an area to switch to that mode automatically.
+        </p>
+        
+        <h2>File Selection Mode (Sidebar)</h2>
+        <table>
+            <tr>
+                <th width="30%">Shortcut</th>
+                <th>Action</th>
             </tr>
             <tr>
-                <td><span class="shortcut">P</span></td>
-                <td>Previous change region</td>
+                <td><span class="shortcut">Arrow Keys</span></td>
+                <td>Navigate up/down through file tree</td>
             </tr>
             <tr>
-                <td><span class="shortcut">{mod_key}+F</span> or <span class="shortcut">{mod_key}+S</span></td>
-                <td>Open search dialog</td>
+                <td><span class="shortcut">Left/Right Arrows</span></td>
+                <td>Collapse/expand directories</td>
             </tr>
             <tr>
-                <td><span class="shortcut">F3</span> / <span class="shortcut">Shift+F3</span></td>
-                <td>Find next / previous match</td>
+                <td><span class="shortcut">Enter</span> or <span class="shortcut">Space</span></td>
+                <td>Open selected file and switch to Viewer mode</td>
             </tr>
             <tr>
-                <td><span class="shortcut">M</span></td>
-                <td>Toggle bookmark on current line</td>
+                <td><span class="shortcut">Left-click file</span></td>
+                <td>Open file and switch to Viewer mode</td>
             </tr>
             <tr>
-                <td><span class="shortcut">X</span></td>
-                <td>Collapse/expand added/deleted region at cursor</td>
+                <td><span class="shortcut">Right-click anywhere</span></td>
+                <td>Enter File Selection mode</td>
             </tr>
             <tr>
-                <td><span class="shortcut">Shift+X</span></td>
-                <td>Collapse/expand all added/deleted regions</td>
-            </tr>
-            <tr>
-                <td><span class="shortcut">[</span> / <span class="shortcut">]</span></td>
-                <td>Previous / next bookmark</td>
+                <td><span class="shortcut">{mod_key}+Q</span></td>
+                <td>Quit application</td>
             </tr>
         </table>
         
-        <h2>File & Tab Management</h2>
+        <h2>Viewer Mode (Content Area)</h2>
+        
+        <h3>Common to All Tab Types</h3>
         <table>
             <tr>
                 <th width="30%">Shortcut</th>
@@ -297,12 +314,52 @@ class ShortcutsDialog(QDialog):
                 <td>Quit application</td>
             </tr>
             <tr>
-                <td><span class="shortcut">F5</span></td>
-                <td>Reload current file</td>
+                <td><span class="shortcut">{mod_key}+F</span> or <span class="shortcut">{mod_key}+S</span></td>
+                <td>Open search dialog</td>
+            </tr>
+            <tr>
+                <td><span class="shortcut">F3</span> / <span class="shortcut">Shift+F3</span></td>
+                <td>Find next / previous search match</td>
+            </tr>
+            <tr>
+                <td><span class="shortcut">Arrow Keys</span></td>
+                <td>Navigate up/down/left/right</td>
+            </tr>
+            <tr>
+                <td><span class="shortcut">PageUp</span> / <span class="shortcut">PageDown</span></td>
+                <td>Scroll up/down by ~10 lines</td>
+            </tr>
+            <tr>
+                <td><span class="shortcut">Space</span> / <span class="shortcut">Shift+Space</span></td>
+                <td>Page down / page up</td>
+            </tr>
+            <tr>
+                <td><span class="shortcut">Home</span> / <span class="shortcut">End</span></td>
+                <td>Jump to start/end of file</td>
+            </tr>
+            <tr>
+                <td><span class="shortcut">{mod_key}+B</span></td>
+                <td>Toggle sidebar visibility</td>
+            </tr>
+            <tr>
+                <td><span class="shortcut">{mod_key}+?</span> or <span class="shortcut">F1</span></td>
+                <td>Show this shortcuts reference</td>
+            </tr>
+            <tr>
+                <td><span class="shortcut">{mod_key}+/</span></td>
+                <td>Show detailed help dialog</td>
+            </tr>
+            <tr>
+                <td><span class="shortcut">{mod_key}++</span> / <span class="shortcut">{mod_key}+-</span></td>
+                <td>Increase / decrease font size</td>
+            </tr>
+            <tr>
+                <td><span class="shortcut">{mod_key}+0</span></td>
+                <td>Reset font size to default</td>
             </tr>
         </table>
         
-        <h2>Navigation</h2>
+        <h3>Diff Viewer Tabs</h3>
         <table>
             <tr>
                 <th width="30%">Shortcut</th>
@@ -317,30 +374,6 @@ class ShortcutsDialog(QDialog):
                 <td>Previous change region</td>
             </tr>
             <tr>
-                <td><span class="shortcut">Arrow Keys</span></td>
-                <td>Navigate up/down/left/right</td>
-            </tr>
-            <tr>
-                <td><span class="shortcut">PageUp</span> / <span class="shortcut">PageDown</span></td>
-                <td>Scroll ~10 lines</td>
-            </tr>
-            <tr>
-                <td><span class="shortcut">Space</span></td>
-                <td>Page down</td>
-            </tr>
-            <tr>
-                <td><span class="shortcut">Shift+Space</span></td>
-                <td>Page up</td>
-            </tr>
-            <tr>
-                <td><span class="shortcut">Home</span> / <span class="shortcut">End</span></td>
-                <td>Jump to start/end of file</td>
-            </tr>
-            <tr>
-                <td><span class="shortcut">Tab</span></td>
-                <td>Switch focus between base and modified panes</td>
-            </tr>
-            <tr>
                 <td><span class="shortcut">C</span></td>
                 <td>Center on current region</td>
             </tr>
@@ -352,17 +385,29 @@ class ShortcutsDialog(QDialog):
                 <td><span class="shortcut">B</span></td>
                 <td>Jump to bottom of file</td>
             </tr>
-        </table>
-        
-        <h2>Notes & Annotations</h2>
-        <table>
             <tr>
-                <th width="30%">Shortcut</th>
-                <th>Action</th>
+                <td><span class="shortcut">Tab</span></td>
+                <td>Switch focus between base and modified panes (Content mode only)</td>
             </tr>
             <tr>
-                <td><span class="shortcut">Double-click</span></td>
-                <td>Quick note - add clicked line to notes file</td>
+                <td><span class="shortcut">X</span></td>
+                <td>Collapse/expand added/deleted region at cursor</td>
+            </tr>
+            <tr>
+                <td><span class="shortcut">Shift+X</span></td>
+                <td>Collapse/expand all added/deleted regions</td>
+            </tr>
+            <tr>
+                <td><span class="shortcut">M</span></td>
+                <td>Toggle bookmark on current line</td>
+            </tr>
+            <tr>
+                <td><span class="shortcut">[</span></td>
+                <td>Previous bookmark</td>
+            </tr>
+            <tr>
+                <td><span class="shortcut">]</span></td>
+                <td>Next bookmark</td>
             </tr>
             <tr>
                 <td><span class="shortcut">{mod_key}+N</span></td>
@@ -389,8 +434,12 @@ class ShortcutsDialog(QDialog):
                 <th>Action</th>
             </tr>
             <tr>
-                <td><span class="shortcut">{mod_key}+B</span></td>
-                <td>Toggle sidebar visibility</td>
+                <td><span class="shortcut">Double-click line</span></td>
+                <td>Quick note - add line to notes file</td>
+            </tr>
+            <tr>
+                <td><span class="shortcut">F5</span></td>
+                <td>Reload current file</td>
             </tr>
             <tr>
                 <td><span class="shortcut">{mod_key}+D</span></td>
@@ -410,7 +459,7 @@ class ShortcutsDialog(QDialog):
             </tr>
             <tr>
                 <td><span class="shortcut">{mod_key}+I</span></td>
-                <td>Toggle intraline changes</td>
+                <td>Toggle intraline changes highlighting</td>
             </tr>
             <tr>
                 <td><span class="shortcut">{mod_key}+R</span></td>
@@ -418,51 +467,41 @@ class ShortcutsDialog(QDialog):
             </tr>
             <tr>
                 <td><span class="shortcut">{mod_key}+Y</span></td>
-                <td>Cycle stats display (None -> Tabs Only -> Sidebar Only)</td>
+                <td>Cycle stats display (None / Tabs / Sidebar)</td>
             </tr>
         </table>
         
-        <h2>Search & Find</h2>
+        <h3>Commit Message Tabs</h3>
         <table>
             <tr>
                 <th width="30%">Shortcut</th>
                 <th>Action</th>
             </tr>
             <tr>
-                <td><span class="shortcut">{mod_key}+F</span> or <span class="shortcut">{mod_key}+S</span></td>
-                <td>Open search dialog</td>
+                <td><span class="shortcut">M</span></td>
+                <td>Toggle bookmark on current line</td>
             </tr>
             <tr>
-                <td><span class="shortcut">F3</span></td>
-                <td>Find next match</td>
+                <td><span class="shortcut">[</span></td>
+                <td>Previous bookmark</td>
             </tr>
             <tr>
-                <td><span class="shortcut">Shift+F3</span></td>
-                <td>Find previous match</td>
+                <td><span class="shortcut">]</span></td>
+                <td>Next bookmark</td>
             </tr>
             <tr>
-                <td><span class="shortcut">Right-click -> Search</span></td>
-                <td>Search for selected text</td>
+                <td><span class="shortcut">{mod_key}+N</span></td>
+                <td>Take note of selected text</td>
+            </tr>
+            <tr>
+                <td><span class="shortcut">{mod_key}+J</span></td>
+                <td>Jump to note for current line</td>
             </tr>
         </table>
         
-        <h2>Font Size</h2>
-        <table>
-            <tr>
-                <th width="30%">Shortcut</th>
-                <th>Action</th>
-            </tr>
-            <tr>
-                <td><span class="shortcut">{mod_key}++</span></td>
-                <td>Increase font size (max 24pt)</td>
-            </tr>
-            <tr>
-                <td><span class="shortcut">{mod_key}+-</span></td>
-                <td>Decrease font size (min 6pt)</td>
-            </tr>
-            <tr>
-                <td><span class="shortcut">{mod_key}+0</span></td>
-                <td>Reset font size to default (12pt)</td>
-            </tr>
-        </table>
+        <h3>Review Notes Tabs</h3>
+        <p style="color: {note_color}; margin-left: 10px; margin-top: 5px; font-size: 0.95em;">
+            Review Notes tabs support standard text navigation and search (listed under "Common to All Tab Types" above).
+            They do not have additional specialized shortcuts.
+        </p>
         """

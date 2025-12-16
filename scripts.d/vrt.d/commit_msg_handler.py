@@ -44,9 +44,17 @@ class CommitMessageTab(QWidget, TabContentBase):
 
         # Create text widget
         self.text_widget = QPlainTextEdit()
-        self.text_widget.setReadOnly(True)
+        # Use TextInteractionFlags instead of setReadOnly to allow cursor display
+        # TextSelectableByMouse | TextSelectableByKeyboard allows selection and cursor
+        # but prevents editing
+        self.text_widget.setTextInteractionFlags(
+            Qt.TextInteractionFlag.TextSelectableByMouse |
+            Qt.TextInteractionFlag.TextSelectableByKeyboard)
         self.text_widget.setPlainText(commit_msg_text)
         self.text_widget.setFont(QFont("Courier", self.current_font_size, QFont.Weight.Bold))
+
+        # Initialize cursor as hidden
+        self.text_widget.setCursorWidth(0)
 
         # Store reference to handler for bookmark lookup
         self.text_widget.commit_msg_handler = commit_msg_handler
@@ -68,6 +76,27 @@ class CommitMessageTab(QWidget, TabContentBase):
                     painter.fillRect(0, y, 5, height, QColor(0, 255, 255))
 
         self.text_widget.paintEvent = paintEvent_with_bookmarks
+
+        # Override mousePressEvent to hide cursor on mouse click
+        original_mousePressEvent = self.text_widget.mousePressEvent
+        def mousePressEvent_with_cursor_hide(event):
+            self.text_widget.setCursorWidth(0)
+            original_mousePressEvent(event)
+
+        self.text_widget.mousePressEvent = mousePressEvent_with_cursor_hide
+
+        # Override keyPressEvent to show cursor on navigation keys
+        original_keyPressEvent = self.text_widget.keyPressEvent
+        def keyPressEvent_with_cursor_show(event):
+            key = event.key()
+            is_nav_key = key in (Qt.Key.Key_Up, Qt.Key.Key_Down, Qt.Key.Key_PageUp,
+                                 Qt.Key.Key_PageDown, Qt.Key.Key_Home, Qt.Key.Key_End,
+                                 Qt.Key.Key_Left, Qt.Key.Key_Right, Qt.Key.Key_Space)
+            if is_nav_key:
+                self.text_widget.setCursorWidth(2)
+            original_keyPressEvent(event)
+
+        self.text_widget.keyPressEvent = keyPressEvent_with_cursor_show
 
         # Style commit message with subtle sepia tone
         self.text_widget.setStyleSheet("""
@@ -112,6 +141,79 @@ class CommitMessageTab(QWidget, TabContentBase):
         font = self.text_widget.font()
         font.setPointSize(self.current_font_size)
         self.text_widget.setFont(font)
+
+    def reload(self):
+        """Reload commit message from file"""
+        commit_msg_text = self.commit_msg_handler.load_commit_msg_text()
+        self.text_widget.setPlainText(commit_msg_text)
+
+    def jump_to_note_from_cursor(self):
+        """Jump to note for the line at cursor position (Ctrl+J handler)"""
+        cursor = self.text_widget.textCursor()
+        pos = self.text_widget.cursorRect(cursor).center()
+
+        jump_action_func = self.commit_msg_handler.tab_widget.note_mgr.show_jump_to_note_menu_commit_msg(pos, self.text_widget)
+        if jump_action_func:
+            jump_action_func()
+
+    def focus_content(self):
+        """Set Qt focus to the text widget"""
+        self.text_widget.setFocus()
+
+    def keyPressEvent(self, event):
+        """Handle key press events"""
+        key = event.key()
+        modifiers = event.modifiers()
+
+        # Font size changes - Ctrl + Plus/Minus/0
+        if modifiers & Qt.KeyboardModifier.ControlModifier:
+            if key in (Qt.Key.Key_Plus, Qt.Key.Key_Equal):
+                self.increase_font_size()
+                return
+            elif key == Qt.Key.Key_Minus:
+                self.decrease_font_size()
+                return
+            elif key == Qt.Key.Key_0:
+                self.reset_font_size()
+                return
+
+        if key == Qt.Key.Key_F5:
+            self.reload()
+            return
+
+        if key == Qt.Key.Key_N and modifiers & Qt.KeyboardModifier.ControlModifier:
+            self.commit_msg_handler.take_commit_msg_note(self.text_widget)
+            return
+
+        if key == Qt.Key.Key_J and modifiers & Qt.KeyboardModifier.ControlModifier:
+            self.jump_to_note_from_cursor()
+            return
+
+        if key == Qt.Key.Key_M:
+            self.toggle_bookmark()
+            return
+
+        if key == Qt.Key.Key_BracketLeft:
+            self.commit_msg_handler.tab_widget.bookmark_mgr.navigate_to_prev_bookmark()
+            return
+
+        if key == Qt.Key.Key_BracketRight:
+            self.commit_msg_handler.tab_widget.bookmark_mgr.navigate_to_next_bookmark()
+            return
+
+        if ((key == Qt.Key.Key_S or key == Qt.Key.Key_F) and
+            modifiers & Qt.KeyboardModifier.ControlModifier):
+            self.commit_msg_handler.tab_widget.show_search_dialog()
+            return
+
+        if key == Qt.Key.Key_F3:
+            if modifiers & Qt.KeyboardModifier.ShiftModifier:
+                self.commit_msg_handler.tab_widget.search_mgr.find_previous()
+            else:
+                self.commit_msg_handler.tab_widget.search_mgr.find_next()
+            return
+
+        super().keyPressEvent(event)
 
     def toggle_bookmark(self):
         """Toggle bookmark on current line"""
@@ -226,15 +328,19 @@ class CommitMsgHandler:
         # Create new commit message tab
         self.create_commit_msg_tab()
     
-    def create_commit_msg_tab(self):
-        """Create a tab displaying the commit message"""
+    def load_commit_msg_text(self):
+        """Load commit message text from file and return as string"""
         commit_msg_text = self.tab_widget.afr_.read(self.commit_msg_rel_path)
 
         # The afr_.read() will return the lines as an array of
         # non-'\n' strings.  The setPlainText() function seems to need
         # a single string.  So, for this special case, put the lines
         # back together.
-        commit_msg_text = '\n'.join(commit_msg_text)
+        return '\n'.join(commit_msg_text)
+
+    def create_commit_msg_tab(self):
+        """Create a tab displaying the commit message"""
+        commit_msg_text = self.load_commit_msg_text()
 
         # Create commit message tab widget
         tab_widget = CommitMessageTab(commit_msg_text, self)

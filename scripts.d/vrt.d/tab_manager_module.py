@@ -33,6 +33,31 @@ from note_manager import ReviewNotesTab
 from diff_viewer import DiffViewer
 
 
+class OverlayWidget(QWidget):
+    """Widget that can have a dimming overlay that auto-resizes"""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.overlay = QWidget(self)
+        self.overlay.setStyleSheet("background-color: rgba(0, 0, 0, 0.5);")
+        self.overlay.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self.overlay.hide()
+        # Ensure overlay fills the entire container
+        self.overlay.setGeometry(0, 0, self.width(), self.height())
+
+    def resizeEvent(self, event):
+        """Resize overlay to match widget size"""
+        super().resizeEvent(event)
+        # Always update overlay geometry when container resizes
+        self.overlay.setGeometry(0, 0, self.width(), self.height())
+
+    def showEvent(self, event):
+        """Ensure overlay is sized correctly when shown"""
+        super().showEvent(event)
+        if self.overlay.isVisible():
+            self.overlay.setGeometry(0, 0, self.width(), self.height())
+
+
 class DiffViewerTabWidget(QMainWindow):
     """Main window containing tabs of DiffViewer instances with file sidebar"""
     
@@ -94,29 +119,24 @@ class DiffViewerTabWidget(QMainWindow):
         self.file_to_tab_index = {}  # Maps file_class to tab index
         self.current_file_class = None  # Track which file is being added
         self.sidebar_visible = True
+        self.saved_splitter_sizes = None  # Stores splitter sizes when sidebar is hidden
         
         # Global view state for all tabs
         self.diff_map_visible = show_diff_map  # Initial state for diff map
         self.line_numbers_visible = show_line_numbers  # Initial state for line numbers
         self.global_note_file = None  # Global note file for all viewers
         
-        # Global bookmarks: maps (tab_index, line_idx) -> True
-        self.global_bookmarks = {}
-        
         # Create view state manager
         self.view_state_mgr = view_state_manager.ViewStateManager(
             self, show_diff_map, show_line_numbers,
             ignore_tab, ignore_trailing_ws, ignore_intraline)
-
+        
         # Initialize key bindings
         self.keybindings = keybindings.KeyBindings(keybindings_file)
         self.pending_keys = []  # For multi-key sequences
-
+        
         # Create bookmark manager
         self.bookmark_mgr = bookmark_manager.BookmarkManager(self)
-        
-        # Keep reference to global_bookmarks for compatibility
-        self.global_bookmarks = self.bookmark_mgr.global_bookmarks
         
         # Dialog instance tracking to prevent multiple instances
         self.help_dialog = None
@@ -148,6 +168,13 @@ class DiffViewerTabWidget(QMainWindow):
         # Keep reference for compatibility
         self.search_result_dialogs = self.search_mgr.search_result_dialogs
         
+        # Focus mode: 'sidebar' or 'content'
+        self.focus_mode = 'sidebar'  # Start with sidebar focused (files must be selected first)
+        self.last_content_tab_index = None  # Track last focused content tab for restoring focus
+        self.sidebar_base_stylesheet = ""  # Will be set after sidebar is created
+        self.tab_widget_base_stylesheet = ""  # Will be set after tab_widget is created
+        self.focus_mode_label = None  # Label for showing focus mode in status bar
+        
         # Create main layout
         central = QWidget()
         main_layout = QHBoxLayout(central)
@@ -157,18 +184,26 @@ class DiffViewerTabWidget(QMainWindow):
         # Create splitter for resizable sidebar
         self.splitter = QSplitter(Qt.Orientation.Horizontal)
         
-        # Create sidebar with tree view
+        # Create sidebar with overlay container
+        self.sidebar_container = OverlayWidget()
+        sidebar_layout = QVBoxLayout(self.sidebar_container)
+        sidebar_layout.setContentsMargins(0, 0, 0, 0)
         self.sidebar_widget = file_tree_sidebar.FileTreeSidebar(self)
+        sidebar_layout.addWidget(self.sidebar_widget)
+        self.sidebar_overlay = self.sidebar_container.overlay
         
         # Keep references for backward compatibility
         self.open_all_button = self.sidebar_widget.open_all_button
         self.button_layout = None  # No longer used
         self.button_container = None  # No longer used
         
-        # Add sidebar and tab widget to splitter
-        self.splitter.addWidget(self.sidebar_widget)
+        # Add sidebar container to splitter
+        self.splitter.addWidget(self.sidebar_container)
         
-        # Create tab widget
+        # Create tab widget with overlay container
+        self.tab_container = OverlayWidget()
+        tab_layout = QVBoxLayout(self.tab_container)
+        tab_layout.setContentsMargins(0, 0, 0, 0)
         self.tab_widget = QTabWidget()
         self.tab_widget.setTabsClosable(True)
         self.tab_widget.setMovable(True)  # Allow tabs to be reordered by dragging
@@ -184,8 +219,13 @@ class DiffViewerTabWidget(QMainWindow):
         
         self.tab_widget.tabCloseRequested.connect(self.close_tab)
         self.tab_widget.currentChanged.connect(self.on_tab_changed)
+        tab_layout.addWidget(self.tab_widget)
+        self.tab_overlay = self.tab_container.overlay
         
-        self.splitter.addWidget(self.tab_widget)
+        # Disable keyboard focus on tab bar to prevent Tab/Shift+Tab from reaching it
+        self.tab_widget.tabBar().setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        
+        self.splitter.addWidget(self.tab_container)
         
         # Set initial splitter sizes (sidebar: 250px, main area: rest)
         self.splitter.setSizes([250, 1350])
@@ -193,6 +233,15 @@ class DiffViewerTabWidget(QMainWindow):
         main_layout.addWidget(self.splitter)
         
         self.setCentralWidget(central)
+        
+        # Install event filter on tab bar to capture clicks on tabs
+        self.tab_widget.tabBar().installEventFilter(self)
+
+        # Install global event filter on application to catch ALL mouse clicks
+        self._app.installEventFilter(self)
+        
+        # Don't apply initial focus tinting - wait until first file loads
+        # self.update_focus_tinting()
         
         # Create menu bar
         menubar = self.menuBar()
@@ -547,6 +596,14 @@ class DiffViewerTabWidget(QMainWindow):
             viewer = self.get_viewer_at_index(0)
             if viewer:
                 viewer.ensure_highlighting_applied()
+            
+            # Focus the content area (first tab)
+            self.focus_mode = 'content'
+            current_widget = self.tab_widget.currentWidget()
+            if current_widget:
+                current_widget.focus_content()
+            self.update_focus_tinting()
+            self.update_status_focus_indicator()
     
     def on_file_clicked(self, file_class):
         """Handle file button click"""
@@ -603,9 +660,10 @@ class DiffViewerTabWidget(QMainWindow):
         diff_viewer.tab_manager = self  # Back-reference for bookmark sync
         diff_viewer.tab_index = index  # Store tab index
         
-        # Install event filter on text widgets to handle Tab key
-        diff_viewer.base_text.installEventFilter(self)
-        diff_viewer.modified_text.installEventFilter(self)
+        # Install event filter on DiffViewer itself to capture mouse clicks
+        # on all its children (line areas, diff map, scrollbars, etc.)
+        # Mouse events bubble up, so filtering the parent catches all clicks
+        diff_viewer.installEventFilter(self)
         
         # Force proper repaints on horizontal scroll to avoid visual artifacts
         # Use repaint() instead of update() to force immediate redraw
@@ -624,8 +682,9 @@ class DiffViewerTabWidget(QMainWindow):
         if file_class:
             self.file_to_tab_index[file_class] = index
         
-        # Switch to new tab
-        self.tab_widget.setCurrentIndex(index)
+        # Switch to new tab (skip during bulk loading to avoid visual slowdown)
+        if not self._bulk_loading:
+            self.tab_widget.setCurrentIndex(index)
         
         # Apply highlighting immediately if not in bulk loading mode
         # (on_tab_changed is suppressed during bulk load)
@@ -649,6 +708,10 @@ class DiffViewerTabWidget(QMainWindow):
         
         # Update button states immediately
         self.update_button_states()
+        
+        # If this is the first tab, apply focus tinting now that we have content
+        if self.tab_widget.count() == 1:
+            self.update_focus_tinting()
         
         return index
     
@@ -733,12 +796,12 @@ class DiffViewerTabWidget(QMainWindow):
     
     def on_tab_changed(self, index):
         """Handle tab change to update sidebar button states"""
-        # Clear any pending keybinding sequence when switching tabs
-        # This prevents stale multi-key sequences from carrying over
-        self.pending_keys = []
-        
         self.update_button_states()
-        
+
+        # Track last content tab if in content mode
+        if self.focus_mode == 'content' and index >= 0:
+            self.last_content_tab_index = index
+
         # Update scrollbars in the newly activated viewer
         viewer = self.get_viewer_at_index(index)
         if viewer:
@@ -862,13 +925,15 @@ class DiffViewerTabWidget(QMainWindow):
             
             # Clean up bookmarks for this tab
             self.bookmark_mgr.cleanup_tab_bookmarks(index)
-            # Update local reference
-            self.global_bookmarks = self.bookmark_mgr.global_bookmarks
             
             # Check if this is the commit message tab
             if isinstance(widget, CommitMessageTab):
                 if 'commit_msg' in self.file_to_tab_index:
                     del self.file_to_tab_index['commit_msg']
+            # Check if this is the review notes tab
+            elif isinstance(widget, ReviewNotesTab):
+                if 'review_notes' in self.file_to_tab_index:
+                    del self.file_to_tab_index['review_notes']
             # Regular file tab
             elif hasattr(widget, 'file_class'):
                 file_class = widget.file_class
@@ -891,6 +956,18 @@ class DiffViewerTabWidget(QMainWindow):
             # Update button states after closing
             self.update_button_states()
             
+            # Give focus to the new current tab (if any remain)
+            if self.tab_widget.count() > 0:
+                current_widget = self.tab_widget.currentWidget()
+                if current_widget:
+                    current_widget.focus_content()
+            else:
+                # No tabs remain, focus sidebar
+                self.focus_mode = 'sidebar'
+                self.sidebar_widget.tree.setFocus()
+                self.update_focus_tinting()
+                self.update_status_focus_indicator()
+            
             # If no tabs remain, ensure sidebar is visible
             if self.tab_widget.count() == 0 and not self.sidebar_visible:
                 self.toggle_sidebar()
@@ -907,6 +984,10 @@ class DiffViewerTabWidget(QMainWindow):
             current = self.tab_widget.currentIndex()
             next_index = (current + 1) % self.tab_widget.count()
             self.tab_widget.setCurrentIndex(next_index)
+            # Give focus to the new tab
+            current_widget = self.tab_widget.currentWidget()
+            if current_widget:
+                current_widget.focus_content()
     
     def prev_tab(self):
         """Navigate to previous tab (right-to-left, wraps around)"""
@@ -914,19 +995,53 @@ class DiffViewerTabWidget(QMainWindow):
             current = self.tab_widget.currentIndex()
             prev_index = (current - 1) % self.tab_widget.count()
             self.tab_widget.setCurrentIndex(prev_index)
+            # Give focus to the new tab
+            current_widget = self.tab_widget.currentWidget()
+            if current_widget:
+                current_widget.focus_content()
     
     def toggle_sidebar(self):
         """Toggle sidebar visibility"""
+        # Cannot hide sidebar when no content tabs are open
+        if self.sidebar_visible and self.tab_widget.count() == 0:
+            return
+
         if self.sidebar_visible:
-            self.sidebar_widget.hide()
+            # Hiding the sidebar
+            # If currently in sidebar context, switch to content and focus last content tab
+            if self.focus_mode == 'sidebar':
+                self.focus_mode = 'content'
+                # Focus the last focused content tab, or leftmost if none
+                if self.last_content_tab_index is not None and self.last_content_tab_index < self.tab_widget.count():
+                    self.tab_widget.setCurrentIndex(self.last_content_tab_index)
+                else:
+                    self.tab_widget.setCurrentIndex(0)
+                current_widget = self.tab_widget.currentWidget()
+                if current_widget:
+                    current_widget.focus_content()
+                self.update_focus_tinting()
+                self.update_status_focus_indicator()
+
+            # Save current splitter sizes before hiding
+            self.saved_splitter_sizes = self.splitter.sizes()
+            self.sidebar_container.hide()
             self.sidebar_visible = False
+            # Expand content area to fill the freed space
+            total_width = sum(self.saved_splitter_sizes)
+            self.splitter.setSizes([0, total_width])
         else:
-            self.sidebar_widget.show()
+            # Showing the sidebar
+            self.sidebar_container.show()
             self.sidebar_visible = True
-        
+            # Restore previous splitter sizes, or use default if not saved
+            if self.saved_splitter_sizes:
+                self.splitter.setSizes(self.saved_splitter_sizes)
+            else:
+                self.splitter.setSizes([250, 1350])
+
         # Update checkbox state
         self.show_sidebar_action.setChecked(self.sidebar_visible)
-        
+
         # Update scrollbars in current viewer after sidebar toggle
         current_viewer = self.get_current_viewer()
         if current_viewer:
@@ -1024,18 +1139,6 @@ class DiffViewerTabWidget(QMainWindow):
         current_widget = self.tab_widget.currentWidget()
         if current_widget:
             current_widget.reset_font_size()
-    
-    def navigate_to_next_bookmark(self):
-        """Navigate to next bookmark across all tabs"""
-        self.bookmark_mgr.navigate_to_next_bookmark()
-    
-    def navigate_to_prev_bookmark(self):
-        """Navigate to previous bookmark across all tabs"""
-        self.bookmark_mgr.navigate_to_prev_bookmark()
-    
-    def _jump_to_bookmark(self, tab_idx, line_idx):
-        """Jump to a specific bookmark"""
-        self.bookmark_mgr._jump_to_bookmark(tab_idx, line_idx)
     
     def toggle_tab_visibility(self):
         """Toggle tab character visibility in all viewers"""
@@ -1171,76 +1274,6 @@ class DiffViewerTabWidget(QMainWindow):
                 if v != viewer:
                     v._needs_color_refresh = True
 
-    def _change_commit_msg_font_size(self, text_widget, delta):
-        """Change font size for commit message tab"""
-        self.commit_msg_mgr.change_commit_msg_font_size(text_widget, delta)
-
-    def _reset_commit_msg_font_size(self, text_widget):
-        """Reset font size for commit message tab to default (12pt)"""
-        self.commit_msg_mgr.reset_commit_msg_font_size(text_widget)
-
-    def _change_review_notes_font_size(self, text_widget, delta):
-        """Change font size for review notes tab"""
-        if not hasattr(text_widget, 'current_font_size'):
-            text_widget.current_font_size = 12  # Initialize if not set (review notes default is 12pt)
-
-        new_size = text_widget.current_font_size + delta
-        # Clamp to range [6, 24]
-        new_size = max(6, min(24, new_size))
-
-        if new_size != text_widget.current_font_size:
-            text_widget.current_font_size = new_size
-            font = QFont("Courier", new_size, QFont.Weight.Bold)
-            text_widget.setFont(font)
-            text_widget.viewport().update()
-
-    def _reset_review_notes_font_size(self, text_widget):
-        """Reset font size for review notes tab to default (12pt)"""
-        text_widget.current_font_size = 12
-        font = QFont("Courier", 12, QFont.Weight.Bold)
-        text_widget.setFont(font)
-        text_widget.viewport().update()
-    
-    def keyPressEvent(self, event):
-        """Handle key press events using configurable keybindings"""
-        key = event.key()
-        modifiers = event.modifiers()
-
-        # Ignore modifier-only key presses (Shift, Ctrl, Alt, Meta by themselves)
-        # These don't count as part of a key sequence - we only care about them
-        # when they modify another key
-        if key in (Qt.Key.Key_Shift, Qt.Key.Key_Control, Qt.Key.Key_Alt, 
-                   Qt.Key.Key_Meta, Qt.Key.Key_AltGr, Qt.Key.Key_CapsLock):
-            return
-
-        # Build current key press as (qt_key, modifiers)
-        current_key = (key, modifiers)
-
-        # Add to pending sequence
-        self.pending_keys.append(current_key)
-
-        # Try to match current sequence
-        sequence = keybindings.KeySequence(self.pending_keys[:])
-        action = self.keybindings.get_action(sequence)
-
-        if action:
-            # Found a complete match - execute action
-            self.pending_keys = []
-            self._execute_action(action)
-            return
-
-        # Check if current sequence is a prefix of any valid sequence
-        is_prefix = self._is_sequence_prefix(sequence)
-
-        if not is_prefix:
-            # Not a valid prefix - reset and pass to parent
-            self.pending_keys = []
-            super().keyPressEvent(event)
-            return
-
-        # Valid prefix - wait for more keys
-        # (pending_keys remains populated)
-
     def _is_sequence_prefix(self, sequence):
         """Check if sequence is a prefix of any valid keybinding"""
         for valid_seq in self.keybindings.sequence_to_action.keys():
@@ -1262,30 +1295,15 @@ class DiffViewerTabWidget(QMainWindow):
         # Font size actions work on any widget
         if action == 'increase_font':
             if current_widget:
-                if hasattr(current_widget, 'is_commit_msg') and current_widget.is_commit_msg:
-                    self._change_commit_msg_font_size(current_widget, 1)
-                elif hasattr(current_widget, 'is_review_notes') and current_widget.is_review_notes:
-                    self._change_review_notes_font_size(current_widget, 1)
-                elif hasattr(current_widget, 'diff_viewer'):
-                    current_widget.diff_viewer.increase_font_size()
+                current_widget.increase_font_size()
             return
         elif action == 'decrease_font':
             if current_widget:
-                if hasattr(current_widget, 'is_commit_msg') and current_widget.is_commit_msg:
-                    self._change_commit_msg_font_size(current_widget, -1)
-                elif hasattr(current_widget, 'is_review_notes') and current_widget.is_review_notes:
-                    self._change_review_notes_font_size(current_widget, -1)
-                elif hasattr(current_widget, 'diff_viewer'):
-                    current_widget.diff_viewer.decrease_font_size()
+                current_widget.decrease_font_size()
             return
         elif action == 'reset_font':
             if current_widget:
-                if hasattr(current_widget, 'is_commit_msg') and current_widget.is_commit_msg:
-                    self._reset_commit_msg_font_size(current_widget)
-                elif hasattr(current_widget, 'is_review_notes') and current_widget.is_review_notes:
-                    self._reset_review_notes_font_size(current_widget)
-                elif hasattr(current_widget, 'diff_viewer'):
-                    current_widget.diff_viewer.reset_font_size()
+                current_widget.reset_font_size()
             return
 
         # Actions that work on any widget (including commit msg, review notes)
@@ -1401,17 +1419,122 @@ class DiffViewerTabWidget(QMainWindow):
             else:
                 viewer.modified_text.setFocus()
     
+    def keyPressEvent(self, event):
+        """Handle key press events using configurable keybindings"""
+        key = event.key()
+        modifiers = event.modifiers()
+
+        # Ignore modifier-only key presses (Shift, Ctrl, Alt, Meta by themselves)
+        if key in (Qt.Key.Key_Shift, Qt.Key.Key_Control, Qt.Key.Key_Alt,
+                   Qt.Key.Key_Meta, Qt.Key.Key_AltGr, Qt.Key.Key_CapsLock):
+            return
+
+        # Build current key press as (qt_key, modifiers)
+        current_key = (key, modifiers)
+
+        # Add to pending sequence
+        self.pending_keys.append(current_key)
+
+        # Try to match current sequence
+        sequence = keybindings.KeySequence(self.pending_keys[:])
+        action = self.keybindings.get_action(sequence)
+
+        if action:
+            # Found a complete match - execute action
+            self.pending_keys = []
+            self._execute_action(action)
+            return
+
+        # Check if current sequence is a prefix of any valid sequence
+        is_prefix = self._is_sequence_prefix(sequence)
+
+        if not is_prefix:
+            # Not a valid prefix - reset and pass to parent
+            self.pending_keys = []
+            super().keyPressEvent(event)
+            return
+
+        # Valid prefix - wait for more keys
+        # (pending_keys remains populated)
+    
     def eventFilter(self, obj, event):
-        """Filter events from text widgets to handle Tab key and configurable shortcuts"""
+        """Filter events from text widgets to handle Tab key and Ctrl+N"""
+        # DEBUG: Track Tab events to ALL objects
         if event.type() == event.Type.KeyPress:
-            viewer = self.get_current_viewer()
+            if event.key() == Qt.Key.Key_Tab or event.key() == Qt.Key.Key_Backtab:
+                pass  # Could add logging here if needed
+        
+        # Handle mouse press events for focus switching
+        if event.type() == event.Type.MouseButtonPress:
+            # Determine if the click is in the sidebar or content area
+            # by walking up the widget hierarchy
+            widget = obj
+            in_sidebar = False
+            in_content = False
+            is_tree_widget = (obj == self.sidebar_widget.tree)
+            
+            while widget is not None:
+                if widget == self.sidebar_widget:
+                    in_sidebar = True
+                    break
+                elif widget == self.tab_widget:
+                    in_content = True
+                    break
+                widget = widget.parent()
+            
+            # Switch focus based on which area was clicked
+            # Don't update focus_mode for tree clicks - let on_item_clicked handle it
+            if in_sidebar and self.focus_mode != 'sidebar' and not is_tree_widget:
+                self.focus_mode = 'sidebar'
+                self.update_focus_tinting()
+                self.update_status_focus_indicator()
+            elif in_content and self.focus_mode != 'content':
+                self.focus_mode = 'content'
+                self.update_focus_tinting()
+                self.update_status_focus_indicator()
+        
+        if event.type() == event.Type.KeyPress:
             key = event.key()
             modifiers = event.modifiers()
+            viewer = self.get_current_viewer()
+
+            # Ctrl-\ - Toggle focus mode (handle before focus filtering)
+            if key == Qt.Key.Key_Backslash and modifiers & Qt.KeyboardModifier.ControlModifier:
+                self.toggle_focus_mode()
+                return True
+
+            # Determine if the event originated from sidebar or content
+            widget = obj
+            in_sidebar = False
+            in_content = False
+
+            while widget is not None:
+                if widget == self.sidebar_widget:
+                    in_sidebar = True
+                    break
+                elif widget == self.tab_widget:
+                    in_content = True
+                    break
+                widget = widget.parent()
+
+            # Block Tab/Shift+Tab when in sidebar mode to prevent any focus navigation
+            if self.focus_mode == 'sidebar' and key == Qt.Key.Key_Tab:
+                return True
+
+            # Block keyboard events based on focus mode
+            if self.focus_mode == 'sidebar' and in_content:
+                # Sidebar has focus, block content area keyboard events
+                return True
+            elif self.focus_mode == 'content' and in_sidebar:
+                # Content has focus, block sidebar keyboard events
+                return True
+
+            # If we reach here, the keyboard event is allowed for the current focus mode
 
             # Check if this is the commit message widget
-            is_commit_msg = hasattr(obj, 'is_commit_msg') and obj.is_commit_msg
+            is_commit_msg = isinstance(obj.parent(), CommitMessageTab) if obj.parent() else False
 
-            # Build current key press
+            # Build current key press for keybinding check
             current_key = (key, modifiers)
             sequence = keybindings.KeySequence([current_key])
             action = self.keybindings.get_action(sequence)
@@ -1424,7 +1547,7 @@ class DiffViewerTabWidget(QMainWindow):
             # Handle take_note action
             if action == 'take_note':
                 if is_commit_msg:
-                    self.take_commit_msg_note(obj)
+                    obj.parent().take_note()
                     return True
                 elif viewer:
                     if obj == viewer.base_text:
@@ -1479,6 +1602,52 @@ class DiffViewerTabWidget(QMainWindow):
                 return True
 
         return False
+
+    def toggle_focus_mode(self):
+        """Toggle between sidebar and content focus modes"""
+        if self.focus_mode == 'content':
+            self.focus_mode = 'sidebar'
+            # Ensure sidebar is visible when switching to sidebar context
+            if not self.sidebar_visible:
+                self.toggle_sidebar()
+            # Give Qt focus to the tree widget
+            self.sidebar_widget.tree.setFocus()
+        else:
+            self.focus_mode = 'content'
+            # Give Qt focus to the current content widget
+            current_widget = self.tab_widget.currentWidget()
+            if current_widget:
+                current_widget.focus_content()
+            # Track which content tab is focused
+            self.last_content_tab_index = self.tab_widget.currentIndex()
+
+        self.update_focus_tinting()
+        self.update_status_focus_indicator()
+    
+    def update_focus_tinting(self):
+        """Apply background tinting based on current focus mode"""
+        if self.focus_mode == 'sidebar':
+            # Sidebar focused: hide sidebar overlay, show tab overlay
+            self.sidebar_overlay.hide()
+            self.tab_overlay.raise_()
+            self.tab_overlay.show()
+        else:  # content focused
+            # Content focused: hide tab overlay, show sidebar overlay
+            self.tab_overlay.hide()
+            self.sidebar_overlay.raise_()
+            self.sidebar_overlay.show()
+    
+    def update_status_focus_indicator(self):
+        """Update status bar in current tab to show focus mode"""
+        current_widget = self.tab_widget.currentWidget()
+        if not current_widget:
+            return
+        
+        # Check if it's a DiffViewer with a region_label
+        if isinstance(current_widget, DiffViewer):
+            focus_text = f"Focus: {'Sidebar' if self.focus_mode == 'sidebar' else 'Content'}"
+            # The region_label is directly accessible on the DiffViewer
+            # We'll update it to include focus mode, or add a separate label
     
     def run(self):
         """Show the window and start the application event loop"""
