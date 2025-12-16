@@ -110,6 +110,63 @@ class ReviewNotesTab(QPlainTextEdit, ReviewNotesTabBase):
         """Toggle bookmark - not supported for review notes"""
         pass
 
+    def focus_content(self):
+        """Set Qt focus to self (ReviewNotesTab is itself the text widget)"""
+        self.setFocus()
+
+    def reload(self):
+        """Reload notes from file, prompting if there are unsaved changes"""
+        if self.has_unsaved_changes():
+            reply = QMessageBox.question(
+                self,
+                'Unsaved Changes',
+                'You have unsaved changes. Discard them and reload from file?',
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No
+            )
+            if reply != QMessageBox.StandardButton.Yes:
+                return
+
+        notes_text = self.note_manager.load_note_text()
+        self.setPlainText(notes_text)
+        self._has_unsaved_changes = False
+        self.original_content = notes_text
+
+    def keyPressEvent(self, event):
+        """Handle key press events"""
+        key = event.key()
+        modifiers = event.modifiers()
+
+        # Font size changes - Ctrl + Plus/Minus/0
+        if modifiers & Qt.KeyboardModifier.ControlModifier:
+            if key in (Qt.Key.Key_Plus, Qt.Key.Key_Equal):
+                self.increase_font_size()
+                return
+            elif key == Qt.Key.Key_Minus:
+                self.decrease_font_size()
+                return
+            elif key == Qt.Key.Key_0:
+                self.reset_font_size()
+                return
+
+        if key == Qt.Key.Key_F5:
+            self.reload()
+            return
+
+        if ((key == Qt.Key.Key_S or key == Qt.Key.Key_F) and
+            modifiers & Qt.KeyboardModifier.ControlModifier):
+            self.note_manager.tab_widget.show_search_dialog()
+            return
+
+        if key == Qt.Key.Key_F3:
+            if modifiers & Qt.KeyboardModifier.ShiftModifier:
+                self.note_manager.tab_widget.search_mgr.find_previous()
+            else:
+                self.note_manager.tab_widget.search_mgr.find_next()
+            return
+
+        super().keyPressEvent(event)
+
     def search_content(self, search_text, case_sensitive, regex, search_base=True, search_modi=True):
         """
         Search for text in review notes.
@@ -222,6 +279,10 @@ class NoteManager:
         self.reload_timer = None
         self.editor_class = tab_widget.editor_class
         self.editor_theme = tab_widget.editor_theme
+
+    def is_builtin_editor(self, text_widget):
+        """Check if the widget is the built-in editor (not external emacs/vim)"""
+        return isinstance(text_widget, ReviewNotesTab)
     
     def get_note_file(self):
         """Get the current note file path"""
@@ -234,10 +295,6 @@ class NoteManager:
                 return viewer.note_file
         return None
     
-    def is_builtin_editor(self, text_widget):
-        """Check if the widget is the built-in editor (not external emacs/vim)"""
-        return hasattr(text_widget, 'has_unsaved_changes')
-
     def prompt_for_note_file(self):
         """
         Prompt user to select a note file.
@@ -315,6 +372,20 @@ class NoteManager:
         
         # Create new Review Notes tab
         self.create_notes_tab()
+
+    def load_note_text(self):
+        """Load note file text and return as string"""
+        note_file = self.get_note_file()
+        if not note_file:
+            return "# No note file configured\n"
+
+        try:
+            with open(note_file, 'r', encoding='utf-8') as f:
+                return f.read()
+        except FileNotFoundError:
+            return "# No notes yet\n"
+        except Exception as e:
+            return f"# Error reading note file:\n# {e}\n"
     
     def create_notes_tab(self):
         """Create a tab displaying the review notes"""
@@ -340,14 +411,7 @@ class NoteManager:
             return
 
         # Use built-in editor (original behavior)
-        # Read note file content
-        try:
-            with open(note_file, 'r', encoding='utf-8') as f:
-                notes_text = f.read()
-        except FileNotFoundError:
-            notes_text = "# No notes yet\n"
-        except Exception as e:
-            notes_text = f"# Error reading note file:\n# {e}\n"
+        notes_text = self.load_note_text()
 
         # Create review notes tab widget
         text_widget = ReviewNotesTab(notes_text, self)
@@ -370,12 +434,8 @@ class NoteManager:
     
     def show_notes_context_menu(self, pos, text_widget):
         """Show context menu for review notes tab"""
-        # External editors handle their own context menus
-        if not self.is_builtin_editor(text_widget):
-            return
-
         menu = QMenu(self.tab_widget)
-
+        
         cursor = text_widget.textCursor()
         has_selection = cursor.hasSelection()
         
@@ -387,46 +447,14 @@ class NoteManager:
         
         menu.exec(text_widget.mapToGlobal(pos))
     
-    def on_notes_text_changed(self, text_widget):
-        """Handle text changes in Review Notes tab"""
-        # External editors handle their own text processing
-        if not self.is_builtin_editor(text_widget):
-            return
-
-        # Filter out non-ASCII characters
-        cursor_pos = text_widget.textCursor().position()
-        text = text_widget.toPlainText()
-        
-        # Filter to ASCII only
-        filtered_text = ''.join(char for char in text if ord(char) < 128)
-        
-        if filtered_text != text:
-            # Non-ASCII characters were present - replace text
-            text_widget.blockSignals(True)
-            text_widget.setPlainText(filtered_text)
-            # Restore cursor position (adjusted for removed chars)
-            new_cursor = text_widget.textCursor()
-            new_cursor.setPosition(min(cursor_pos, len(filtered_text)))
-            text_widget.setTextCursor(new_cursor)
-            text_widget.blockSignals(False)
-        
-        # Mark as having unsaved changes
-        if not text_widget.has_unsaved_changes:
-            text_widget.has_unsaved_changes = True
-            self.update_notes_tab_title(text_widget, dirty=True)
-        
-        # Restart auto-save timer (2.5 seconds)
-        text_widget.save_timer.stop()
-        text_widget.save_timer.start(2500)
-    
     def save_notes_content(self, text_widget):
         """Save the notes content to file"""
-        note_file = self.get_note_file()
-        if not note_file:
+        # External editors (emacs/vim) save on their own
+        if not self.is_builtin_editor(text_widget):
             return
 
-        # External editors handle their own saving
-        if not self.is_builtin_editor(text_widget):
+        note_file = self.get_note_file()
+        if not note_file:
             return
 
         try:
@@ -453,22 +481,22 @@ class NoteManager:
     
     def update_notes_tab_title(self, text_widget, dirty):
         """Update the tab title to show dirty state"""
-        note_file = self.get_note_file()
-        if not note_file:
-            return
-
         # External editors don't show dirty state in tab title
         if not self.is_builtin_editor(text_widget):
+            return
+
+        note_file = self.get_note_file()
+        if not note_file:
             return
 
         # Find the tab index
         if 'review_notes' not in self.tab_widget.file_to_tab_index:
             return
-        
+
         tab_index = self.tab_widget.file_to_tab_index['review_notes']
         if not (0 <= tab_index < self.tab_widget.tab_widget.count()):
             return
-        
+
         # Update title with asterisk if dirty
         if dirty:
             self.tab_widget.tab_widget.setTabText(tab_index, f"*{note_file}")
@@ -553,11 +581,7 @@ class NoteManager:
         text_widget = self.tab_widget.tab_widget.widget(tab_index)
         if not isinstance(text_widget, ReviewNotesTab):
             return
-
-        # External editors handle their own reloading
-        if not self.is_builtin_editor(text_widget):
-            return
-
+        
         # Check if there are unsaved changes
         if text_widget.has_unsaved_changes():
             # Show conflict dialog
@@ -888,17 +912,24 @@ class NoteManager:
         # Open or switch to Review Notes tab
         self.on_notes_clicked()
         
-        # Get the Review Notes tab widget - reopen if needed
+        # Get the Review Notes tab widget
         if 'review_notes' not in self.tab_widget.file_to_tab_index:
-            self.open_review_notes()
-            if 'review_notes' not in self.tab_widget.file_to_tab_index:
-                QMessageBox.warning(self.tab_widget, 'Error',
-                                  'Could not open Review Notes tab.')
-                return
-
+            QMessageBox.warning(self.tab_widget, 'Error',
+                              'Could not open Review Notes tab.')
+            return
+        
         tab_index = self.tab_widget.file_to_tab_index['review_notes']
+        if not (0 <= tab_index < self.tab_widget.tab_widget.count()):
+            QMessageBox.warning(self.tab_widget, 'Error',
+                              'Review Notes tab index is invalid.')
+            return
+        
         text_widget = self.tab_widget.tab_widget.widget(tab_index)
-
+        if not isinstance(text_widget, ReviewNotesTab):
+            QMessageBox.warning(self.tab_widget, 'Error',
+                              'Review Notes tab has unexpected type.')
+            return
+        
         if found_line_idx is not None:
             # Note found - highlight it
             cursor = text_widget.textCursor()

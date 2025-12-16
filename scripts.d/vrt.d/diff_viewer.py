@@ -78,6 +78,8 @@ class DiffViewer(QWidget, TabContentBase):
         self.collapsed_regions = []  # List of (start_line, end_line) tuples for collapsed change regions (deleted/added)
         self.all_collapsed = False  # Track if all change regions are collapsed
         
+        self._syncing_scroll = False  # Prevent recursion in scroll syncing
+        
         self.setup_gui()
     
     def setup_gui(self):
@@ -185,11 +187,11 @@ class DiffViewer(QWidget, TabContentBase):
         status_frame.setLayout(status_layout)
         main_layout.addWidget(status_frame)
         
-        self.base_text.set_other_widget(self.modified_text)
-        self.modified_text.set_other_widget(self.base_text)
-        
-        self.base_text.verticalScrollBar().valueChanged.connect(self.sync_v_scroll)
-        self.base_text.horizontalScrollBar().valueChanged.connect(self.sync_h_scroll)
+        # Bidirectional scroll syncing
+        self.base_text.verticalScrollBar().valueChanged.connect(self.sync_v_scroll_from_base)
+        self.base_text.horizontalScrollBar().valueChanged.connect(self.sync_h_scroll_from_base)
+        self.modified_text.verticalScrollBar().valueChanged.connect(self.sync_v_scroll_from_modified)
+        self.modified_text.horizontalScrollBar().valueChanged.connect(self.sync_h_scroll_from_modified)
         
         self.base_text.verticalScrollBar().valueChanged.connect(self.base_line_area.update)
         self.modified_text.verticalScrollBar().valueChanged.connect(self.modified_line_area.update)
@@ -207,6 +209,10 @@ class DiffViewer(QWidget, TabContentBase):
         text_font = QFont("Courier", 12, QFont.Weight.Bold)
         self.base_text.setFont(text_font)
         self.modified_text.setFont(text_font)
+        
+        # Install event filters to handle all events centrally
+        self.base_text.installEventFilter(self)
+        self.modified_text.installEventFilter(self)
     
     def set_changed_region_count(self, count):
         """Set the number of changed regions from the diff descriptor"""
@@ -627,15 +633,53 @@ class DiffViewer(QWidget, TabContentBase):
         self.base_text.horizontalScrollBar().setValue(value)
         self.modified_text.horizontalScrollBar().setValue(value)
     
-    def sync_v_scroll(self, value):
+    def sync_v_scroll_from_base(self, value):
+        """Sync vertical scroll from base to modified"""
+        if self._syncing_scroll:
+            return
+        self._syncing_scroll = True
         self.v_scrollbar.setValue(value)
         self.modified_text.verticalScrollBar().setValue(value)
         self.update_diff_map_viewport()
         self.update_current_region_from_scroll()
+        if self.modified_line_area:
+            self.modified_line_area.update()
+        self._syncing_scroll = False
     
-    def sync_h_scroll(self, value):
+    def sync_h_scroll_from_base(self, value):
+        """Sync horizontal scroll from base to modified"""
+        if self._syncing_scroll:
+            return
+        self._syncing_scroll = True
         self.h_scrollbar.setValue(value)
         self.modified_text.horizontalScrollBar().setValue(value)
+        if self.modified_line_area:
+            self.modified_line_area.update()
+        self._syncing_scroll = False
+    
+    def sync_v_scroll_from_modified(self, value):
+        """Sync vertical scroll from modified to base"""
+        if self._syncing_scroll:
+            return
+        self._syncing_scroll = True
+        self.v_scrollbar.setValue(value)
+        self.base_text.verticalScrollBar().setValue(value)
+        self.update_diff_map_viewport()
+        self.update_current_region_from_scroll()
+        if self.base_line_area:
+            self.base_line_area.update()
+        self._syncing_scroll = False
+    
+    def sync_h_scroll_from_modified(self, value):
+        """Sync horizontal scroll from modified to base"""
+        if self._syncing_scroll:
+            return
+        self._syncing_scroll = True
+        self.h_scrollbar.setValue(value)
+        self.base_text.horizontalScrollBar().setValue(value)
+        if self.base_line_area:
+            self.base_line_area.update()
+        self._syncing_scroll = False
     
     def on_diff_map_wheel(self, event):
         self.base_text.wheelEvent(event)
@@ -973,9 +1017,9 @@ class DiffViewer(QWidget, TabContentBase):
         if hasattr(self, 'tab_manager') and hasattr(self, 'tab_index'):
             key = (self.tab_index, line_idx)
             if line_idx in self.bookmarked_lines:
-                self.tab_manager.global_bookmarks[key] = True
-            elif key in self.tab_manager.global_bookmarks:
-                del self.tab_manager.global_bookmarks[key]
+                self.tab_manager.bookmark_mgr.global_bookmarks[key] = True
+            elif key in self.tab_manager.bookmark_mgr.global_bookmarks:
+                del self.tab_manager.bookmark_mgr.global_bookmarks[key]
         
         # Update visuals
         self.base_text.viewport().update()
@@ -1052,67 +1096,270 @@ class DiffViewer(QWidget, TabContentBase):
         # other than on_tab_changed (e.g., first show, or restoration from minimize)
         self.ensure_highlighting_applied()
     
+    def eventFilter(self, obj, event):
+        """Central event coordinator for base and modified text widgets"""
+        # Handle Tab/Shift+Tab for switching between panes
+        if event.type() == event.Type.KeyPress:
+            key = event.key()
+            modifiers = event.modifiers()
+            
+            if key == Qt.Key.Key_Tab or key == Qt.Key.Key_Backtab:
+                if obj == self.base_text or obj == self.modified_text:
+                    current_line = obj.textCursor().blockNumber()
+                    
+                    # Determine target widget
+                    if obj == self.base_text:
+                        target_widget = self.modified_text
+                    else:
+                        target_widget = self.base_text
+                    
+                    # Move cursor in target widget to same line
+                    block = target_widget.document().findBlockByNumber(current_line)
+                    if block.isValid():
+                        cursor = target_widget.textCursor()
+                        cursor.setPosition(block.position())
+                        target_widget.setTextCursor(cursor)
+                    
+                    # Set focus to target widget
+                    target_widget.setFocus(Qt.FocusReason.TabFocusReason)
+                    
+                    # Update focused line markers
+                    obj.set_focused_line(current_line)
+                    target_widget.set_focused_line(current_line)
+                    
+                    # Consume the event
+                    return True
+            
+            # Handle non-modified command keys (N, P, C, T, B, M, X)
+            # Only handle if no modifiers (or just Shift for X)
+            if obj == self.base_text or obj == self.modified_text:
+                # Ctrl+N - Take note
+                if key == Qt.Key.Key_N and modifiers & Qt.KeyboardModifier.ControlModifier:
+                    cursor = obj.textCursor()
+                    
+                    # Select current line if nothing selected
+                    if not cursor.hasSelection():
+                        cursor.movePosition(QTextCursor.MoveOperation.StartOfBlock)
+                        cursor.movePosition(QTextCursor.MoveOperation.EndOfBlock, QTextCursor.MoveMode.KeepAnchor)
+                        obj.setTextCursor(cursor)
+                    
+                    # Determine which side
+                    side = 'base' if obj == self.base_text else 'modified'
+                    self.take_note_from_widget(side)
+                    return True
+                
+                # N - Next change
+                if key == Qt.Key.Key_N and not modifiers:
+                    self.next_change()
+                    return True
+                
+                # P - Previous change
+                elif key == Qt.Key.Key_P and not modifiers:
+                    self.prev_change()
+                    return True
+                
+                # C - Center current region
+                elif key == Qt.Key.Key_C and not modifiers:
+                    self.center_current_region()
+                    return True
+                
+                # T - Jump to top
+                elif key == Qt.Key.Key_T and not modifiers:
+                    self.current_region = 0
+                    if self.change_regions:
+                        self.center_on_line(0)
+                    self.update_status()
+                    return True
+                
+                # B - Jump to bottom
+                elif key == Qt.Key.Key_B and not modifiers:
+                    if self.change_regions:
+                        self.current_region = len(self.change_regions) - 1
+                        self.center_on_line(len(self.base_display) - 1)
+                    self.update_status()
+                    return True
+                
+                # M - Toggle bookmark
+                elif key == Qt.Key.Key_M and not modifiers:
+                    self.toggle_bookmark()
+                    return True
+                
+                # X - Toggle collapse (handles both X and Shift+X)
+                elif key == Qt.Key.Key_X and not (modifiers & ~Qt.KeyboardModifier.ShiftModifier):
+                    if modifiers & Qt.KeyboardModifier.ShiftModifier:
+                        # Shift+X - Toggle collapse all
+                        if self.collapsed_regions:
+                            self.uncollapse_all_regions()
+                        else:
+                            self.collapse_all_change_regions()
+                    else:
+                        # X - Toggle collapse current line's region
+                        line_idx = obj.textCursor().blockNumber()
+                        
+                        # Check if line is in a collapsed region - if so, uncollapse
+                        if self.is_line_in_collapsed_region(line_idx):
+                            self.uncollapse_region(line_idx)
+                        # Check if line is in a change region - if so, collapse
+                        elif self.is_change_region(line_idx):
+                            self.collapse_change_region(line_idx)
+                    return True
+                
+                # [ - Previous bookmark
+                elif key == Qt.Key.Key_BracketLeft and not modifiers:
+                    if self.tab_manager:
+                        self.tab_manager.bookmark_mgr.navigate_to_prev_bookmark()
+                    return True
+                
+                # ] - Next bookmark
+                elif key == Qt.Key.Key_BracketRight and not modifiers:
+                    if self.tab_manager:
+                        self.tab_manager.bookmark_mgr.navigate_to_next_bookmark()
+                    return True
+                
+                # Ctrl+D - Toggle diff map
+                elif key == Qt.Key.Key_D and modifiers & Qt.KeyboardModifier.ControlModifier:
+                    self.toggle_diff_map()
+                    return True
+                
+                # Ctrl+L - Toggle line numbers
+                elif key == Qt.Key.Key_L and modifiers & Qt.KeyboardModifier.ControlModifier:
+                    self.toggle_line_numbers()
+                    return True
+                
+                # Ctrl+S or Ctrl+F - Show search dialog
+                elif (key == Qt.Key.Key_S or key == Qt.Key.Key_F) and modifiers & Qt.KeyboardModifier.ControlModifier:
+                    if self.tab_manager:
+                        self.tab_manager.show_search_dialog()
+                    return True
+                
+                # F3 - Search navigation
+                elif key == Qt.Key.Key_F3:
+                    if self.tab_manager:
+                        if modifiers & Qt.KeyboardModifier.ShiftModifier:
+                            self.tab_manager.search_mgr.find_previous()
+                        else:
+                            self.tab_manager.search_mgr.find_next()
+                    return True
+                
+                # Ctrl+J - Jump to note from cursor
+                elif key == Qt.Key.Key_J and modifiers & Qt.KeyboardModifier.ControlModifier:
+                    self.jump_to_note_from_cursor()
+                    return True
+                
+                # F5 - Manual reload
+                elif key == Qt.Key.Key_F5 and not modifiers:
+                    if self.tab_manager:
+                        self.tab_manager.reload_viewer(self)
+                    return True
+                
+                # Font size changes - Ctrl+Plus/Minus/0
+                elif modifiers & Qt.KeyboardModifier.ControlModifier:
+                    if key in (Qt.Key.Key_Plus, Qt.Key.Key_Equal):
+                        self.increase_font_size()
+                        return True
+                    elif key == Qt.Key.Key_Minus:
+                        self.decrease_font_size()
+                        return True
+                    elif key == Qt.Key.Key_0:
+                        self.reset_font_size()
+                        return True
+            
+            # Handle navigation keys - sync scroll position between panes
+            is_nav_key = key in (Qt.Key.Key_Up, Qt.Key.Key_Down, Qt.Key.Key_PageUp,
+                                Qt.Key.Key_PageDown, Qt.Key.Key_Home, Qt.Key.Key_End,
+                                Qt.Key.Key_Left, Qt.Key.Key_Right, Qt.Key.Key_Space)
+            
+            if is_nav_key and (obj == self.base_text or obj == self.modified_text):
+                # Let the event propagate so widget can move its cursor first
+                # We'll sync afterward using a timer
+                from PyQt6.QtCore import QTimer
+                QTimer.singleShot(0, lambda: self._sync_navigation_scroll(obj))
+        
+        # Handle wheel events - sync scroll position between panes
+        if event.type() == event.Type.Wheel:
+            if obj == self.base_text or obj == self.modified_text:
+                # Let event propagate so widget can scroll first
+                # We'll sync afterward using a timer
+                from PyQt6.QtCore import QTimer
+                QTimer.singleShot(0, lambda: self._sync_wheel_scroll(obj))
+        
+        # Handle focus events for synchronized focused line markers
+        if event.type() == event.Type.FocusIn:
+            if obj == self.base_text or obj == self.modified_text:
+                line = obj.textCursor().blockNumber()
+                # Update focused line markers on both widgets
+                self.base_text.set_focused_line(line)
+                self.modified_text.set_focused_line(line)
+                # Update line number areas
+                if self.base_line_area:
+                    self.base_line_area.update()
+                if self.modified_line_area:
+                    self.modified_line_area.update()
+                # Update viewports
+                self.base_text.viewport().update()
+                self.modified_text.viewport().update()
+        
+        elif event.type() == event.Type.FocusOut:
+            if obj == self.base_text or obj == self.modified_text:
+                # Update line number areas
+                if self.base_line_area:
+                    self.base_line_area.update()
+                if self.modified_line_area:
+                    self.modified_line_area.update()
+                # Update viewports
+                self.base_text.viewport().update()
+                self.modified_text.viewport().update()
+        
+        # Pass through - handlers still in SyncedPlainTextEdit for other events
+        return False  # Let event propagate normally
+    
+    def _sync_navigation_scroll(self, source_widget):
+        """Sync scroll position from source widget to the other widget after navigation key"""
+        if source_widget == self.base_text:
+            target_widget = self.modified_text
+        else:
+            target_widget = self.base_text
+        
+        # Sync scroll positions
+        target_widget.verticalScrollBar().setValue(
+            source_widget.verticalScrollBar().value())
+        target_widget.horizontalScrollBar().setValue(
+            source_widget.horizontalScrollBar().value())
+        
+        # Get new line from source widget
+        new_line = source_widget.textCursor().blockNumber()
+        
+        # Update focused line markers
+        target_widget.set_focused_line(new_line)
+        
+        # Update viewports and line number areas
+        target_widget.viewport().update()
+        if target_widget.line_number_area:
+            target_widget.line_number_area.update()
+    
+    def _sync_wheel_scroll(self, source_widget):
+        """Sync scroll position from source widget to the other widget after wheel event"""
+        if source_widget == self.base_text:
+            target_widget = self.modified_text
+        else:
+            target_widget = self.base_text
+        
+        # Sync scroll positions
+        target_widget.verticalScrollBar().setValue(
+            source_widget.verticalScrollBar().value())
+        target_widget.horizontalScrollBar().setValue(
+            source_widget.horizontalScrollBar().value())
+        
+        # Update line number areas
+        if target_widget.line_number_area:
+            target_widget.line_number_area.update()
+    
     def keyPressEvent(self, event):
         key = event.key()
         modifiers = event.modifiers()
-        
-        # Font size changes - Ctrl + Plus/Minus/0
-        if modifiers & Qt.KeyboardModifier.ControlModifier:
-            if key in (Qt.Key.Key_Plus, Qt.Key.Key_Equal):  # + or = key
-                self.increase_font_size()
-                return
-            elif key == Qt.Key.Key_Minus:
-                self.decrease_font_size()
-                return
-            elif key == Qt.Key.Key_0:
-                self.reset_font_size()
-                return
-        
-        if key == Qt.Key.Key_D and modifiers & Qt.KeyboardModifier.ControlModifier:
-            self.toggle_diff_map()
-            return
-        
-        if key == Qt.Key.Key_L and modifiers & Qt.KeyboardModifier.ControlModifier:
-            self.toggle_line_numbers()
-            return
-        
-        if key == Qt.Key.Key_S and modifiers & Qt.KeyboardModifier.ControlModifier:
-            self.show_search_dialog()
-            return
-        
-        if key == Qt.Key.Key_J and modifiers & Qt.KeyboardModifier.ControlModifier:
-            self.jump_to_note_from_cursor()
-            return
-        
-        # M - Toggle bookmark
-        if key == Qt.Key.Key_M:
-            self.toggle_bookmark()
-            return
-        
-        # X - Toggle collapse change region / Shift+X - Toggle collapse all
-        if key == Qt.Key.Key_X:
-            if modifiers & Qt.KeyboardModifier.ShiftModifier:
-                # Shift+X - Toggle collapse all change regions (deleted and added)
-                if self.collapsed_regions:
-                    self.uncollapse_all_regions()
-                else:
-                    self.collapse_all_change_regions()
-            else:
-                # X - Toggle collapse for current line's region
-                if self.base_text.hasFocus():
-                    line_idx = self.base_text.textCursor().blockNumber()
-                elif self.modified_text.hasFocus():
-                    line_idx = self.modified_text.textCursor().blockNumber()
-                else:
-                    return
-                
-                # Check if line is in a collapsed region - if so, uncollapse
-                if self.is_line_in_collapsed_region(line_idx):
-                    self.uncollapse_region(line_idx)
-                # Check if line is in a change region - if so, collapse
-                elif self.is_change_region(line_idx):
-                    self.collapse_change_region(line_idx)
-            return
+        # All command keys now handled by DiffViewer.eventFilter
+        # This keyPressEvent is only reached when DiffViewer itself has focus (rare/never)
+        # The handlers below (N, P, C, T, B) are also in eventFilter and are duplicates
         
         if key == Qt.Key.Key_N:
             self.next_change()
@@ -1348,6 +1595,10 @@ class DiffViewer(QWidget, TabContentBase):
     def has_unsaved_changes(self):
         """Diff viewers don't have unsaved changes"""
         return False
+
+    def focus_content(self):
+        """Set Qt focus to the base text widget"""
+        self.base_text.setFocus()
 
     def search_content(self, search_text, case_sensitive, regex, search_base=True, search_modi=True):
         """

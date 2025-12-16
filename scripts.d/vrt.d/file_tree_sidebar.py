@@ -8,11 +8,34 @@ File tree sidebar for diff_review
 This module provides a tree view for organizing files by directory structure
 in the sidebar, with collapsible directory nodes.
 """
-from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QTreeWidget, QTreeWidgetItem, 
+from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QTreeWidget, QTreeWidgetItem,
                               QPushButton, QApplication)
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont, QColor
 import color_palettes
+
+
+class FileTreeWidget(QTreeWidget):
+    """Custom tree widget that handles Space key like Enter"""
+
+    def keyPressEvent(self, event):
+        """Handle Space and Enter keys to activate current item, block Tab navigation"""
+        # Block Tab and Shift+Tab to prevent focus navigation
+        if event.key() == Qt.Key.Key_Tab:
+            event.accept()
+            return
+
+        # Handle both Enter and Space to activate items (needed for macOS compatibility)
+        if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Space):
+            current_item = self.currentItem()
+            if current_item:
+                # Emit itemActivated signal
+                self.itemActivated.emit(current_item, 0)
+                event.accept()
+                return
+
+        # Let default handling proceed for all other keys
+        super().keyPressEvent(event)
 
 
 class FileTreeSidebar(QWidget):
@@ -32,6 +55,7 @@ class FileTreeSidebar(QWidget):
         # "Open All Files" button at top
         self.open_all_button = QPushButton("Open All Files")
         self.open_all_button.clicked.connect(self.tab_widget.open_all_files)
+        self.open_all_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)  # Prevent Tab navigation to button
         self.open_all_button.setStyleSheet("""
             QPushButton {
                 text-align: left;
@@ -47,19 +71,17 @@ class FileTreeSidebar(QWidget):
         """)
         layout.addWidget(self.open_all_button)
         
-        # Tree widget
-        self.tree = QTreeWidget()
+        # Tree widget (custom class handles Space key)
+        self.tree = FileTreeWidget()
         self.tree.setHeaderHidden(True)
         self.tree.setIndentation(20)
         self.tree.setAnimated(True)
         self.tree.itemClicked.connect(self.on_item_clicked)
+        self.tree.itemActivated.connect(self.on_item_clicked)
         
         # Set up context menu for right-click to focus tree
         self.tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.tree.customContextMenuRequested.connect(self.on_tree_right_click)
-        
-        # Install event filter to intercept spacebar
-        self.tree.installEventFilter(self)
         
         layout.addWidget(self.tree)
         
@@ -227,28 +249,35 @@ class FileTreeSidebar(QWidget):
     
     def _focus_current_diff_viewer(self):
         """Set focus to the base text widget of the current diff viewer"""
+        # Skip during bulk loading to avoid unnecessary slowness
+        if self.tab_widget._bulk_loading:
+            return
+        
         viewer = self.tab_widget.get_current_viewer()
         if viewer:
-            viewer.base_text.setFocus()
-    
+            viewer.focus_content()
+            # Update focus mode to content
+            if self.tab_widget.focus_mode != 'content':
+                self.tab_widget.focus_mode = 'content'
+                self.tab_widget.last_content_tab_index = self.tab_widget.tab_widget.currentIndex()
+                self.tab_widget.update_focus_tinting()
+                self.tab_widget.update_status_focus_indicator()
+
     def _focus_current_tab_widget(self):
         """Set focus to the current tab's main widget (commit msg or review notes)"""
+        # Skip during bulk loading to avoid unnecessary slowness
+        if self.tab_widget._bulk_loading:
+            return
+        
         current_widget = self.tab_widget.tab_widget.currentWidget()
         if current_widget:
-            current_widget.setFocus()
-    
-    def eventFilter(self, obj, event):
-        """Filter events from tree widget to handle spacebar"""
-        if obj == self.tree and event.type() == event.Type.KeyPress:
-            if event.key() == Qt.Key.Key_Space:
-                current_item = self.tree.currentItem()
-                if current_item:
-                    # Trigger the item as if it was clicked
-                    self.on_item_clicked(current_item, 0)
-                    return True  # Event handled
-        
-        # Let default handling proceed
-        return super().eventFilter(obj, event)
+            current_widget.focus_content()
+            # Update focus mode to content
+            if self.tab_widget.focus_mode != 'content':
+                self.tab_widget.focus_mode = 'content'
+                self.tab_widget.last_content_tab_index = self.tab_widget.tab_widget.currentIndex()
+                self.tab_widget.update_focus_tinting()
+                self.tab_widget.update_status_focus_indicator()
     
     def update_file_state(self, file_class, is_open, is_active):
         """Update visual state of a file item"""

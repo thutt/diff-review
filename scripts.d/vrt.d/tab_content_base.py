@@ -43,6 +43,13 @@ class TabContentBase:
         """
         return False
 
+    def focus_content(self):
+        """
+        Set Qt focus to the appropriate widget for this tab content.
+        Subclasses should override this to focus their main interactive widget.
+        """
+        pass
+
     def search_content(self, search_text, case_sensitive, regex, search_base=True, search_modi=True):
         """
         Search for text within this tab's content.

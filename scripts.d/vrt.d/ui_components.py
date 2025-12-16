@@ -11,7 +11,7 @@ This module contains the custom Qt widgets used in the diff viewer:
 - SyncedPlainTextEdit: Text editor with synchronized scrolling
 """
 import sys
-from PyQt6.QtWidgets import QWidget, QPlainTextEdit
+from PyQt6.QtWidgets import QWidget, QPlainTextEdit, QApplication
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QColor, QPainter, QFont, QTextCursor, QFontMetrics, QPen
 from color_palettes import get_current_palette
@@ -156,11 +156,7 @@ class SyncedPlainTextEdit(QPlainTextEdit):
     
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.other_widget = None
         self.line_number_area = None
-        self._in_wheel_event = False
-        self._in_scroll_event = False
-        self._in_key_event = False
         
         self.region_highlight_start = -1
         self.region_highlight_end = -1
@@ -173,35 +169,35 @@ class SyncedPlainTextEdit(QPlainTextEdit):
         self.setReadOnly(True)
         self.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
         self.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
+        self.setTabChangesFocus(False)  # Allow Tab key to be handled in keyPressEvent
+        
+        # Enable text interaction to allow cursor even in read-only mode
+        self.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByKeyboard | 
+                                      Qt.TextInteractionFlag.TextSelectableByMouse)
         
         font = QFont("Courier", 12, QFont.Weight.Bold)
         self.setFont(font)
         
         self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        
+        # Cursor visibility control - start hidden
+        self.setCursorWidth(0)  # Hide cursor by default
+        QApplication.instance().setCursorFlashTime(0)  # Disable blinking globally
     
     def focusInEvent(self, event):
         super().focusInEvent(event)
         line = self.textCursor().blockNumber()
         self.set_focused_line(line)
-        if self.other_widget:
-            self.other_widget.set_focused_line(line)
         if self.line_number_area:
             self.line_number_area.update()
-        if self.other_widget and self.other_widget.line_number_area:
-            self.other_widget.line_number_area.update()
         self.viewport().update()
     
     def focusOutEvent(self, event):
         super().focusOutEvent(event)
         if self.line_number_area:
             self.line_number_area.update()
-        if self.other_widget and self.other_widget.line_number_area:
-            self.other_widget.line_number_area.update()
         self.viewport().update()
-    
-    def set_other_widget(self, other):
-        self.other_widget = other
     
     def set_line_number_area(self, area):
         self.line_number_area = area
@@ -232,129 +228,58 @@ class SyncedPlainTextEdit(QPlainTextEdit):
         self.viewport().update()
     
     def keyPressEvent(self, event):
-        if not self._in_key_event:
-            self._in_key_event = True
+        # Ctrl+N now handled by DiffViewer.eventFilter
+        
+        key = event.key()
+        modifiers = event.modifiers()
+        
+        is_nav_key = key in (Qt.Key.Key_Up, Qt.Key.Key_Down, Qt.Key.Key_PageUp, 
+                             Qt.Key.Key_PageDown, Qt.Key.Key_Home, Qt.Key.Key_End,
+                             Qt.Key.Key_Left, Qt.Key.Key_Right, Qt.Key.Key_Space)
+        
+        # Alt+H and Alt+L removed - were debugging code, not used
+        
+        if is_nav_key:
+            # Show cursor for keyboard navigation
+            self.setCursorWidth(2)
             
-            if event.key() == Qt.Key.Key_Tab:
-                parent = self.parent()
-                while parent and not hasattr(parent, 'base_text'):
-                    parent = parent.parent()
-                    
-                if parent and hasattr(parent, 'base_text') and hasattr(parent, 'modified_text'):
-                    current_line = self.textCursor().blockNumber()
-                    
-                    if parent.base_text == self:
-                        target_widget = parent.modified_text
-                    else:
-                        target_widget = parent.base_text
-                    
-                    block = target_widget.document().findBlockByNumber(current_line)
-                    if block.isValid():
-                        cursor = target_widget.textCursor()
-                        cursor.setPosition(block.position())
-                        target_widget.setTextCursor(cursor)
-                    
-                    target_widget.setFocus(Qt.FocusReason.TabFocusReason)
-                    self.set_focused_line(current_line)
-                    target_widget.set_focused_line(current_line)
-                
-                self._in_key_event = False
-                return
+            shift_pressed = event.modifiers() & Qt.KeyboardModifier.ShiftModifier
+            move_mode = QTextCursor.MoveMode.KeepAnchor if shift_pressed else QTextCursor.MoveMode.MoveAnchor
             
-            if event.key() == Qt.Key.Key_N and event.modifiers() & Qt.KeyboardModifier.ControlModifier:
-                cursor = self.textCursor()
-                
-                if not cursor.hasSelection():
-                    cursor.movePosition(QTextCursor.MoveOperation.StartOfBlock)
-                    cursor.movePosition(QTextCursor.MoveOperation.EndOfBlock, QTextCursor.MoveMode.KeepAnchor)
-                    self.setTextCursor(cursor)
-                
-                parent = self.parent()
-                while parent and not hasattr(parent, 'take_note_from_widget'):
-                    parent = parent.parent()
-                if parent and hasattr(parent, 'take_note_from_widget'):
-                    side = 'base' if parent.base_text == self else 'modified'
-                    parent.take_note_from_widget(side)
-                
-                self._in_key_event = False
-                return
+            cursor = self.textCursor()
             
-            key = event.key()
-            modifiers = event.modifiers()
+            if key == Qt.Key.Key_Up:
+                cursor.movePosition(QTextCursor.MoveOperation.Up, move_mode)
+            elif key == Qt.Key.Key_Down:
+                cursor.movePosition(QTextCursor.MoveOperation.Down, move_mode)
+            elif key == Qt.Key.Key_Left:
+                cursor.movePosition(QTextCursor.MoveOperation.Left, move_mode)
+            elif key == Qt.Key.Key_Right:
+                cursor.movePosition(QTextCursor.MoveOperation.Right, move_mode)
+            elif key == Qt.Key.Key_PageUp:
+                cursor.movePosition(QTextCursor.MoveOperation.Up, move_mode, 10)
+            elif key == Qt.Key.Key_PageDown:
+                cursor.movePosition(QTextCursor.MoveOperation.Down, move_mode, 10)
+            elif key == Qt.Key.Key_Space:
+                # Space = page down, Shift+Space = page up
+                if shift_pressed:
+                    cursor.movePosition(QTextCursor.MoveOperation.Up, QTextCursor.MoveMode.MoveAnchor, 10)
+                else:
+                    cursor.movePosition(QTextCursor.MoveOperation.Down, QTextCursor.MoveMode.MoveAnchor, 10)
+            elif key == Qt.Key.Key_Home:
+                cursor.movePosition(QTextCursor.MoveOperation.Start, move_mode)
+            elif key == Qt.Key.Key_End:
+                cursor.movePosition(QTextCursor.MoveOperation.End, move_mode)
             
-            is_nav_key = key in (Qt.Key.Key_Up, Qt.Key.Key_Down, Qt.Key.Key_PageUp, 
-                                 Qt.Key.Key_PageDown, Qt.Key.Key_Home, Qt.Key.Key_End,
-                                 Qt.Key.Key_Left, Qt.Key.Key_Right, Qt.Key.Key_Space)
+            self.setTextCursor(cursor)
+            new_line = cursor.blockNumber()
+            self.set_focused_line(new_line)
             
-            is_parent_command = key in (Qt.Key.Key_N, Qt.Key.Key_P, Qt.Key.Key_C,
-                                       Qt.Key.Key_T, Qt.Key.Key_B, Qt.Key.Key_M,
-                                       Qt.Key.Key_X)
+            # Syncing to other_widget removed - now handled by DiffViewer.eventFilter
             
-            is_alt_command = ((key == Qt.Key.Key_H or key == Qt.Key.Key_L) and 
-                            modifiers & Qt.KeyboardModifier.AltModifier)
-            
-            if (is_parent_command or is_alt_command) and not (modifiers & Qt.KeyboardModifier.ControlModifier):
-                parent = self.parent()
-                # Keep going up until we find the DiffViewer (which has base_text attribute)
-                while parent and not hasattr(parent, 'base_text'):
-                    parent = parent.parent()
-                if parent:
-                    parent.keyPressEvent(event)
-                    self._in_key_event = False
-                    return
-            
-            if is_nav_key:
-                shift_pressed = event.modifiers() & Qt.KeyboardModifier.ShiftModifier
-                move_mode = QTextCursor.MoveMode.KeepAnchor if shift_pressed else QTextCursor.MoveMode.MoveAnchor
-                
-                cursor = self.textCursor()
-                
-                if key == Qt.Key.Key_Up:
-                    cursor.movePosition(QTextCursor.MoveOperation.Up, move_mode)
-                elif key == Qt.Key.Key_Down:
-                    cursor.movePosition(QTextCursor.MoveOperation.Down, move_mode)
-                elif key == Qt.Key.Key_Left:
-                    cursor.movePosition(QTextCursor.MoveOperation.Left, move_mode)
-                elif key == Qt.Key.Key_Right:
-                    cursor.movePosition(QTextCursor.MoveOperation.Right, move_mode)
-                elif key == Qt.Key.Key_PageUp:
-                    cursor.movePosition(QTextCursor.MoveOperation.Up, move_mode, 10)
-                elif key == Qt.Key.Key_PageDown:
-                    cursor.movePosition(QTextCursor.MoveOperation.Down, move_mode, 10)
-                elif key == Qt.Key.Key_Space:
-                    # Space = page down, Shift+Space = page up
-                    if shift_pressed:
-                        cursor.movePosition(QTextCursor.MoveOperation.Up, QTextCursor.MoveMode.MoveAnchor, 10)
-                    else:
-                        cursor.movePosition(QTextCursor.MoveOperation.Down, QTextCursor.MoveMode.MoveAnchor, 10)
-                elif key == Qt.Key.Key_Home:
-                    cursor.movePosition(QTextCursor.MoveOperation.Start, move_mode)
-                elif key == Qt.Key.Key_End:
-                    cursor.movePosition(QTextCursor.MoveOperation.End, move_mode)
-                
-                self.setTextCursor(cursor)
-                new_line = cursor.blockNumber()
-                self.set_focused_line(new_line)
-                
-                if self.other_widget and not self.other_widget._in_key_event:
-                    self.other_widget._in_key_event = True
-                    self.other_widget.verticalScrollBar().setValue(
-                        self.verticalScrollBar().value())
-                    self.other_widget.horizontalScrollBar().setValue(
-                        self.horizontalScrollBar().value())
-                    self.other_widget.set_focused_line(new_line)
-                    self.other_widget.viewport().update()
-                    if self.other_widget.line_number_area:
-                        self.other_widget.line_number_area.update()
-                    self.other_widget._in_key_event = False
-                
-                self.viewport().update()
-                if self.line_number_area:
-                    self.line_number_area.update()
-            else:
-                super().keyPressEvent(event)
-            
-            self._in_key_event = False
+            self.viewport().update()
+            if self.line_number_area:
+                self.line_number_area.update()
         else:
             super().keyPressEvent(event)
     
@@ -492,47 +417,15 @@ class SyncedPlainTextEdit(QPlainTextEdit):
                         text_y = y_pos + font_metrics.ascent() + 2
                         painter.drawText(10, text_y, marker_text)
     
-    def wheelEvent(self, event):
-        if not self._in_wheel_event:
-            self._in_wheel_event = True
-            
-            super().wheelEvent(event)
-            
-            if self.other_widget and not self.other_widget._in_wheel_event:
-                self.other_widget._in_wheel_event = True
-                self.other_widget.verticalScrollBar().setValue(
-                    self.verticalScrollBar().value())
-                self.other_widget.horizontalScrollBar().setValue(
-                    self.horizontalScrollBar().value())
-                if self.other_widget.line_number_area:
-                    self.other_widget.line_number_area.update()
-                self.other_widget._in_wheel_event = False
-            
-            if self.line_number_area:
-                self.line_number_area.update()
-            
-            self._in_wheel_event = False
+    # wheelEvent removed - wheel scroll syncing now handled by DiffViewer.eventFilter
     
-    def scrollContentsBy(self, dx, dy):
-        super().scrollContentsBy(dx, dy)
-        
-        if not self._in_scroll_event and self.other_widget:
-            self._in_scroll_event = True
-            self.other_widget._in_scroll_event = True
-            self.other_widget.horizontalScrollBar().setValue(
-                self.horizontalScrollBar().value())
-            self.other_widget.verticalScrollBar().setValue(
-                self.verticalScrollBar().value())
-            if self.other_widget.line_number_area:
-                self.other_widget.line_number_area.update()
-            self.other_widget._in_scroll_event = False
-            self._in_scroll_event = False
-        
-        if self.line_number_area:
-            self.line_number_area.update()
+    # scrollContentsBy removed - scroll syncing now handled by DiffViewer signal connections
     
     def mousePressEvent(self, event):
         super().mousePressEvent(event)
+        
+        # Hide cursor on mouse click
+        self.setCursorWidth(0)
         
         self.setFocus(Qt.FocusReason.MouseFocusReason)
         
@@ -540,5 +433,4 @@ class SyncedPlainTextEdit(QPlainTextEdit):
         line_num = cursor.blockNumber()
         
         self.set_focused_line(line_num)
-        if self.other_widget:
-            self.other_widget.set_focused_line(line_num)
+        # other_widget.set_focused_line removed - handled by focusInEvent -> DiffViewer.eventFilter
