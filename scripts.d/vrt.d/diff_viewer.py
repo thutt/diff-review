@@ -1357,7 +1357,6 @@ class DiffViewer(QWidget, TabContentBase):
     def keyPressEvent(self, event):
         key = event.key()
         modifiers = event.modifiers()
-
         # All command keys now handled by DiffViewer.eventFilter
         # This keyPressEvent is only reached when DiffViewer itself has focus (rare/never)
         # The handlers below (N, P, C, T, B) are also in eventFilter and are duplicates
