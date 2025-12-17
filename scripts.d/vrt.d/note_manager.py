@@ -401,6 +401,9 @@ class NoteManager:
             text_widget = self.editor_class(self.tab_widget, self.editor_theme, note_file)
             text_widget.is_review_notes = True
 
+            # Connect subprocess exit signal to tab closure handler
+            text_widget.process_exited.connect(self.tab_widget.handle_editor_subprocess_exit)
+
             # Add to tabs with note file path as title
             index = self.tab_widget.tab_widget.addTab(text_widget, note_file)
             self.tab_widget.file_to_tab_index['review_notes'] = index

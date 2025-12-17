@@ -975,6 +975,17 @@ class DiffViewerTabWidget(QMainWindow):
         current_index = self.tab_widget.currentIndex()
         if current_index >= 0:
             self.close_tab(current_index)
+
+    def handle_editor_subprocess_exit(self, exit_code):
+        """Handle editor subprocess exit by closing the associated tab"""
+        sender_widget = self.sender()
+        if sender_widget is None:
+            return
+
+        for i in range(self.tab_widget.count()):
+            if self.tab_widget.widget(i) == sender_widget:
+                self.close_tab(i)
+                break
     
     def next_tab(self):
         """Navigate to next tab (left-to-right, wraps around)"""
