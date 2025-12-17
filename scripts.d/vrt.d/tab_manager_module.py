@@ -1382,7 +1382,7 @@ class DiffViewerTabWidget(QMainWindow):
                 self.toggle_sidebar()
             # Give Qt focus to the tree widget
             self.sidebar_widget.tree.setFocus()
-        else:
+        elif self.tab_widget.count() > 0: # Only switch if there are tabs open.
             self.focus_mode = 'content'
             # Give Qt focus to the current content widget
             current_widget = self.tab_widget.currentWidget()
@@ -1390,6 +1390,8 @@ class DiffViewerTabWidget(QMainWindow):
                 current_widget.focus_content()
             # Track which content tab is focused
             self.last_content_tab_index = self.tab_widget.currentIndex()
+        else:
+            return
 
         self.update_focus_tinting()
         self.update_status_focus_indicator()

@@ -925,7 +925,8 @@ class NoteManager:
             return
         
         text_widget = self.tab_widget.tab_widget.widget(tab_index)
-        if not isinstance(text_widget, ReviewNotesTab):
+        if not (isinstance(text_widget, ReviewNotesTab) or
+                getattr(text_widget, 'is_review_notes', False)):
             QMessageBox.warning(self.tab_widget, 'Error',
                               'Review Notes tab has unexpected type.')
             return
