@@ -654,6 +654,9 @@ class NoteManager:
                 
                 f.write('>\n\n\n')
             
+            # Switch to notes tab immediately after taking note
+            self.on_notes_clicked()
+
             return True
             
         except Exception as e:
