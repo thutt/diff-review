@@ -29,7 +29,7 @@ import search_manager
 import file_tree_sidebar
 import keybindings
 from commit_msg_handler import CommitMessageTab
-from note_manager import ReviewNotesTab
+from note_manager import ReviewNotesTab, ReviewNotesTabBase
 from diff_viewer import DiffViewer
 
 
@@ -76,7 +76,9 @@ class DiffViewerTabWidget(QMainWindow):
                  dump_ir           : bool,
                  tab_label_stats   : bool,
                  file_label_stats  : bool,
-                 keybindings_file):
+                 keybindings_file,
+                 editor_class,
+                 editor_theme):
         if QApplication.instance() is None:
             self._app = QApplication(sys.argv)
         else:
@@ -93,6 +95,8 @@ class DiffViewerTabWidget(QMainWindow):
         self.dump_ir = dump_ir
         self.intraline_percent = intraline_percent
         self._bulk_loading = False  # Suppress highlighting during "Open All Files"
+        self.editor_class = editor_class
+        self.editor_theme = editor_theme
         
         # Stats display mode: 0=none, 1=tabs only, 2=sidebar only
         # Determine initial mode from command line args
@@ -931,7 +935,7 @@ class DiffViewerTabWidget(QMainWindow):
                 if 'commit_msg' in self.file_to_tab_index:
                     del self.file_to_tab_index['commit_msg']
             # Check if this is the review notes tab
-            elif isinstance(widget, ReviewNotesTab):
+            elif isinstance(widget, ReviewNotesTabBase):
                 if 'review_notes' in self.file_to_tab_index:
                     del self.file_to_tab_index['review_notes']
             # Regular file tab
@@ -977,6 +981,17 @@ class DiffViewerTabWidget(QMainWindow):
         current_index = self.tab_widget.currentIndex()
         if current_index >= 0:
             self.close_tab(current_index)
+
+    def handle_editor_subprocess_exit(self, exit_code):
+        """Handle editor subprocess exit by closing the associated tab"""
+        sender_widget = self.sender()
+        if sender_widget is None:
+            return
+
+        for i in range(self.tab_widget.count()):
+            if self.tab_widget.widget(i) == sender_widget:
+                self.close_tab(i)
+                break
     
     def next_tab(self):
         """Navigate to next tab (left-to-right, wraps around)"""
@@ -1612,7 +1627,7 @@ class DiffViewerTabWidget(QMainWindow):
                 self.toggle_sidebar()
             # Give Qt focus to the tree widget
             self.sidebar_widget.tree.setFocus()
-        else:
+        elif self.tab_widget.count() > 0: # Only switch if there are tabs open.
             self.focus_mode = 'content'
             # Give Qt focus to the current content widget
             current_widget = self.tab_widget.currentWidget()
@@ -1620,6 +1635,8 @@ class DiffViewerTabWidget(QMainWindow):
                 current_widget.focus_content()
             # Track which content tab is focused
             self.last_content_tab_index = self.tab_widget.currentIndex()
+        else:
+            return
 
         self.update_focus_tinting()
         self.update_status_focus_indicator()

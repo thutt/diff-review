@@ -12,6 +12,9 @@ import file_local
 import file_url
 import utils
 
+import emacsterm
+import vimterm
+
 home                = os.getenv("HOME", os.path.expanduser("~"))
 default_review_dir  = os.path.join(home, "review")
 default_review_name = "default"
@@ -190,6 +193,26 @@ Return Code:
                      required = False,
                      metavar  = "<path of file to write>",
                      dest     = "arg_note")
+
+    nto.add_argument("--note-editor",
+                     help     = "An editor for writing review notes.",
+                     action   = "store",
+                     default  = None,
+                     required = False,
+                     choices  = ("emacs", "vim"),
+                     metavar  = "<text editor for notes>",
+                     dest     = "arg_note_editor")
+
+    nto.add_argument("--note-editor-theme",
+                     help     = "A color theme for the notes editor.",
+                     action   = "store",
+                     default  = "classic_amber",
+                     required = False,
+                     choices  = ("solarized_dark", "monokai", "dracula",
+                                 "gruvbox_dark", "nord", "tomorrow_night",
+                                 "classic_green", "classic_amber", "light"),
+                     metavar  = "<text editor color theme>",
+                     dest     = "arg_note_editor_theme")
 
 
     # Auto-reload Options
@@ -439,5 +462,15 @@ def process_command_line():
                 utils.fatal("Unable to load dossier from:\n  '%s'" %
                             (options.arg_dossier_path))
 
+    if options.arg_note_editor == "emacs":
+        options.editor_class_ = emacsterm.EmacsWidget
+        options.editor_theme_ = options.arg_note_editor_theme
+    elif options.arg_note_editor == "vim":
+        options.editor_class_ = vimterm.VimWidget
+        options.editor_theme_ = options.arg_note_editor_theme
+    else:
+        options.editor_class_ = None
+        options.editor_theme_ = None
+        
     # inv: options.dossier_ is now a valid json dictionary.
     return options

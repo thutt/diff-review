@@ -277,6 +277,12 @@ class NoteManager:
         self.notes_button = None
         self.note_file_watcher = None
         self.reload_timer = None
+        self.editor_class = tab_widget.editor_class
+        self.editor_theme = tab_widget.editor_theme
+
+    def is_builtin_editor(self, text_widget):
+        """Check if the widget is the built-in editor (not external emacs/vim)"""
+        return isinstance(text_widget, ReviewNotesTab)
     
     def get_note_file(self):
         """Get the current note file path"""
@@ -389,6 +395,25 @@ class NoteManager:
                                   'No note file has been configured yet.')
             return
 
+        # Check if using external editor
+        if self.editor_class is not None:
+            # Use external editor widget (emacs or vim)
+            text_widget = self.editor_class(self.tab_widget, self.editor_theme, note_file)
+            text_widget.is_review_notes = True
+
+            # Connect subprocess exit signal to tab closure handler
+            text_widget.process_exited.connect(self.tab_widget.handle_editor_subprocess_exit)
+
+            # Add to tabs with note file path as title
+            index = self.tab_widget.tab_widget.addTab(text_widget, note_file)
+            self.tab_widget.file_to_tab_index['review_notes'] = index
+            self.tab_widget.tab_widget.setCurrentIndex(index)
+
+            # Update button state
+            self.tab_widget.update_button_states()
+            return
+
+        # Use built-in editor (original behavior)
         notes_text = self.load_note_text()
 
         # Create review notes tab widget
@@ -427,6 +452,10 @@ class NoteManager:
     
     def save_notes_content(self, text_widget):
         """Save the notes content to file"""
+        # External editors (emacs/vim) save on their own
+        if not self.is_builtin_editor(text_widget):
+            return
+
         note_file = self.get_note_file()
         if not note_file:
             return
@@ -455,18 +484,22 @@ class NoteManager:
     
     def update_notes_tab_title(self, text_widget, dirty):
         """Update the tab title to show dirty state"""
+        # External editors don't show dirty state in tab title
+        if not self.is_builtin_editor(text_widget):
+            return
+
         note_file = self.get_note_file()
         if not note_file:
             return
-        
+
         # Find the tab index
         if 'review_notes' not in self.tab_widget.file_to_tab_index:
             return
-        
+
         tab_index = self.tab_widget.file_to_tab_index['review_notes']
         if not (0 <= tab_index < self.tab_widget.tab_widget.count()):
             return
-        
+
         # Update title with asterisk if dirty
         if dirty:
             self.tab_widget.tab_widget.setTabText(tab_index, f"*{note_file}")
@@ -654,6 +687,9 @@ class NoteManager:
                 
                 f.write('>\n\n\n')
             
+            # Switch to notes tab immediately after taking note
+            self.on_notes_clicked()
+
             return True
             
         except Exception as e:
@@ -895,7 +931,8 @@ class NoteManager:
             return
         
         text_widget = self.tab_widget.tab_widget.widget(tab_index)
-        if not isinstance(text_widget, ReviewNotesTab):
+        if not (isinstance(text_widget, ReviewNotesTab) or
+                getattr(text_widget, 'is_review_notes', False)):
             QMessageBox.warning(self.tab_widget, 'Error',
                               'Review Notes tab has unexpected type.')
             return
