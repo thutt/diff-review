@@ -133,38 +133,9 @@ class ReviewNotesTab(QPlainTextEdit, ReviewNotesTabBase):
         self.original_content = notes_text
 
     def keyPressEvent(self, event):
-        """Handle key press events"""
-        key = event.key()
-        modifiers = event.modifiers()
-
-        # Font size changes - Ctrl + Plus/Minus/0
-        if modifiers & Qt.KeyboardModifier.ControlModifier:
-            if key in (Qt.Key.Key_Plus, Qt.Key.Key_Equal):
-                self.increase_font_size()
-                return
-            elif key == Qt.Key.Key_Minus:
-                self.decrease_font_size()
-                return
-            elif key == Qt.Key.Key_0:
-                self.reset_font_size()
-                return
-
-        if key == Qt.Key.Key_F5:
-            self.reload()
-            return
-
-        if ((key == Qt.Key.Key_S or key == Qt.Key.Key_F) and
-            modifiers & Qt.KeyboardModifier.ControlModifier):
-            self.note_manager.tab_widget.show_search_dialog()
-            return
-
-        if key == Qt.Key.Key_F3:
-            if modifiers & Qt.KeyboardModifier.ShiftModifier:
-                self.note_manager.tab_widget.search_mgr.find_previous()
-            else:
-                self.note_manager.tab_widget.search_mgr.find_next()
-            return
-
+        """Handle key press events - most handled by tab_manager keybindings now"""
+        # All key handling now goes through tab_manager's keybinding system
+        # Pass to parent to allow normal text editing behavior
         super().keyPressEvent(event)
 
     def search_content(self, search_text, case_sensitive, regex, search_base=True, search_modi=True):

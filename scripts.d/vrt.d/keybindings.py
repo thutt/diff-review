@@ -39,53 +39,67 @@ class KeyBindings:
 
     # Default key bindings - used as fallback
     DEFAULT_BINDINGS = {
-        'next_change': ['n'],
-        'prev_change': ['p'],
-        'top_of_file': ['T'],
-        'bottom_of_file': ['B'],
-        'toggle_bookmark': ['m'],
-        'next_bookmark': [']'],
-        'prev_bookmark': ['['],
-        'center_region': ['c'],
-        'collapse_region': ['x'],
-        'collapse_all': ['Shift+x'],
-        'search': ['Ctrl+f', 'Ctrl+s'],
-        'find_next': ['F3'],
-        'find_prev': ['Shift+F3'],
-        'reload': ['F5'],
-        'take_note': ['Ctrl+Shift+n'],
-        'toggle_diff_map': ['Ctrl+Shift+h'],
-        'toggle_line_numbers': ['Ctrl+Shift+l'],
-        'toggle_tab_highlight': ['Ctrl+Shift+t'],
-        'toggle_eol_highlight': ['Ctrl+Shift+e'],
-        'toggle_sidebar': ['Ctrl+Shift+b'],
-        'focus_toggle': ['f'],
-        'focus_next': ['g'],
-        'shortcuts_help': ['F1', 'Ctrl+Shift+?'],
-        'close_tab': ['Ctrl+Shift+w'],
-        'next_tab': ['Ctrl+]'],
-        'prev_tab': ['Ctrl+['],
-        'first_file': ['Ctrl+1'],
-        'last_file': ['Ctrl+9'],
-        'increase_font': ['Ctrl++', 'Ctrl+='],
-        'decrease_font': ['Ctrl+-'],
-        'reset_font': ['Ctrl+0'],
-        'jump_to_note': ['Ctrl+j'],
+        'global': {
+            'shortcuts_help': ['F1', 'Ctrl+Shift+?'],
+            'close_tab': ['Ctrl+w'],
+            'next_tab': ['Ctrl+Tab'],
+            'prev_tab': ['Ctrl+Shift+Tab'],
+            'increase_font': ['Ctrl++', 'Ctrl+='],
+            'decrease_font': ['Ctrl+-'],
+            'reset_font': ['Ctrl+0'],
+            'toggle_sidebar': ['Ctrl+b'],
+            'search': ['Ctrl+f', 'Ctrl+s'],
+            'find_next': ['F3'],
+            'find_prev': ['Shift+F3'],
+        },
+        'diff': {
+            'next_change': ['n'],
+            'prev_change': ['p'],
+            'top_of_file': ['T'],
+            'bottom_of_file': ['B'],
+            'toggle_bookmark': ['m'],
+            'next_bookmark': [']'],
+            'prev_bookmark': ['['],
+            'center_region': ['c'],
+            'toggle_collapse_region': ['x'],
+            'toggle_collapse_all': ['Shift+x'],
+            'take_note': ['Ctrl+n'],
+            'jump_to_note': ['Ctrl+j'],
+            'toggle_base_modi_focus': ['Tab'],
+            'reload': ['F5'],
+            'toggle_diff_map': ['Ctrl+h'],
+            'toggle_line_numbers': ['Ctrl+l'],
+            'toggle_tab_highlight': ['Ctrl+t'],
+            'toggle_eol_highlight': ['Ctrl+e'],
+            'toggle_intraline': ['Ctrl+i'],
+        },
+        'note': {
+            'reload': ['F5'],
+        },
+        'commit_msg': {
+            'take_note': ['Ctrl+n'],
+            'jump_to_note': ['Ctrl+j'],
+            'toggle_bookmark': ['m'],
+            'next_bookmark': [']'],
+            'prev_bookmark': ['['],
+            'reload': ['F5'],
+        },
     }
 
     # Reserved keys that should not be rebound (hardcoded behavior)
     RESERVED_KEYS = {
-        'Tab': 'Focus switching between panes (hardcoded)',
         'Ctrl+Q': 'Standard quit application (system level)',
     }
 
-    def __init__(self, config_file=None):
+    def __init__(self, config_file=None, context='global'):
         """
         Initialize key bindings from config file or use defaults.
 
         Args:
             config_file: Path to JSON config file, or None for defaults only
+            context: Context for bindings - 'global', 'diff', 'note', or 'commit_msg'
         """
+        self.context = context
         self.action_to_sequences = {}
         self.sequence_to_action = {}
 
@@ -100,15 +114,28 @@ class KeyBindings:
         self._build_reverse_lookup()
 
     def _load_defaults(self):
-        """Load default key bindings"""
-        for action, key_strings in self.DEFAULT_BINDINGS.items():
-            sequences = []
-            for key_string in key_strings:
-                seq = self._parse_key_string(key_string)
-                if seq:
-                    sequences.append(seq)
-            if sequences:
-                self.action_to_sequences[action] = sequences
+        """Load default key bindings for global and current context"""
+        # Load global bindings
+        if 'global' in self.DEFAULT_BINDINGS:
+            for action, key_strings in self.DEFAULT_BINDINGS['global'].items():
+                sequences = []
+                for key_string in key_strings:
+                    seq = self._parse_key_string(key_string)
+                    if seq:
+                        sequences.append(seq)
+                if sequences:
+                    self.action_to_sequences[action] = sequences
+        
+        # Load context-specific bindings
+        if self.context != 'global' and self.context in self.DEFAULT_BINDINGS:
+            for action, key_strings in self.DEFAULT_BINDINGS[self.context].items():
+                sequences = []
+                for key_string in key_strings:
+                    seq = self._parse_key_string(key_string)
+                    if seq:
+                        sequences.append(seq)
+                if sequences:
+                    self.action_to_sequences[action] = sequences
 
     def _is_reserved_key(self, key_string):
         """Check if a key string matches a reserved key"""
@@ -132,40 +159,13 @@ class KeyBindings:
             with open(config_file, 'r') as f:
                 config = json.load(f)
 
-            if 'keybindings' not in config:
-                print(f"Warning: No 'keybindings' section in {config_file}", file=sys.stderr)
-                return
-
-            keybindings = config['keybindings']
-            if not isinstance(keybindings, dict):
-                print(f"Warning: 'keybindings' must be a dictionary in {config_file}", file=sys.stderr)
-                return
-
-            for action, key_list in keybindings.items():
-                if not isinstance(key_list, list):
-                    print(f"Warning: Keybinding for '{action}' must be a list, got {type(key_list).__name__}", file=sys.stderr)
-                    continue
-
-                sequences = []
-                for key_string in key_list:
-                    if not isinstance(key_string, str):
-                        print(f"Warning: Key binding '{key_string}' for action '{action}' must be a string", file=sys.stderr)
-                        continue
-
-                    # Check if this is a reserved key
-                    if self._is_reserved_key(key_string):
-                        reserved_reason = self._get_reserved_reason(key_string)
-                        print(f"Warning: Key binding '{key_string}' for action '{action}' uses a reserved key: {reserved_reason}", file=sys.stderr)
-                        continue
-
-                    seq = self._parse_key_string(key_string)
-                    if seq:
-                        sequences.append(seq)
-                    else:
-                        print(f"Warning: Invalid key binding '{key_string}' for action '{action}'", file=sys.stderr)
-
-                if sequences:
-                    self.action_to_sequences[action] = sequences
+            # Load global section
+            if 'global' in config:
+                self._load_section(config['global'], 'global')
+            
+            # Load context-specific section
+            if self.context != 'global' and self.context in config:
+                self._load_section(config[self.context], self.context)
 
         except FileNotFoundError:
             print(f"Warning: Keybindings file not found: {config_file}", file=sys.stderr)
@@ -173,6 +173,38 @@ class KeyBindings:
             print(f"Warning: Invalid JSON in {config_file}: {e}", file=sys.stderr)
         except Exception as e:
             print(f"Warning: Error loading keybindings from {config_file}: {e}", file=sys.stderr)
+    
+    def _load_section(self, section_bindings, section_name):
+        """Load bindings from a specific section of the config"""
+        if not isinstance(section_bindings, dict):
+            print(f"Warning: '{section_name}' must be a dictionary", file=sys.stderr)
+            return
+
+        for action, key_list in section_bindings.items():
+            if not isinstance(key_list, list):
+                print(f"Warning: Keybinding for '{action}' must be a list, got {type(key_list).__name__}", file=sys.stderr)
+                continue
+
+            sequences = []
+            for key_string in key_list:
+                if not isinstance(key_string, str):
+                    print(f"Warning: Key binding '{key_string}' for action '{action}' must be a string", file=sys.stderr)
+                    continue
+
+                # Check if this is a reserved key
+                if self._is_reserved_key(key_string):
+                    reserved_reason = self._get_reserved_reason(key_string)
+                    print(f"Warning: Key binding '{key_string}' for action '{action}' uses a reserved key: {reserved_reason}", file=sys.stderr)
+                    continue
+
+                seq = self._parse_key_string(key_string)
+                if seq:
+                    sequences.append(seq)
+                else:
+                    print(f"Warning: Invalid key binding '{key_string}' for action '{action}'", file=sys.stderr)
+
+            if sequences:
+                self.action_to_sequences[action] = sequences
 
     def _parse_key_string(self, key_string):
         """

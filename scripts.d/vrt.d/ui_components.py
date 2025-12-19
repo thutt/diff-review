@@ -388,34 +388,40 @@ class SyncedPlainTextEdit(QPlainTextEdit):
         
         # Draw collapsed region markers
         if hasattr(self, 'collapsed_markers') and self.collapsed_markers:
-            viewport_lines = self.viewport().height() // line_height if line_height > 0 else 0
+            viewport_height = self.viewport().height()
+            
+            # For each marker, check if it's actually visible in the viewport
             for line_idx, marker_data in self.collapsed_markers.items():
-                if (line_idx >= first_visible and 
-                    line_idx < first_visible + viewport_lines):
-                    
-                    block = self.document().findBlockByNumber(line_idx)
-                    if block.isValid() and block.isVisible():
-                        block_geom = self.blockBoundingGeometry(block)
-                        y_pos = int(block_geom.translated(self.contentOffset()).top())
-                        block_height = int(block_geom.height())
-                        
-                        # Extract num_lines and region_type from marker_data
-                        # Handle both old format (int) and new format (tuple)
-                        if isinstance(marker_data, tuple):
-                            num_lines, region_type = marker_data
-                        else:
-                            num_lines = marker_data
-                            region_type = 'deleted'
-                        
-                        # Draw a distinct background for the collapse marker line
-                        painter.fillRect(0, y_pos, self.viewport().width(), 
-                                       block_height, QColor(230, 230, 250))
-                        
-                        # Draw the collapse marker text with appropriate label
-                        marker_text = f"[...{num_lines} {region_type} lines collapsed...]"
-                        painter.setPen(QColor(100, 100, 150))
-                        text_y = y_pos + font_metrics.ascent() + 2
-                        painter.drawText(10, text_y, marker_text)
+                block = self.document().findBlockByNumber(line_idx)
+                if not block.isValid() or not block.isVisible():
+                    continue
+                
+                # Get the block's position on screen
+                block_geom = self.blockBoundingGeometry(block)
+                y_pos = int(block_geom.translated(self.contentOffset()).top())
+                block_height = int(block_geom.height())
+                
+                # Check if this block is actually visible in the viewport
+                if y_pos + block_height < 0 or y_pos > viewport_height:
+                    continue
+                
+                # Extract num_lines and region_type from marker_data
+                # Handle both old format (int) and new format (tuple)
+                if isinstance(marker_data, tuple):
+                    num_lines, region_type = marker_data
+                else:
+                    num_lines = marker_data
+                    region_type = 'deleted'
+                
+                # Draw a distinct background for the collapse marker line
+                painter.fillRect(0, y_pos, self.viewport().width(), 
+                               block_height, QColor(230, 230, 250))
+                
+                # Draw the collapse marker text with appropriate label
+                marker_text = f"[...{num_lines} {region_type} lines collapsed...]"
+                painter.setPen(QColor(100, 100, 150))
+                text_y = y_pos + font_metrics.ascent() + 2
+                painter.drawText(10, text_y, marker_text)
     
     # wheelEvent removed - wheel scroll syncing now handled by DiffViewer.eventFilter
     

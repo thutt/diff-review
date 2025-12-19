@@ -75,7 +75,7 @@ class DiffViewer(QWidget, TabContentBase):
         
         self.current_font_size = 12  # Default font size
         
-        self.collapsed_regions = []  # List of (start_line, end_line) tuples for collapsed change regions (deleted/added)
+        self.collapsed_regions = []  # List of (start_line, end_line, region_type) tuples for collapsed change regions
         self.all_collapsed = False  # Track if all change regions are collapsed
         
         self._syncing_scroll = False  # Prevent recursion in scroll syncing
@@ -1130,139 +1130,8 @@ class DiffViewer(QWidget, TabContentBase):
                     # Consume the event
                     return True
             
-            # Handle non-modified command keys (N, P, C, T, B, M, X)
-            # Only handle if no modifiers (or just Shift for X)
-            if obj == self.base_text or obj == self.modified_text:
-                # Ctrl+N - Take note
-                if key == Qt.Key.Key_N and modifiers & Qt.KeyboardModifier.ControlModifier:
-                    cursor = obj.textCursor()
-                    
-                    # Select current line if nothing selected
-                    if not cursor.hasSelection():
-                        cursor.movePosition(QTextCursor.MoveOperation.StartOfBlock)
-                        cursor.movePosition(QTextCursor.MoveOperation.EndOfBlock, QTextCursor.MoveMode.KeepAnchor)
-                        obj.setTextCursor(cursor)
-                    
-                    # Determine which side
-                    side = 'base' if obj == self.base_text else 'modified'
-                    self.take_note_from_widget(side)
-                    return True
-                
-                # N - Next change
-                if key == Qt.Key.Key_N and not modifiers:
-                    self.next_change()
-                    return True
-                
-                # P - Previous change
-                elif key == Qt.Key.Key_P and not modifiers:
-                    self.prev_change()
-                    return True
-                
-                # C - Center current region
-                elif key == Qt.Key.Key_C and not modifiers:
-                    self.center_current_region()
-                    return True
-                
-                # T - Jump to top
-                elif key == Qt.Key.Key_T and not modifiers:
-                    self.current_region = 0
-                    if self.change_regions:
-                        self.center_on_line(0)
-                    self.update_status()
-                    return True
-                
-                # B - Jump to bottom
-                elif key == Qt.Key.Key_B and not modifiers:
-                    if self.change_regions:
-                        self.current_region = len(self.change_regions) - 1
-                        self.center_on_line(len(self.base_display) - 1)
-                    self.update_status()
-                    return True
-                
-                # M - Toggle bookmark
-                elif key == Qt.Key.Key_M and not modifiers:
-                    self.toggle_bookmark()
-                    return True
-                
-                # X - Toggle collapse (handles both X and Shift+X)
-                elif key == Qt.Key.Key_X and not (modifiers & ~Qt.KeyboardModifier.ShiftModifier):
-                    if modifiers & Qt.KeyboardModifier.ShiftModifier:
-                        # Shift+X - Toggle collapse all
-                        if self.collapsed_regions:
-                            self.uncollapse_all_regions()
-                        else:
-                            self.collapse_all_change_regions()
-                    else:
-                        # X - Toggle collapse current line's region
-                        line_idx = obj.textCursor().blockNumber()
-                        
-                        # Check if line is in a collapsed region - if so, uncollapse
-                        if self.is_line_in_collapsed_region(line_idx):
-                            self.uncollapse_region(line_idx)
-                        # Check if line is in a change region - if so, collapse
-                        elif self.is_change_region(line_idx):
-                            self.collapse_change_region(line_idx)
-                    return True
-                
-                # [ - Previous bookmark
-                elif key == Qt.Key.Key_BracketLeft and not modifiers:
-                    if self.tab_manager:
-                        self.tab_manager.bookmark_mgr.navigate_to_prev_bookmark()
-                    return True
-                
-                # ] - Next bookmark
-                elif key == Qt.Key.Key_BracketRight and not modifiers:
-                    if self.tab_manager:
-                        self.tab_manager.bookmark_mgr.navigate_to_next_bookmark()
-                    return True
-                
-                # Ctrl+D - Toggle diff map
-                elif key == Qt.Key.Key_D and modifiers & Qt.KeyboardModifier.ControlModifier:
-                    self.toggle_diff_map()
-                    return True
-                
-                # Ctrl+L - Toggle line numbers
-                elif key == Qt.Key.Key_L and modifiers & Qt.KeyboardModifier.ControlModifier:
-                    self.toggle_line_numbers()
-                    return True
-                
-                # Ctrl+S or Ctrl+F - Show search dialog
-                elif (key == Qt.Key.Key_S or key == Qt.Key.Key_F) and modifiers & Qt.KeyboardModifier.ControlModifier:
-                    if self.tab_manager:
-                        self.tab_manager.show_search_dialog()
-                    return True
-                
-                # F3 - Search navigation
-                elif key == Qt.Key.Key_F3:
-                    if self.tab_manager:
-                        if modifiers & Qt.KeyboardModifier.ShiftModifier:
-                            self.tab_manager.search_mgr.find_previous()
-                        else:
-                            self.tab_manager.search_mgr.find_next()
-                    return True
-                
-                # Ctrl+J - Jump to note from cursor
-                elif key == Qt.Key.Key_J and modifiers & Qt.KeyboardModifier.ControlModifier:
-                    self.jump_to_note_from_cursor()
-                    return True
-                
-                # F5 - Manual reload
-                elif key == Qt.Key.Key_F5 and not modifiers:
-                    if self.tab_manager:
-                        self.tab_manager.reload_viewer(self)
-                    return True
-                
-                # Font size changes - Ctrl+Plus/Minus/0
-                elif modifiers & Qt.KeyboardModifier.ControlModifier:
-                    if key in (Qt.Key.Key_Plus, Qt.Key.Key_Equal):
-                        self.increase_font_size()
-                        return True
-                    elif key == Qt.Key.Key_Minus:
-                        self.decrease_font_size()
-                        return True
-                    elif key == Qt.Key.Key_0:
-                        self.reset_font_size()
-                        return True
+            # All key handling now goes through tab_manager's keybinding system
+            # No hardcoded keys here anymore
             
             # Handle navigation keys - sync scroll position between panes
             is_nav_key = key in (Qt.Key.Key_Up, Qt.Key.Key_Down, Qt.Key.Key_PageUp,
@@ -1449,20 +1318,38 @@ class DiffViewer(QWidget, TabContentBase):
     
     def collapse_change_region(self, line_idx):
         """Collapse the change region (deleted or added) containing line_idx"""
+        import diff_desc
         start, end = self.find_change_region_bounds(line_idx)
         if start is None or end is None:
             return
         
-        if (start, end) in self.collapsed_regions:
+        # Determine region type
+        region_type = None
+        if 0 <= line_idx < len(self.base_line_objects):
+            line_obj = self.base_line_objects[line_idx]
+            if line_obj.region_ and line_obj.region_.kind_ == diff_desc.RegionDesc.DELETE:
+                region_type = 'deleted'
+        
+        if 0 <= line_idx < len(self.modified_line_objects):
+            line_obj = self.modified_line_objects[line_idx]
+            if line_obj.region_ and line_obj.region_.kind_ == diff_desc.RegionDesc.ADD:
+                region_type = 'added'
+        
+        if region_type is None:
             return
         
-        self.collapsed_regions.append((start, end))
+        region_tuple = (start, end, region_type)
+        if region_tuple in self.collapsed_regions:
+            return
+        
+        self.collapsed_regions.append(region_tuple)
         self._apply_collapsed_regions()
     
     def collapse_all_change_regions(self):
         """Collapse all change regions (deleted and added)"""
         import diff_desc
         
+        # Store tuples of (start, end, 'deleted'/'added') to track which side
         self.collapsed_regions = []
         
         # Process deleted regions in base file
@@ -1477,12 +1364,12 @@ class DiffViewer(QWidget, TabContentBase):
                 in_delete_region = True
                 region_start = i
             elif not is_deleted and in_delete_region:
-                self.collapsed_regions.append((region_start, i - 1))
+                self.collapsed_regions.append((region_start, i - 1, 'deleted'))
                 in_delete_region = False
                 region_start = None
         
         if in_delete_region and region_start is not None:
-            self.collapsed_regions.append((region_start, len(self.base_line_objects) - 1))
+            self.collapsed_regions.append((region_start, len(self.base_line_objects) - 1, 'deleted'))
         
         # Process added regions in modified file
         in_add_region = False
@@ -1496,12 +1383,12 @@ class DiffViewer(QWidget, TabContentBase):
                 in_add_region = True
                 region_start = i
             elif not is_added and in_add_region:
-                self.collapsed_regions.append((region_start, i - 1))
+                self.collapsed_regions.append((region_start, i - 1, 'added'))
                 in_add_region = False
                 region_start = None
         
         if in_add_region and region_start is not None:
-            self.collapsed_regions.append((region_start, len(self.modified_line_objects) - 1))
+            self.collapsed_regions.append((region_start, len(self.modified_line_objects) - 1, 'added'))
         
         self.all_collapsed = True
         self._apply_collapsed_regions()
@@ -1509,7 +1396,7 @@ class DiffViewer(QWidget, TabContentBase):
     def uncollapse_region(self, line_idx):
         """Uncollapse the region containing line_idx"""
         for region in self.collapsed_regions:
-            start, end = region
+            start, end, region_type = region
             if start <= line_idx <= end:
                 self.collapsed_regions.remove(region)
                 self._apply_collapsed_regions()
@@ -1523,7 +1410,7 @@ class DiffViewer(QWidget, TabContentBase):
     
     def is_line_in_collapsed_region(self, line_idx):
         """Check if line_idx is within any collapsed region"""
-        for start, end in self.collapsed_regions:
+        for start, end, region_type in self.collapsed_regions:
             if start <= line_idx <= end:
                 return True
         return False
@@ -1544,7 +1431,7 @@ class DiffViewer(QWidget, TabContentBase):
             should_hide = False
             
             # Check if this line is inside a collapsed region (but not the first line)
-            for start, end in self.collapsed_regions:
+            for start, end, region_type in self.collapsed_regions:
                 if start < i <= end:
                     should_hide = True
                     break
@@ -1554,26 +1441,13 @@ class DiffViewer(QWidget, TabContentBase):
             modified_block.setVisible(not should_hide)
         
         # Store collapsed marker info for painting
-        import diff_desc
         self.base_text.collapsed_markers = {}
         self.modified_text.collapsed_markers = {}
         
-        for start, end in self.collapsed_regions:
+        for start, end, region_type in self.collapsed_regions:
             num_lines = end - start + 1
             
-            # Determine region type by checking the start line
-            region_type = 'deleted'  # default
-            if 0 <= start < len(self.base_line_objects):
-                line_obj = self.base_line_objects[start]
-                if line_obj.region_ and line_obj.region_.kind_ == diff_desc.RegionDesc.DELETE:
-                    region_type = 'deleted'
-            
-            if 0 <= start < len(self.modified_line_objects):
-                line_obj = self.modified_line_objects[start]
-                if line_obj.region_ and line_obj.region_.kind_ == diff_desc.RegionDesc.ADD:
-                    region_type = 'added'
-            
-            # Store tuple of (num_lines, region_type)
+            # Store marker on BOTH sides (so both panes show the marker)
             self.base_text.collapsed_markers[start] = (num_lines, region_type)
             self.modified_text.collapsed_markers[start] = (num_lines, region_type)
         
@@ -1581,11 +1455,11 @@ class DiffViewer(QWidget, TabContentBase):
         base_doc.markContentsDirty(0, base_doc.characterCount())
         modified_doc.markContentsDirty(0, modified_doc.characterCount())
         
-        # Force viewport updates
-        self.base_text.viewport().update()
-        self.modified_text.viewport().update()
-        self.base_line_area.update()
-        self.modified_line_area.update()
+        # Force immediate repaint of the entire viewport
+        self.base_text.viewport().repaint()
+        self.modified_text.viewport().repaint()
+        self.base_line_area.repaint()
+        self.modified_line_area.repaint()
     
     def refresh_colors(self):
         """Refresh all colors from the current palette"""

@@ -161,58 +161,9 @@ class CommitMessageTab(QWidget, TabContentBase):
         self.text_widget.setFocus()
 
     def keyPressEvent(self, event):
-        """Handle key press events"""
-        key = event.key()
-        modifiers = event.modifiers()
-
-        # Font size changes - Ctrl + Plus/Minus/0
-        if modifiers & Qt.KeyboardModifier.ControlModifier:
-            if key in (Qt.Key.Key_Plus, Qt.Key.Key_Equal):
-                self.increase_font_size()
-                return
-            elif key == Qt.Key.Key_Minus:
-                self.decrease_font_size()
-                return
-            elif key == Qt.Key.Key_0:
-                self.reset_font_size()
-                return
-
-        if key == Qt.Key.Key_F5:
-            self.reload()
-            return
-
-        if key == Qt.Key.Key_N and modifiers & Qt.KeyboardModifier.ControlModifier:
-            self.commit_msg_handler.take_commit_msg_note(self.text_widget)
-            return
-
-        if key == Qt.Key.Key_J and modifiers & Qt.KeyboardModifier.ControlModifier:
-            self.jump_to_note_from_cursor()
-            return
-
-        if key == Qt.Key.Key_M:
-            self.toggle_bookmark()
-            return
-
-        if key == Qt.Key.Key_BracketLeft:
-            self.commit_msg_handler.tab_widget.bookmark_mgr.navigate_to_prev_bookmark()
-            return
-
-        if key == Qt.Key.Key_BracketRight:
-            self.commit_msg_handler.tab_widget.bookmark_mgr.navigate_to_next_bookmark()
-            return
-
-        if ((key == Qt.Key.Key_S or key == Qt.Key.Key_F) and
-            modifiers & Qt.KeyboardModifier.ControlModifier):
-            self.commit_msg_handler.tab_widget.show_search_dialog()
-            return
-
-        if key == Qt.Key.Key_F3:
-            if modifiers & Qt.KeyboardModifier.ShiftModifier:
-                self.commit_msg_handler.tab_widget.search_mgr.find_previous()
-            else:
-                self.commit_msg_handler.tab_widget.search_mgr.find_next()
-            return
-
+        """Handle key press events - most handled by tab_manager keybindings now"""
+        # All key handling now goes through tab_manager's keybinding system
+        # Pass to parent to allow normal text editing behavior
         super().keyPressEvent(event)
 
     def toggle_bookmark(self):

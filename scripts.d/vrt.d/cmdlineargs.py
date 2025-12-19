@@ -26,10 +26,16 @@ color_palettes_dict = {
 }
 
 
+def get_script_dir():
+    return os.path.dirname(sys.argv[0])
+
+
 def get_help_dir():
-    script_dir = os.path.dirname(sys.argv[0])
-    help_dir   = os.path.join(script_dir, "help")
-    return help_dir
+    return os.path.join(get_script_dir(), "help")
+
+
+def get_keybinding_dir():
+    return os.path.join(get_script_dir(), "keybindings.d")
 
 
 def process_extended_help_request(options, opt_extended):
@@ -359,7 +365,8 @@ Return Code:
     kbo.add_argument("--keybindings",
                      help     = "Keybinding json file.",
                      action   = "store",
-                     default  = None,
+                     default  = os.path.join(get_keybinding_dir(),
+                                             "default.json"),
                      required = False,
                      metavar  = "<keybinding json description pathname>",
                      dest     = "arg_keybindings")

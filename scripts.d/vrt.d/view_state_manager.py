@@ -66,8 +66,6 @@ class ViewStateManager:
     def toggle_tab_visibility(self):
         """Toggle tab character visibility in all viewers"""
         self.ignore_tab = not self.ignore_tab
-        # Update the menu action checkbox to stay in sync
-        self.tab_widget.show_tab_action.setChecked(not self.ignore_tab)
         # Update current viewer immediately
         viewer = self.tab_widget.get_current_viewer()
         if viewer:
@@ -78,12 +76,13 @@ class ViewStateManager:
             if v != viewer:
                 v.ignore_tab = self.ignore_tab
                 v._needs_highlighting_update = True
+        
+        # Update checkbox state (show=True when ignore=False)
+        self.tab_widget.show_tab_action.setChecked(not self.ignore_tab)
     
     def toggle_trailing_ws_visibility(self):
         """Toggle trailing whitespace visibility in all viewers"""
         self.ignore_trailing_ws = not self.ignore_trailing_ws
-        # Update the menu action checkbox to stay in sync
-        self.tab_widget.show_trailing_ws_action.setChecked(not self.ignore_trailing_ws)
         # Update current viewer immediately
         viewer = self.tab_widget.get_current_viewer()
         if viewer:
@@ -94,12 +93,13 @@ class ViewStateManager:
             if v != viewer:
                 v.ignore_trailing_ws = self.ignore_trailing_ws
                 v._needs_highlighting_update = True
+        
+        # Update checkbox state (show=True when ignore=False)
+        self.tab_widget.show_trailing_ws_action.setChecked(not self.ignore_trailing_ws)
     
     def toggle_intraline_visibility(self):
         """Toggle intraline changes visibility in all viewers"""
         self.ignore_intraline = not self.ignore_intraline
-        # Update the menu action checkbox to stay in sync
-        self.tab_widget.show_intraline_action.setChecked(not self.ignore_intraline)
         # Update current viewer immediately
         viewer = self.tab_widget.get_current_viewer()
         if viewer:
@@ -110,6 +110,9 @@ class ViewStateManager:
             if v != viewer:
                 v.ignore_intraline = self.ignore_intraline
                 v._needs_highlighting_update = True
+        
+        # Update checkbox state (show=True when ignore=False)
+        self.tab_widget.show_intraline_action.setChecked(not self.ignore_intraline)
     
     def apply_to_viewer(self, viewer):
         """
