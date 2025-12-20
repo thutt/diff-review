@@ -173,6 +173,8 @@ class DiffViewer(QWidget, TabContentBase):
         self.region_label = QLabel("Region: 0 of 0")
         self.highlighting_label = QLabel("")
         self.highlighting_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.highlighting_label.setMinimumWidth(392)
+        self.highlighting_label.setTextFormat(Qt.TextFormat.PlainText)
         self.bookmarks_label = QLabel("Bookmarks: 0")
         self.notes_label = QLabel("Notes: 0")
         
