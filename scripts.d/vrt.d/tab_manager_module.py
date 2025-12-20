@@ -1845,6 +1845,11 @@ class DiffViewerTabWidget(QMainWindow):
 
             # If we reach here, the keyboard event is allowed for the current focus mode
 
+            # Check if current widget is a terminal widget
+            from editerm import TerminalWidget
+            current_widget = self.tab_widget.currentWidget()
+            is_terminal = isinstance(current_widget, TerminalWidget)
+
             # Check if this is the commit message widget
             is_commit_msg = isinstance(obj.parent(), CommitMessageTab) if obj.parent() else False
 
@@ -1855,6 +1860,11 @@ class DiffViewerTabWidget(QMainWindow):
             current_key = (key, modifiers)
             sequence = keybindings.KeySequence([current_key])
             action = context_keybindings.get_action(sequence)
+
+            # For terminal widgets, let search commands pass through to the terminal
+            # (vim/emacs have their own search functionality)
+            if is_terminal and action in ('search', 'find_next', 'find_prev'):
+                return False
 
             # Handle search action
             if action == 'search':
