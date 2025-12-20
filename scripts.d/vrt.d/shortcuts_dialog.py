@@ -272,6 +272,9 @@ class ShortcutsDialog(QDialog):
             if attr_name.startswith('Key_'):
                 if getattr(Qt.Key, attr_name) == qt_key:
                     key_name = attr_name[4:]  # Strip 'Key_' prefix
+                    # Lowercase single letter keys to match config file format
+                    if len(key_name) == 1 and key_name.isalpha():
+                        key_name = key_name.lower()
                     return key_name
         return f"Key_{qt_key}"
     
@@ -292,40 +295,40 @@ class ShortcutsDialog(QDialog):
             mod_key = "Ctrl"
         
         # Get shortcuts from keybindings
-        close_tab = self._get_shortcut_text('close_tab', self.keybindings) or f"{mod_key}+W"
-        search = self._get_shortcut_text('search', self.keybindings) or f"{mod_key}+F"
+        close_tab = self._get_shortcut_text('close_tab', self.keybindings) or f"{mod_key}+w"
+        search = self._get_shortcut_text('search', self.keybindings) or f"{mod_key}+f"
         find_next = self._get_shortcut_text('find_next', self.keybindings) or "F3"
         find_prev = self._get_shortcut_text('find_prev', self.keybindings) or "Shift+F3"
-        toggle_sidebar = self._get_shortcut_text('toggle_sidebar', self.keybindings) or f"{mod_key}+B"
+        toggle_sidebar = self._get_shortcut_text('toggle_sidebar', self.keybindings) or f"{mod_key}+b"
         shortcuts_help = self._get_shortcut_text('shortcuts_help', self.keybindings) or "F1"
         increase_font = self._get_shortcut_text('increase_font', self.keybindings) or f"{mod_key}++"
         decrease_font = self._get_shortcut_text('decrease_font', self.keybindings) or f"{mod_key}+-"
         reset_font = self._get_shortcut_text('reset_font', self.keybindings) or f"{mod_key}+0"
         
         # Diff viewer shortcuts
-        next_change = self._get_shortcut_text('next_change', self.diff_keybindings) or "N"
-        prev_change = self._get_shortcut_text('prev_change', self.diff_keybindings) or "P"
-        top_of_file = self._get_shortcut_text('top_of_file', self.diff_keybindings) or "T"
-        bottom_of_file = self._get_shortcut_text('bottom_of_file', self.diff_keybindings) or "B"
-        toggle_bookmark = self._get_shortcut_text('toggle_bookmark', self.diff_keybindings) or "M"
+        next_change = self._get_shortcut_text('next_change', self.diff_keybindings) or "n"
+        prev_change = self._get_shortcut_text('prev_change', self.diff_keybindings) or "p"
+        top_of_file = self._get_shortcut_text('top_of_file', self.diff_keybindings) or "t"
+        bottom_of_file = self._get_shortcut_text('bottom_of_file', self.diff_keybindings) or "b"
+        toggle_bookmark = self._get_shortcut_text('toggle_bookmark', self.diff_keybindings) or "m"
         next_bookmark = self._get_shortcut_text('next_bookmark', self.diff_keybindings) or "]"
         prev_bookmark = self._get_shortcut_text('prev_bookmark', self.diff_keybindings) or "["
-        center_region = self._get_shortcut_text('center_region', self.diff_keybindings) or "C"
-        toggle_collapse = self._get_shortcut_text('toggle_collapse_region', self.diff_keybindings) or "X"
-        toggle_collapse_all = self._get_shortcut_text('toggle_collapse_all', self.diff_keybindings) or "Shift+X"
-        take_note = self._get_shortcut_text('take_note', self.diff_keybindings) or f"{mod_key}+N"
-        jump_to_note = self._get_shortcut_text('jump_to_note', self.diff_keybindings) or f"{mod_key}+J"
+        center_region = self._get_shortcut_text('center_region', self.diff_keybindings) or "c"
+        toggle_collapse = self._get_shortcut_text('toggle_collapse_region', self.diff_keybindings) or "x"
+        toggle_collapse_all = self._get_shortcut_text('toggle_collapse_all', self.diff_keybindings) or "Shift+x"
+        take_note = self._get_shortcut_text('take_note', self.diff_keybindings) or f"{mod_key}+n"
+        jump_to_note = self._get_shortcut_text('jump_to_note', self.diff_keybindings) or f"{mod_key}+j"
         reload = self._get_shortcut_text('reload', self.diff_keybindings) or "F5"
-        toggle_diff_map = self._get_shortcut_text('toggle_diff_map', self.diff_keybindings) or f"{mod_key}+H"
-        toggle_line_numbers = self._get_shortcut_text('toggle_line_numbers', self.diff_keybindings) or f"{mod_key}+L"
-        toggle_tab_highlight = self._get_shortcut_text('toggle_tab_highlight', self.diff_keybindings) or f"{mod_key}+T"
-        toggle_eol = self._get_shortcut_text('toggle_eol_highlight', self.diff_keybindings) or f"{mod_key}+E"
-        toggle_intraline = self._get_shortcut_text('toggle_intraline', self.diff_keybindings) or f"{mod_key}+I"
+        toggle_diff_map = self._get_shortcut_text('toggle_diff_map', self.diff_keybindings) or f"{mod_key}+h"
+        toggle_line_numbers = self._get_shortcut_text('toggle_line_numbers', self.diff_keybindings) or f"{mod_key}+l"
+        toggle_tab_highlight = self._get_shortcut_text('toggle_tab_highlight', self.diff_keybindings) or f"{mod_key}+t"
+        toggle_eol = self._get_shortcut_text('toggle_eol_highlight', self.diff_keybindings) or f"{mod_key}+e"
+        toggle_intraline = self._get_shortcut_text('toggle_intraline', self.diff_keybindings) or f"{mod_key}+i"
         
         # Commit message shortcuts
-        cm_take_note = self._get_shortcut_text('take_note', self.commit_msg_keybindings) or f"{mod_key}+N"
-        cm_jump_to_note = self._get_shortcut_text('jump_to_note', self.commit_msg_keybindings) or f"{mod_key}+J"
-        cm_toggle_bookmark = self._get_shortcut_text('toggle_bookmark', self.commit_msg_keybindings) or "M"
+        cm_take_note = self._get_shortcut_text('take_note', self.commit_msg_keybindings) or f"{mod_key}+n"
+        cm_jump_to_note = self._get_shortcut_text('jump_to_note', self.commit_msg_keybindings) or f"{mod_key}+j"
+        cm_toggle_bookmark = self._get_shortcut_text('toggle_bookmark', self.commit_msg_keybindings) or "m"
         cm_next_bookmark = self._get_shortcut_text('next_bookmark', self.commit_msg_keybindings) or "]"
         cm_prev_bookmark = self._get_shortcut_text('prev_bookmark', self.commit_msg_keybindings) or "["
         
@@ -478,7 +481,7 @@ class ShortcutsDialog(QDialog):
                 <td>Enter File Selection mode</td>
             </tr>
             <tr>
-                <td><span class="shortcut">{mod_key}+Q</span></td>
+                <td><span class="shortcut">{mod_key}+q</span></td>
                 <td>Quit application</td>
             </tr>
         </table>
@@ -520,7 +523,7 @@ class ShortcutsDialog(QDialog):
                 <td>Close current tab</td>
             </tr>
             <tr>
-                <td><span class="shortcut">{mod_key}+Q</span></td>
+                <td><span class="shortcut">{mod_key}+q</span></td>
                 <td>Quit application</td>
             </tr>
             <tr>
@@ -534,11 +537,17 @@ class ShortcutsDialog(QDialog):
             <tr>
                 <td><span class="shortcut">Arrow Keys</span></td>
                 <td>Navigate up/down/left/right</td>
-            </tr>
+            </tr>"""
+        
+        # Only show PageUp/PageDown if optional cursor shortcuts aren't configured
+        if not optional_shortcuts.get('cursor_pageup') and not optional_shortcuts.get('cursor_pagedown'):
+            html_result += """
             <tr>
                 <td><span class="shortcut">PageUp</span> / <span class="shortcut">PageDown</span></td>
                 <td>Scroll up/down by ~10 lines</td>
-            </tr>
+            </tr>"""
+        
+        html_result += """
             <tr>
                 <td><span class="shortcut">Space</span> / <span class="shortcut">Shift+Space</span></td>
                 <td>Page down / page up</td>
@@ -592,10 +601,6 @@ class ShortcutsDialog(QDialog):
             <tr>
                 <td><span class="shortcut">{shortcuts_help}</span></td>
                 <td>Show this shortcuts reference</td>
-            </tr>
-            <tr>
-                <td><span class="shortcut">{mod_key}+/</span></td>
-                <td>Show detailed help dialog</td>
             </tr>
             <tr>
                 <td><span class="shortcut">{increase_font}</span> / <span class="shortcut">{decrease_font}</span></td>
@@ -702,7 +707,7 @@ class ShortcutsDialog(QDialog):
                 <td>Toggle intraline changes highlighting</td>
             </tr>
             <tr>
-                <td><span class="shortcut">{mod_key}+R</span></td>
+                <td><span class="shortcut">{mod_key}+r</span></td>
                 <td>Toggle auto-reload files</td>
             </tr>"""
         
@@ -711,12 +716,6 @@ class ShortcutsDialog(QDialog):
             html_result += f"""
             <tr>
                 <td><span class="shortcut">{optional_shortcuts['cycle_file_change_stats']}</span></td>
-                <td>Cycle stats display (None / Tabs / Sidebar)</td>
-            </tr>"""
-        else:
-            html_result += f"""
-            <tr>
-                <td><span class="shortcut">{mod_key}+Y</span></td>
                 <td>Cycle stats display (None / Tabs / Sidebar)</td>
             </tr>"""
         
