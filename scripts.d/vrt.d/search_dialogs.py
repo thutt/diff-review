@@ -40,7 +40,7 @@ class HTMLDelegate(QStyledItemDelegate):
         
         doc = QTextDocument()
         doc.setHtml(html_text)
-        doc.setTextWidth(options.rect.width())
+        # Don't set text width to allow horizontal scrolling without wrapping
         
         # Handle selection highlighting
         if is_selected:
@@ -58,7 +58,7 @@ class HTMLDelegate(QStyledItemDelegate):
         
         doc = QTextDocument()
         doc.setHtml(options.text)
-        doc.setTextWidth(options.rect.width())
+        # Don't set text width to allow proper size calculation without wrapping
         
         return doc.size().toSize()
 
@@ -255,6 +255,8 @@ class SearchResultDialog(QDialog):
         # Results list
         self.result_list = QListWidget()
         self.result_list.setTextElideMode(Qt.TextElideMode.ElideNone)  # Don't truncate text
+        self.result_list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.result_list.setWordWrap(False)
         self.result_list.setItemDelegate(HTMLDelegate())  # Enable HTML rendering
         self.result_list.itemDoubleClicked.connect(self.on_select)
         layout.addWidget(self.result_list)
