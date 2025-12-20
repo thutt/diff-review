@@ -85,6 +85,9 @@ class FileButton (object):
         label = self.generate_label(self.stats_tab_)
         return label
 
+    def tab_relpath(self):
+        return self.modi_rel_path_
+
     def make_viewer(self, base, modi, note):
         viewer = diff_viewer.DiffViewer(base, modi, note,
                                         self.options_.arg_max_line_length,

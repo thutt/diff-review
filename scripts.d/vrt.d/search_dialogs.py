@@ -409,6 +409,10 @@ class SearchResultDialog(QDialog):
         
         # Populate results list
         for tab_index, tab_title, source_type, line_num, line_idx, line_text, char_pos in results:
+            # Get the tab widget and its file_class (FileButton)
+            tab_widget = self.parent_tab_widget.tab_widget.widget(tab_index)
+            display_path = tab_widget.file_class.tab_relpath()
+            
             # Determine color based on source type
             if source_type == 'base':
                 color = '#2a70c9'  # Darker blue
@@ -421,9 +425,9 @@ class SearchResultDialog(QDialog):
             
             # Format location prefix
             if self.search_all_tabs:
-                location_prefix = f'<span style="color: {color};">[{tab_title}:{line_num}]</span>'
+                location_prefix = f'<span style="color: {color};">[{display_path}:{line_num}]</span>'
             else:
-                location_prefix = f'<span style="color: {color};">[{tab_title}:{line_num}]</span>'
+                location_prefix = f'<span style="color: {color};">[{display_path}:{line_num}]</span>'
             
             item = QListWidgetItem()
             
