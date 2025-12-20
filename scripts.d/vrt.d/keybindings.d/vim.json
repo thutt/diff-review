@@ -10,7 +10,8 @@
     "toggle_sidebar": ["Ctrl+b"],
     "search": ["/"],
     "find_next": ["n"],
-    "find_prev": ["Shift+n"]
+    "find_prev": ["Shift+n"],
+    "cycle_file_change_stats": ["Ctrl+y"]
   },
   "diff": {
     "next_change": ["Ctrl+n"],
