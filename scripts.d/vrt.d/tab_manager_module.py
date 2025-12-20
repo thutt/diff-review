@@ -1637,9 +1637,9 @@ class DiffViewerTabWidget(QMainWindow):
         elif action == 'toggle_bookmark':
             viewer.toggle_bookmark()
         elif action == 'next_bookmark':
-            self.navigate_to_next_bookmark()
+            self.bookmark_mgr.navigate_to_next_bookmark()
         elif action == 'prev_bookmark':
-            self.navigate_to_prev_bookmark()
+            self.bookmark_mgr.navigate_to_prev_bookmark()
         elif action == 'center_region':
             viewer.center_current_region()
         elif action == 'toggle_collapse_region':
