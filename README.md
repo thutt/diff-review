@@ -59,6 +59,41 @@ If you prefer to not use this, you can add '--no-keyring' to the 'vrt'
 invocation.  However, if keyring cannot be imported, the software will
 also transparently not use it.
 
+-<code>pyte</code>
+
+The <code>pyte</code> module is a terminal emulator that is compatible
+with PyQt6, and it is well-written enough to support running both
+<code>emacs</code> and <code>vim</code>.
+
+If you are a user of either one of these editors, you can now use it
+as the editor for writing review notes from within vrt, but you must
+first have pyte installed.
+
+On Ubuntu, it must be installed with:
+
+    <code>sudo apt install python3-pyte</code>
+
+On MacOS, the following is sufficient:
+
+    <code>pip3 install pyte</code>
+
+To use emacs:
+
+    <code>vrt --note-editor emacs --note-editor-theme light</code>
+
+Emacs must be installed and on ${PATH}.
+
+
+To use vim:
+
+    <code>vrt --note-editor vim --note-editor-theme light</code>
+
+Vim must be installed and on ${PATH}.
+
+The <code>--help</code> documentation will show the valid values for
+<code>--note-editor-theme</code>.
+
+
 # Supported Operating Systems
 
  - Linux
