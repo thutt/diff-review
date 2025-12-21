@@ -12,9 +12,6 @@ import file_local
 import file_url
 import utils
 
-import emacsterm
-import vimterm
-
 home                = os.getenv("HOME", os.path.expanduser("~"))
 default_review_dir  = os.path.join(home, "review")
 default_review_name = "default"
@@ -470,11 +467,32 @@ def process_command_line():
                             (options.arg_dossier_path))
 
     if options.arg_note_editor == "emacs":
-        options.editor_class_ = emacsterm.EmacsWidget
-        options.editor_theme_ = options.arg_note_editor_theme
+        try:
+            import pyte
+        except Exception as exc:
+            utils.fatal("Unable to import 'pyte'.  "
+                        "It must be installed to use emacs.")
+            
+        try:
+            import emacsterm
+            options.editor_class_ = emacsterm.EmacsWidget
+            options.editor_theme_ = options.arg_note_editor_theme
+        except Exception as exc:
+            utils.fatal("Unable to configure emacs.  Is pyte installed?")
+
     elif options.arg_note_editor == "vim":
-        options.editor_class_ = vimterm.VimWidget
-        options.editor_theme_ = options.arg_note_editor_theme
+        try:
+            import pyte
+        except Exception as exc:
+            utils.fatal("Unable to import 'pyte'.  "
+                        "It must be installed to use Vim.")
+            
+        try:
+            import vimterm
+            options.editor_class_ = vimterm.VimWidget
+            options.editor_theme_ = options.arg_note_editor_theme
+        except Exception as exc:
+            utils.fatal("Unable to configure vim.  Is pyte installed?")
     else:
         options.editor_class_ = None
         options.editor_theme_ = None
