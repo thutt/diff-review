@@ -197,7 +197,8 @@ class DiffViewerTabWidget(QMainWindow):
                  file_label_stats  : bool,
                  editor_class,
                  editor_theme,
-                 keybindings_file):
+                 keybindings_file,
+                 note_file):
         if QApplication.instance() is None:
             self._app = QApplication(sys.argv)
         else:
@@ -247,7 +248,7 @@ class DiffViewerTabWidget(QMainWindow):
         # Global view state for all tabs
         self.diff_map_visible = show_diff_map  # Initial state for diff map
         self.line_numbers_visible = show_line_numbers  # Initial state for line numbers
-        self.global_note_file = None  # Global note file for all viewers
+        self.global_note_file = note_file  # Global note file for all viewers
 
         # Create view state manager
         self.view_state_mgr = view_state_manager.ViewStateManager(
@@ -286,7 +287,7 @@ class DiffViewerTabWidget(QMainWindow):
 
         # Create note manager
         import note_manager
-        self.note_mgr = note_manager.NoteManager(self)
+        self.note_mgr = note_manager.NoteManager(self, note_file)
 
         # Create search manager
         self.search_mgr = search_manager.SearchManager(self)
@@ -611,38 +612,7 @@ class DiffViewerTabWidget(QMainWindow):
 
     def open_note_file(self):
         """Open a note file using file picker dialog"""
-        # Use getOpenFileName but with DontConfirmOverwrite since we're not overwriting
-        file_dialog = QFileDialog(self)
-        file_dialog.setWindowTitle("Select Note File")
-        file_dialog.setNameFilter("Text Files (*.txt);;All Files (*)")
-        file_dialog.setFileMode(QFileDialog.FileMode.AnyFile)  # Allow typing non-existent files
-        file_dialog.setAcceptMode(QFileDialog.AcceptMode.AcceptOpen)
-        file_dialog.setOption(QFileDialog.Option.DontConfirmOverwrite, True)  # Don't warn about overwrite
-        file_dialog.setOption(QFileDialog.Option.DontUseNativeDialog, True)  # Use Qt dialog on macOS to allow typing
-
-        if file_dialog.exec() == QFileDialog.DialogCode.Accepted:
-            files = file_dialog.selectedFiles()
-            if not files:
-                return
-
-            file_path = files[0]
-
-            # Use NoteManager to set the note file - this creates button and updates count
-            self.note_mgr.set_note_file(file_path)
-
-            # Check if file exists to customize message
-            import os
-            if os.path.exists(file_path):
-                msg = f"Note file set to:\n{file_path}\n\nAll viewers will now append notes to this existing file."
-            else:
-                msg = f"Note file set to:\n{file_path}\n\nThis file will be created when the first note is taken."
-
-            # Show confirmation
-            QMessageBox.information(
-                self,
-                "Note File Set",
-                msg
-            )
+        self.note_mgr.prompt_for_note_file()
 
     def add_file(self, file_class):
         """
@@ -1792,6 +1762,35 @@ class DiffViewerTabWidget(QMainWindow):
                 self.update_status_focus_indicator()
 
         if event.type() == event.Type.KeyPress:
+            # Only process events for widgets that are part of our application
+            # Let dialogs and other Qt widgets handle their own events
+            from editerm import TerminalWidget
+            
+            is_our_widget = False
+            widget = obj
+            while widget is not None:
+                # Check if this is a diff viewer text widget
+                if isinstance(widget.parent() if widget.parent() else None, DiffViewer):
+                    is_our_widget = True
+                    break
+                # Check if this is a commit message text widget
+                if isinstance(widget.parent() if widget.parent() else None, CommitMessageTab):
+                    is_our_widget = True
+                    break
+                # Check if this is a sidebar widget
+                if widget == self.sidebar_widget or (widget.parent() and widget.parent() == self.sidebar_widget):
+                    is_our_widget = True
+                    break
+                # Check if this is a terminal widget
+                if isinstance(widget, TerminalWidget):
+                    is_our_widget = True
+                    break
+                widget = widget.parent()
+            
+            # If not our widget, let it handle its own events
+            if not is_our_widget:
+                return False
+            
             key = event.key()
             modifiers = event.modifiers()
             

@@ -964,7 +964,14 @@ class DiffViewer(QWidget, TabContentBase):
         current = self.current_region + 1 if total > 0 else 0
         self.region_label.setText(f"Region: {current} of {total}")
         self.bookmarks_label.setText(f"Bookmarks: {len(self.bookmarked_lines)}")
-        self.notes_label.setText(f"Notes: {self.note_count}")
+        
+        # Show note count and file name if set
+        if self.note_file:
+            import os
+            note_filename = os.path.basename(self.note_file)
+            self.notes_label.setText(f"Notes: {self.note_count} ({note_filename})")
+        else:
+            self.notes_label.setText(f"Notes: {self.note_count}")
     
     def toggle_diff_map(self):
         if self.diff_map_visible:

@@ -36,6 +36,7 @@ class CommitMessageTab(QWidget, TabContentBase):
         super().__init__()
         self.commit_msg_handler = commit_msg_handler
         self.current_font_size = 12
+        self.note_file = None  # Will be set by tab manager
 
         # Create main layout
         layout = QVBoxLayout(self)
@@ -114,11 +115,28 @@ class CommitMessageTab(QWidget, TabContentBase):
         self.bookmarks_label = QLabel("Bookmarks: 0")
         self.bookmarks_label.setStyleSheet("color: #5c4a3a; font-weight: bold;")
         status_layout.addWidget(self.bookmarks_label)
+        
+        self.notes_label = QLabel("")
+        self.notes_label.setStyleSheet("color: #5c4a3a; font-weight: bold;")
+        status_layout.addWidget(self.notes_label)
+        
         status_layout.addStretch()
 
         # Add widgets to layout
         layout.addWidget(self.text_widget)
         layout.addWidget(status_widget)
+
+    def update_status(self):
+        """Update status bar with current bookmark count and note file"""
+        self.bookmarks_label.setText(f"Bookmarks: {len(self.commit_msg_handler.bookmarked_lines)}")
+
+        note_file = self.commit_msg_handler.tab_widget.global_note_file
+        if note_file:
+            import os
+            note_filename = os.path.basename(note_file)
+            self.notes_label.setText(f"Note file: {note_filename}")
+        else:
+            self.notes_label.setText("")
 
     def increase_font_size(self):
         """Increase font size in commit message"""
@@ -232,6 +250,7 @@ class CommitMsgHandler:
         self.commit_msg_rel_path = None  # Track commit message file (internal)
         self.commit_msg_button = None  # Track commit message button
         self.bookmarked_lines = set()  # Line indices that are bookmarked in commit msg
+        self.commit_msg_tab = None  # Reference to CommitMessageTab when created
     
     def add_commit_msg(self, commit_msg_rel_path):
         """
@@ -296,8 +315,12 @@ class CommitMsgHandler:
         # Create commit message tab widget
         tab_widget = CommitMessageTab(commit_msg_text, self)
 
-        # Store reference for bookmark label updates
-        self.bookmarks_label = tab_widget.bookmarks_label
+        # Set note file from global if available
+        if self.tab_widget.global_note_file:
+            tab_widget.note_file = self.tab_widget.global_note_file
+
+        # Store reference to tab for status updates
+        self.commit_msg_tab = tab_widget
 
         # Set up context menu
         tab_widget.text_widget.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
@@ -314,6 +337,9 @@ class CommitMsgHandler:
 
         # Update button state
         self.tab_widget.update_button_states()
+        
+        # Update status to show note file if set
+        tab_widget.update_status()
     
     def show_commit_msg_context_menu(self, pos, text_widget):
         """Show context menu for commit message"""
@@ -439,12 +465,14 @@ class CommitMsgHandler:
         # Force repaint to show bookmark indicators
         text_widget.viewport().update()
 
-        # Update status
-        self.update_status()
+        # Update status if tab exists
+        if self.commit_msg_tab:
+            self.commit_msg_tab.update_status()
 
     def update_status(self):
-        """Update status bar with current bookmark count"""
-        self.bookmarks_label.setText(f"Bookmarks: {len(self.bookmarked_lines)}")
+        """Update status bar - delegates to commit message tab if it exists"""
+        if self.commit_msg_tab:
+            self.commit_msg_tab.update_status()
 
     def center_on_line(self, text_widget, line_idx):
         """Center the view on a specific line"""

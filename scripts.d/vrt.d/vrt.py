@@ -177,7 +177,8 @@ def generate(options, note):
                                                          options.arg_file_label_stats,
                                                          options.editor_class_,
                                                          options.editor_theme_,
-                                                         options.arg_keybindings)
+                                                         options.arg_keybindings,
+                                                         note)
 
     if options.dossier_["commit_msg"] is not None:
         tab_widget.add_commit_msg(options.dossier_["commit_msg"])
