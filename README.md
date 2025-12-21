@@ -59,7 +59,7 @@ If you prefer to not use this, you can add '--no-keyring' to the 'vrt'
 invocation.  However, if keyring cannot be imported, the software will
 also transparently not use it.
 
--<code>pyte</code>
+- <code>pyte</code>
 
 The <code>pyte</code> module is a terminal emulator that is compatible
 with PyQt6, and it is well-written enough to support running both
@@ -71,22 +71,22 @@ first have pyte installed.
 
 On Ubuntu, it must be installed with:
 
-    <code>sudo apt install python3-pyte</code>
+    sudo apt install python3-pyte
 
 On MacOS, the following is sufficient:
 
-    <code>pip3 install pyte</code>
+    pip3 install pyte
 
 To use emacs:
 
-    <code>vrt --note-editor emacs --note-editor-theme light</code>
+    vrt --note-editor emacs --note-editor-theme light
 
 Emacs must be installed and on ${PATH}.
 
 
 To use vim:
 
-    <code>vrt --note-editor vim --note-editor-theme light</code>
+    vrt --note-editor vim --note-editor-theme light
 
 Vim must be installed and on ${PATH}.
 
