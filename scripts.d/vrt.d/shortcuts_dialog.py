@@ -41,10 +41,16 @@ def is_dark_mode(palette):
 class ShortcutsDialog(QDialog):
     """Dialog that displays a quick reference card for keyboard shortcuts"""
     
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, keybindings=None, diff_keybindings=None,
+                 commit_msg_keybindings=None):
         super().__init__(parent, Qt.WindowType.Window)
         self.setWindowTitle("Keyboard Shortcuts Reference")
         self.setMinimumSize(900, 700)
+        
+        # Store keybindings for dynamic shortcut display
+        self.keybindings = keybindings
+        self.diff_keybindings = diff_keybindings
+        self.commit_msg_keybindings = commit_msg_keybindings
         
         layout = QVBoxLayout(self)
         
@@ -151,8 +157,128 @@ class ShortcutsDialog(QDialog):
         font.setPointSize(self.current_font_size)
         self.shortcuts_text.setFont(font)
     
-    @staticmethod
-    def get_shortcuts_html(is_dark):
+    def _get_shortcut_text(self, action_name, keybindings_obj):
+        """Get formatted shortcut text for display.
+        
+        Args:
+            action_name: Name of the action
+            keybindings_obj: KeyBindings object to query
+            
+        Returns:
+            Formatted string like 'Ctrl+B' or 'Cmd+B', or empty if no binding
+        """
+        if keybindings_obj is None:
+            return ""
+        
+        sequences = keybindings_obj.get_sequences(action_name)
+        if not sequences:
+            return ""
+        
+        # Use the first sequence for display
+        seq = sequences[0]
+        parts = []
+        
+        from PyQt6.QtCore import Qt
+        for qt_key, modifiers in seq.keys:
+            key_parts = []
+            
+            # On macOS, show Cmd instead of Ctrl for Control modifier
+            if modifiers & Qt.KeyboardModifier.ControlModifier:
+                if sys.platform == 'darwin':
+                    key_parts.append("Cmd")
+                else:
+                    key_parts.append("Ctrl")
+            if modifiers & Qt.KeyboardModifier.ShiftModifier:
+                key_parts.append("Shift")
+            if modifiers & Qt.KeyboardModifier.AltModifier:
+                key_parts.append("Alt")
+            if modifiers & Qt.KeyboardModifier.MetaModifier:
+                # Meta is Cmd on macOS (already shown for Control)
+                # On other platforms, show Meta
+                if sys.platform != 'darwin':
+                    key_parts.append("Meta")
+            
+            # Get key name
+            key_name = self._qt_key_to_name(qt_key)
+            key_parts.append(key_name)
+            
+            parts.append("+".join(key_parts))
+        
+        return " ".join(parts)
+    
+    def _qt_key_to_name(self, qt_key):
+        """Convert Qt.Key enum to display string."""
+        from PyQt6.QtCore import Qt
+        
+        # Map Qt.Key enums to display characters
+        key_display_map = {
+            # Symbols
+            Qt.Key.Key_BracketLeft: '[',
+            Qt.Key.Key_BracketRight: ']',
+            Qt.Key.Key_Question: '?',
+            Qt.Key.Key_Slash: '/',
+            Qt.Key.Key_Backslash: '\\',
+            Qt.Key.Key_Equal: '=',
+            Qt.Key.Key_Minus: '-',
+            Qt.Key.Key_Plus: '+',
+            Qt.Key.Key_Asterisk: '*',
+            Qt.Key.Key_Period: '.',
+            Qt.Key.Key_Comma: ',',
+            Qt.Key.Key_Semicolon: ';',
+            Qt.Key.Key_Colon: ':',
+            Qt.Key.Key_Apostrophe: "'",
+            Qt.Key.Key_QuoteDbl: '"',
+            Qt.Key.Key_Less: '<',
+            Qt.Key.Key_Greater: '>',
+            Qt.Key.Key_Exclam: '!',
+            Qt.Key.Key_At: '@',
+            Qt.Key.Key_NumberSign: '#',
+            Qt.Key.Key_Dollar: '$',
+            Qt.Key.Key_Percent: '%',
+            Qt.Key.Key_AsciiCircum: '^',
+            Qt.Key.Key_Ampersand: '&',
+            Qt.Key.Key_ParenLeft: '(',
+            Qt.Key.Key_ParenRight: ')',
+            Qt.Key.Key_BraceLeft: '{',
+            Qt.Key.Key_BraceRight: '}',
+            Qt.Key.Key_Bar: '|',
+            Qt.Key.Key_AsciiTilde: '~',
+            Qt.Key.Key_QuoteLeft: '`',
+            # Navigation and special keys
+            Qt.Key.Key_Space: 'Space',
+            Qt.Key.Key_Tab: 'Tab',
+            Qt.Key.Key_Return: 'Return',
+            Qt.Key.Key_Enter: 'Enter',
+            Qt.Key.Key_Backspace: 'Backspace',
+            Qt.Key.Key_Delete: 'Delete',
+            Qt.Key.Key_Escape: 'Esc',
+            Qt.Key.Key_Home: 'Home',
+            Qt.Key.Key_End: 'End',
+            Qt.Key.Key_PageUp: 'PageUp',
+            Qt.Key.Key_PageDown: 'PageDown',
+            Qt.Key.Key_Up: 'Up',
+            Qt.Key.Key_Down: 'Down',
+            Qt.Key.Key_Left: 'Left',
+            Qt.Key.Key_Right: 'Right',
+            Qt.Key.Key_Insert: 'Insert',
+        }
+        
+        # Check if we have a direct mapping
+        if qt_key in key_display_map:
+            return key_display_map[qt_key]
+        
+        # Try to find the key name from Qt.Key enum
+        for attr_name in dir(Qt.Key):
+            if attr_name.startswith('Key_'):
+                if getattr(Qt.Key, attr_name) == qt_key:
+                    key_name = attr_name[4:]  # Strip 'Key_' prefix
+                    # Lowercase single letter keys to match config file format
+                    if len(key_name) == 1 and key_name.isalpha():
+                        key_name = key_name.lower()
+                    return key_name
+        return f"Key_{qt_key}"
+    
+    def get_shortcuts_html(self, is_dark):
         """
         Returns the HTML content for the shortcuts reference.
         
@@ -167,6 +293,77 @@ class ShortcutsDialog(QDialog):
             mod_key = "Cmd"
         else:
             mod_key = "Ctrl"
+        
+        # Get shortcuts from keybindings
+        close_tab = self._get_shortcut_text('close_tab', self.keybindings) or f"{mod_key}+w"
+        search = self._get_shortcut_text('search', self.keybindings) or f"{mod_key}+f"
+        find_next = self._get_shortcut_text('find_next', self.keybindings) or "F3"
+        find_prev = self._get_shortcut_text('find_prev', self.keybindings) or "Shift+F3"
+        toggle_sidebar = self._get_shortcut_text('toggle_sidebar', self.keybindings) or f"{mod_key}+b"
+        shortcuts_help = self._get_shortcut_text('shortcuts_help', self.keybindings) or "F1"
+        increase_font = self._get_shortcut_text('increase_font', self.keybindings) or f"{mod_key}++"
+        decrease_font = self._get_shortcut_text('decrease_font', self.keybindings) or f"{mod_key}+-"
+        reset_font = self._get_shortcut_text('reset_font', self.keybindings) or f"{mod_key}+0"
+        
+        # Diff viewer shortcuts
+        next_change = self._get_shortcut_text('next_change', self.diff_keybindings) or "n"
+        prev_change = self._get_shortcut_text('prev_change', self.diff_keybindings) or "p"
+        top_of_file = self._get_shortcut_text('top_of_file', self.diff_keybindings) or "t"
+        bottom_of_file = self._get_shortcut_text('bottom_of_file', self.diff_keybindings) or "b"
+        toggle_bookmark = self._get_shortcut_text('toggle_bookmark', self.diff_keybindings) or "m"
+        next_bookmark = self._get_shortcut_text('next_bookmark', self.diff_keybindings) or "]"
+        prev_bookmark = self._get_shortcut_text('prev_bookmark', self.diff_keybindings) or "["
+        center_region = self._get_shortcut_text('center_region', self.diff_keybindings) or "c"
+        toggle_collapse = self._get_shortcut_text('toggle_collapse_region', self.diff_keybindings) or "x"
+        toggle_collapse_all = self._get_shortcut_text('toggle_collapse_all', self.diff_keybindings) or "Shift+x"
+        take_note = self._get_shortcut_text('take_note', self.diff_keybindings) or f"{mod_key}+n"
+        jump_to_note = self._get_shortcut_text('jump_to_note', self.diff_keybindings) or f"{mod_key}+j"
+        reload = self._get_shortcut_text('reload', self.diff_keybindings) or "F5"
+        toggle_diff_map = self._get_shortcut_text('toggle_diff_map', self.diff_keybindings) or f"{mod_key}+h"
+        toggle_line_numbers = self._get_shortcut_text('toggle_line_numbers', self.diff_keybindings) or f"{mod_key}+l"
+        toggle_tab_highlight = self._get_shortcut_text('toggle_tab_highlight', self.diff_keybindings) or f"{mod_key}+t"
+        toggle_eol = self._get_shortcut_text('toggle_eol_highlight', self.diff_keybindings) or f"{mod_key}+e"
+        toggle_intraline = self._get_shortcut_text('toggle_intraline', self.diff_keybindings) or f"{mod_key}+i"
+        
+        # Commit message shortcuts
+        cm_take_note = self._get_shortcut_text('take_note', self.commit_msg_keybindings) or f"{mod_key}+n"
+        cm_jump_to_note = self._get_shortcut_text('jump_to_note', self.commit_msg_keybindings) or f"{mod_key}+j"
+        cm_toggle_bookmark = self._get_shortcut_text('toggle_bookmark', self.commit_msg_keybindings) or "m"
+        cm_next_bookmark = self._get_shortcut_text('next_bookmark', self.commit_msg_keybindings) or "]"
+        cm_prev_bookmark = self._get_shortcut_text('prev_bookmark', self.commit_msg_keybindings) or "["
+        
+        # Optional/user-configured shortcuts (not in defaults)
+        # These are shown only if configured by the user
+        optional_shortcuts = {}
+        
+        # Check for cursor movement actions
+        cursor_actions = ['cursor_up', 'cursor_down', 'cursor_left', 'cursor_right',
+                         'cursor_pageup', 'cursor_pagedown', 'cursor_home', 'cursor_end']
+        for action in cursor_actions:
+            shortcut = self._get_shortcut_text(action, self.diff_keybindings)
+            if shortcut:
+                optional_shortcuts[action] = shortcut
+        
+        # Check for selection actions
+        select_actions = ['select_up', 'select_down', 'select_left', 'select_right',
+                         'select_pageup', 'select_pagedown']
+        for action in select_actions:
+            shortcut = self._get_shortcut_text(action, self.diff_keybindings)
+            if shortcut:
+                optional_shortcuts[action] = shortcut
+        
+        # Check for tab navigation shortcuts
+        first_file = self._get_shortcut_text('first_file', self.keybindings)
+        if first_file:
+            optional_shortcuts['first_file'] = first_file
+        last_file = self._get_shortcut_text('last_file', self.keybindings)
+        if last_file:
+            optional_shortcuts['last_file'] = last_file
+        
+        # Check for stats cycling shortcut
+        cycle_stats = self._get_shortcut_text('cycle_file_change_stats', self.keybindings)
+        if cycle_stats:
+            optional_shortcuts['cycle_file_change_stats'] = cycle_stats
         
         if is_dark:
             # Dark mode colors
@@ -193,7 +390,7 @@ class ShortcutsDialog(QDialog):
             shortcut_text = "#000000"
             note_color = "#666666"
         
-        return f"""
+        html_result = f"""
         <style>
             body {{ 
                 font-family: Arial, sans-serif; 
@@ -284,7 +481,7 @@ class ShortcutsDialog(QDialog):
                 <td>Enter File Selection mode</td>
             </tr>
             <tr>
-                <td><span class="shortcut">{mod_key}+Q</span></td>
+                <td><span class="shortcut">{mod_key}+q</span></td>
                 <td>Quit application</td>
             </tr>
         </table>
@@ -304,31 +501,53 @@ class ShortcutsDialog(QDialog):
             <tr>
                 <td><span class="shortcut">Ctrl+Shift+Tab</span></td>
                 <td>Previous tab</td>
-            </tr>
+            </tr>"""
+        
+        # Add optional first/last file shortcuts if configured
+        if optional_shortcuts.get('first_file'):
+            html_result += f"""
             <tr>
-                <td><span class="shortcut">{mod_key}+W</span></td>
+                <td><span class="shortcut">{optional_shortcuts['first_file']}</span></td>
+                <td>Jump to first tab</td>
+            </tr>"""
+        if optional_shortcuts.get('last_file'):
+            html_result += f"""
+            <tr>
+                <td><span class="shortcut">{optional_shortcuts['last_file']}</span></td>
+                <td>Jump to last tab</td>
+            </tr>"""
+        
+        html_result += f"""
+            <tr>
+                <td><span class="shortcut">{close_tab}</span></td>
                 <td>Close current tab</td>
             </tr>
             <tr>
-                <td><span class="shortcut">{mod_key}+Q</span></td>
+                <td><span class="shortcut">{mod_key}+q</span></td>
                 <td>Quit application</td>
             </tr>
             <tr>
-                <td><span class="shortcut">{mod_key}+F</span> or <span class="shortcut">{mod_key}+S</span></td>
+                <td><span class="shortcut">{search}</span></td>
                 <td>Open search dialog</td>
             </tr>
             <tr>
-                <td><span class="shortcut">F3</span> / <span class="shortcut">Shift+F3</span></td>
+                <td><span class="shortcut">{find_next}</span> / <span class="shortcut">{find_prev}</span></td>
                 <td>Find next / previous search match</td>
             </tr>
             <tr>
                 <td><span class="shortcut">Arrow Keys</span></td>
                 <td>Navigate up/down/left/right</td>
-            </tr>
+            </tr>"""
+        
+        # Only show PageUp/PageDown if optional cursor shortcuts aren't configured
+        if not optional_shortcuts.get('cursor_pageup') and not optional_shortcuts.get('cursor_pagedown'):
+            html_result += """
             <tr>
                 <td><span class="shortcut">PageUp</span> / <span class="shortcut">PageDown</span></td>
                 <td>Scroll up/down by ~10 lines</td>
-            </tr>
+            </tr>"""
+        
+        html_result += """
             <tr>
                 <td><span class="shortcut">Space</span> / <span class="shortcut">Shift+Space</span></td>
                 <td>Page down / page up</td>
@@ -336,25 +555,59 @@ class ShortcutsDialog(QDialog):
             <tr>
                 <td><span class="shortcut">Home</span> / <span class="shortcut">End</span></td>
                 <td>Jump to start/end of file</td>
-            </tr>
+            </tr>"""
+        
+        # Add optional cursor movement shortcuts if configured
+        cursor_shortcuts_html = []
+        if optional_shortcuts.get('cursor_up'):
+            cursor_shortcuts_html.append(f"<tr><td><span class=\"shortcut\">{optional_shortcuts['cursor_up']}</span></td><td>Move cursor up</td></tr>")
+        if optional_shortcuts.get('cursor_down'):
+            cursor_shortcuts_html.append(f"<tr><td><span class=\"shortcut\">{optional_shortcuts['cursor_down']}</span></td><td>Move cursor down</td></tr>")
+        if optional_shortcuts.get('cursor_left'):
+            cursor_shortcuts_html.append(f"<tr><td><span class=\"shortcut\">{optional_shortcuts['cursor_left']}</span></td><td>Move cursor left</td></tr>")
+        if optional_shortcuts.get('cursor_right'):
+            cursor_shortcuts_html.append(f"<tr><td><span class=\"shortcut\">{optional_shortcuts['cursor_right']}</span></td><td>Move cursor right</td></tr>")
+        if optional_shortcuts.get('cursor_pageup'):
+            cursor_shortcuts_html.append(f"<tr><td><span class=\"shortcut\">{optional_shortcuts['cursor_pageup']}</span></td><td>Move cursor page up</td></tr>")
+        if optional_shortcuts.get('cursor_pagedown'):
+            cursor_shortcuts_html.append(f"<tr><td><span class=\"shortcut\">{optional_shortcuts['cursor_pagedown']}</span></td><td>Move cursor page down</td></tr>")
+        if optional_shortcuts.get('cursor_home'):
+            cursor_shortcuts_html.append(f"<tr><td><span class=\"shortcut\">{optional_shortcuts['cursor_home']}</span></td><td>Move cursor to start of file</td></tr>")
+        if optional_shortcuts.get('cursor_end'):
+            cursor_shortcuts_html.append(f"<tr><td><span class=\"shortcut\">{optional_shortcuts['cursor_end']}</span></td><td>Move cursor to end of file</td></tr>")
+        
+        # Add optional selection shortcuts if configured
+        if optional_shortcuts.get('select_up'):
+            cursor_shortcuts_html.append(f"<tr><td><span class=\"shortcut\">{optional_shortcuts['select_up']}</span></td><td>Select text upward</td></tr>")
+        if optional_shortcuts.get('select_down'):
+            cursor_shortcuts_html.append(f"<tr><td><span class=\"shortcut\">{optional_shortcuts['select_down']}</span></td><td>Select text downward</td></tr>")
+        if optional_shortcuts.get('select_left'):
+            cursor_shortcuts_html.append(f"<tr><td><span class=\"shortcut\">{optional_shortcuts['select_left']}</span></td><td>Select text leftward</td></tr>")
+        if optional_shortcuts.get('select_right'):
+            cursor_shortcuts_html.append(f"<tr><td><span class=\"shortcut\">{optional_shortcuts['select_right']}</span></td><td>Select text rightward</td></tr>")
+        if optional_shortcuts.get('select_pageup'):
+            cursor_shortcuts_html.append(f"<tr><td><span class=\"shortcut\">{optional_shortcuts['select_pageup']}</span></td><td>Select text page up</td></tr>")
+        if optional_shortcuts.get('select_pagedown'):
+            cursor_shortcuts_html.append(f"<tr><td><span class=\"shortcut\">{optional_shortcuts['select_pagedown']}</span></td><td>Select text page down</td></tr>")
+        
+        if cursor_shortcuts_html:
+            html_result += "\n" + "\n            ".join(cursor_shortcuts_html)
+        
+        html_result += f"""
             <tr>
-                <td><span class="shortcut">{mod_key}+B</span></td>
+                <td><span class="shortcut">{toggle_sidebar}</span></td>
                 <td>Toggle sidebar visibility</td>
             </tr>
             <tr>
-                <td><span class="shortcut">{mod_key}+?</span> or <span class="shortcut">F1</span></td>
+                <td><span class="shortcut">{shortcuts_help}</span></td>
                 <td>Show this shortcuts reference</td>
             </tr>
             <tr>
-                <td><span class="shortcut">{mod_key}+/</span></td>
-                <td>Show detailed help dialog</td>
-            </tr>
-            <tr>
-                <td><span class="shortcut">{mod_key}++</span> / <span class="shortcut">{mod_key}+-</span></td>
+                <td><span class="shortcut">{increase_font}</span> / <span class="shortcut">{decrease_font}</span></td>
                 <td>Increase / decrease font size</td>
             </tr>
             <tr>
-                <td><span class="shortcut">{mod_key}+0</span></td>
+                <td><span class="shortcut">{reset_font}</span></td>
                 <td>Reset font size to default</td>
             </tr>
         </table>
@@ -366,23 +619,23 @@ class ShortcutsDialog(QDialog):
                 <th>Action</th>
             </tr>
             <tr>
-                <td><span class="shortcut">N</span></td>
+                <td><span class="shortcut">{next_change}</span></td>
                 <td>Next change region</td>
             </tr>
             <tr>
-                <td><span class="shortcut">P</span></td>
+                <td><span class="shortcut">{prev_change}</span></td>
                 <td>Previous change region</td>
             </tr>
             <tr>
-                <td><span class="shortcut">C</span></td>
+                <td><span class="shortcut">{center_region}</span></td>
                 <td>Center on current region</td>
             </tr>
             <tr>
-                <td><span class="shortcut">T</span></td>
+                <td><span class="shortcut">{top_of_file}</span></td>
                 <td>Jump to top of file</td>
             </tr>
             <tr>
-                <td><span class="shortcut">B</span></td>
+                <td><span class="shortcut">{bottom_of_file}</span></td>
                 <td>Jump to bottom of file</td>
             </tr>
             <tr>
@@ -390,31 +643,31 @@ class ShortcutsDialog(QDialog):
                 <td>Switch focus between base and modified panes (Content mode only)</td>
             </tr>
             <tr>
-                <td><span class="shortcut">X</span></td>
+                <td><span class="shortcut">{toggle_collapse}</span></td>
                 <td>Collapse/expand added/deleted region at cursor</td>
             </tr>
             <tr>
-                <td><span class="shortcut">Shift+X</span></td>
+                <td><span class="shortcut">{toggle_collapse_all}</span></td>
                 <td>Collapse/expand all added/deleted regions</td>
             </tr>
             <tr>
-                <td><span class="shortcut">M</span></td>
+                <td><span class="shortcut">{toggle_bookmark}</span></td>
                 <td>Toggle bookmark on current line</td>
             </tr>
             <tr>
-                <td><span class="shortcut">[</span></td>
+                <td><span class="shortcut">{prev_bookmark}</span></td>
                 <td>Previous bookmark</td>
             </tr>
             <tr>
-                <td><span class="shortcut">]</span></td>
+                <td><span class="shortcut">{next_bookmark}</span></td>
                 <td>Next bookmark</td>
             </tr>
             <tr>
-                <td><span class="shortcut">{mod_key}+N</span></td>
+                <td><span class="shortcut">{take_note}</span></td>
                 <td>Take note of selected text</td>
             </tr>
             <tr>
-                <td><span class="shortcut">{mod_key}+J</span></td>
+                <td><span class="shortcut">{jump_to_note}</span></td>
                 <td>Jump to note for current line (if exists)</td>
             </tr>
             <tr>
@@ -425,50 +678,48 @@ class ShortcutsDialog(QDialog):
                 <td><span class="shortcut">Right-click -> Jump to Note</span></td>
                 <td>Jump to note for clicked line</td>
             </tr>
-        </table>
-        
-        <h2>View Options</h2>
-        <table>
-            <tr>
-                <th width="30%">Shortcut</th>
-                <th>Action</th>
-            </tr>
             <tr>
                 <td><span class="shortcut">Double-click line</span></td>
                 <td>Quick note - add line to notes file</td>
             </tr>
             <tr>
-                <td><span class="shortcut">F5</span></td>
+                <td><span class="shortcut">{reload}</span></td>
                 <td>Reload current file</td>
             </tr>
             <tr>
-                <td><span class="shortcut">{mod_key}+D</span></td>
+                <td><span class="shortcut">{toggle_diff_map}</span></td>
                 <td>Toggle diff map</td>
             </tr>
             <tr>
-                <td><span class="shortcut">{mod_key}+L</span></td>
+                <td><span class="shortcut">{toggle_line_numbers}</span></td>
                 <td>Toggle line numbers</td>
             </tr>
             <tr>
-                <td><span class="shortcut">{mod_key}+T</span></td>
+                <td><span class="shortcut">{toggle_tab_highlight}</span></td>
                 <td>Toggle tab character highlighting</td>
             </tr>
             <tr>
-                <td><span class="shortcut">{mod_key}+E</span></td>
+                <td><span class="shortcut">{toggle_eol}</span></td>
                 <td>Toggle trailing whitespace highlighting</td>
             </tr>
             <tr>
-                <td><span class="shortcut">{mod_key}+I</span></td>
+                <td><span class="shortcut">{toggle_intraline}</span></td>
                 <td>Toggle intraline changes highlighting</td>
             </tr>
             <tr>
-                <td><span class="shortcut">{mod_key}+R</span></td>
+                <td><span class="shortcut">{mod_key}+r</span></td>
                 <td>Toggle auto-reload files</td>
-            </tr>
+            </tr>"""
+        
+        # Add optional cycle stats shortcut if configured
+        if optional_shortcuts.get('cycle_file_change_stats'):
+            html_result += f"""
             <tr>
-                <td><span class="shortcut">{mod_key}+Y</span></td>
+                <td><span class="shortcut">{optional_shortcuts['cycle_file_change_stats']}</span></td>
                 <td>Cycle stats display (None / Tabs / Sidebar)</td>
-            </tr>
+            </tr>"""
+        
+        html_result += f"""
         </table>
         
         <h3>Commit Message Tabs</h3>
@@ -478,23 +729,23 @@ class ShortcutsDialog(QDialog):
                 <th>Action</th>
             </tr>
             <tr>
-                <td><span class="shortcut">M</span></td>
+                <td><span class="shortcut">{cm_toggle_bookmark}</span></td>
                 <td>Toggle bookmark on current line</td>
             </tr>
             <tr>
-                <td><span class="shortcut">[</span></td>
+                <td><span class="shortcut">{cm_prev_bookmark}</span></td>
                 <td>Previous bookmark</td>
             </tr>
             <tr>
-                <td><span class="shortcut">]</span></td>
+                <td><span class="shortcut">{cm_next_bookmark}</span></td>
                 <td>Next bookmark</td>
             </tr>
             <tr>
-                <td><span class="shortcut">{mod_key}+N</span></td>
+                <td><span class="shortcut">{cm_take_note}</span></td>
                 <td>Take note of selected text</td>
             </tr>
             <tr>
-                <td><span class="shortcut">{mod_key}+J</span></td>
+                <td><span class="shortcut">{cm_jump_to_note}</span></td>
                 <td>Jump to note for current line</td>
             </tr>
         </table>
@@ -505,3 +756,5 @@ class ShortcutsDialog(QDialog):
             They do not have additional specialized shortcuts.
         </p>
         """
+        
+        return html_result

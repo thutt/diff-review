@@ -133,38 +133,9 @@ class ReviewNotesTab(QPlainTextEdit, ReviewNotesTabBase):
         self.original_content = notes_text
 
     def keyPressEvent(self, event):
-        """Handle key press events"""
-        key = event.key()
-        modifiers = event.modifiers()
-
-        # Font size changes - Ctrl + Plus/Minus/0
-        if modifiers & Qt.KeyboardModifier.ControlModifier:
-            if key in (Qt.Key.Key_Plus, Qt.Key.Key_Equal):
-                self.increase_font_size()
-                return
-            elif key == Qt.Key.Key_Minus:
-                self.decrease_font_size()
-                return
-            elif key == Qt.Key.Key_0:
-                self.reset_font_size()
-                return
-
-        if key == Qt.Key.Key_F5:
-            self.reload()
-            return
-
-        if ((key == Qt.Key.Key_S or key == Qt.Key.Key_F) and
-            modifiers & Qt.KeyboardModifier.ControlModifier):
-            self.note_manager.tab_widget.show_search_dialog()
-            return
-
-        if key == Qt.Key.Key_F3:
-            if modifiers & Qt.KeyboardModifier.ShiftModifier:
-                self.note_manager.tab_widget.search_mgr.find_previous()
-            else:
-                self.note_manager.tab_widget.search_mgr.find_next()
-            return
-
+        """Handle key press events - most handled by tab_manager keybindings now"""
+        # All key handling now goes through tab_manager's keybinding system
+        # Pass to parent to allow normal text editing behavior
         super().keyPressEvent(event)
 
     def search_content(self, search_text, case_sensitive, regex, search_base=True, search_modi=True):
@@ -266,14 +237,16 @@ class ReviewNotesTab(QPlainTextEdit, ReviewNotesTabBase):
 class NoteManager:
     """Manages all note-taking functionality across the application"""
     
-    def __init__(self, tab_widget):
+    def __init__(self, tab_widget, note_file):
         """
         Initialize note manager
         
         Args:
             tab_widget: Reference to DiffViewerTabWidget
+            note_file: Path to note file (from command line), or None
         """
         self.tab_widget = tab_widget
+        self.note_file = note_file
         self.notes_button = None
         self.note_file_watcher = None
         self.reload_timer = None
@@ -286,6 +259,9 @@ class NoteManager:
     
     def get_note_file(self):
         """Get the current note file path"""
+        if self.note_file:
+            return self.note_file
+        
         if self.tab_widget.global_note_file:
             return self.tab_widget.global_note_file
         
@@ -308,24 +284,39 @@ class NoteManager:
         file_dialog.setAcceptMode(QFileDialog.AcceptMode.AcceptOpen)
         file_dialog.setOption(QFileDialog.Option.DontConfirmOverwrite, True)
         file_dialog.setOption(QFileDialog.Option.DontUseNativeDialog, True)
-        
+
         if file_dialog.exec() == QFileDialog.DialogCode.Accepted:
             files = file_dialog.selectedFiles()
             if files:
                 note_file = files[0]
                 self.set_note_file(note_file)
                 return note_file
-        
+
         return None
     
     def set_note_file(self, note_file):
         """Set the note file globally across all viewers"""
+        self.note_file = note_file
         self.tab_widget.global_note_file = note_file
-        
+
         # Update all existing viewers
         for viewer in self.tab_widget.get_all_viewers():
             viewer.note_file = note_file
             viewer.update_status()
+
+        # Update commit message tab note file if it exists
+        from commit_msg_handler import CommitMessageTab
+        for i in range(self.tab_widget.tab_widget.count()):
+            widget = self.tab_widget.tab_widget.widget(i)
+            if isinstance(widget, CommitMessageTab):
+                widget.note_file = note_file
+        
+        # Update commit message handler status (which updates the labels)
+        if self.tab_widget.commit_msg_mgr:
+            self.tab_widget.commit_msg_mgr.update_status()
+
+        # Update button text to show the new note file
+        self.update_notes_button_text()
         
         # Set up file watching for auto-reload
         self.setup_note_file_watcher(note_file)
@@ -334,6 +325,13 @@ class NoteManager:
         if not self.notes_button:
             self.create_notes_button()
     
+    def update_notes_button_text(self):
+        """Update the Review Notes button text"""
+        if not self.notes_button:
+            return
+
+        self.notes_button.setText("Review Notes")
+
     def create_notes_button(self):
         """Create the Review Notes button in the sidebar (after Open All Files)"""
         self.notes_button = QPushButton("Review Notes")
@@ -352,10 +350,13 @@ class NoteManager:
                 background-color: #e0f0ff;
             }
         """)
-        
+
         # Insert at position 1 (after "Open All Files" which is at position 0)
         self.tab_widget.sidebar_widget.add_notes_button(self.notes_button)
-        
+
+        # Update button text to show note file if already set
+        self.update_notes_button_text()
+
         # Update "Open All Files" count to include review notes
         self.tab_widget.update_open_all_button_text()
     

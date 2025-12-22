@@ -1,0 +1,251 @@
+================================================================================
+                    KEYBOARD BINDINGS CONFIGURATION
+================================================================================
+
+OVERVIEW
+========
+
+The diff_review application supports customizable keyboard bindings through a
+JSON configuration file. You can remap any action to your preferred key
+combinations, including vim-style multi-key sequences.
+
+
+USAGE
+=====
+
+Pass the keybindings file path to the TabManager constructor:
+
+    tab_widget = DiffViewerTabWidget(
+        afr=afr,
+        # ... other parameters ...
+        keybindings_file="/path/to/keybindings.json"  # or None for defaults
+    )
+
+
+CONFIGURATION FILE FORMAT
+=========================
+
+The configuration file is a JSON file with a "keybindings" object mapping
+action names to lists of key sequences.
+
+Basic Structure
+---------------
+
+    {
+      "keybindings": {
+        "action_name": ["key_sequence1", "key_sequence2"],
+        "another_action": ["key"]
+      }
+    }
+
+
+KEY SEQUENCE FORMAT
+===================
+
+Key sequences are strings with the following rules:
+
+1. Single keys: "n", "T", "F5"
+2. With modifiers: "Ctrl+f", "Shift+x", "Alt+Home"
+3. Multi-key sequences: "g g", "Ctrl+g g", "Ctrl+x Ctrl+s"
+4. Special keys: "<space>", "Tab", "Return", "Escape"
+
+
+MODIFIERS
+=========
+
+- Ctrl+       Control key (all platforms)
+- Shift+      Shift key (all platforms)
+- Alt+        Alt/Option key (all platforms, but Option on Mac)
+- Cmd+ or Meta+   Command key (Mac only)
+
+Note: All modifiers are allowed on all platforms. The application does not
+reject platform-specific modifiers, but they may not work as expected on
+non-native platforms.
+
+
+CASE SENSITIVITY
+================
+
+Single letter keys are case-insensitive. To specify an uppercase letter, use
+the Shift+ modifier:
+
+- Correct: "Shift+n" for uppercase N
+- Incorrect: "N" (treated same as "n")
+
+Important: Ctrl+Letter combinations
+------------------------------------
+
+When using Ctrl with letter keys, be aware of how your keyboard works:
+
+- "Ctrl+n" = Control + n (lowercase, no Shift)
+- "Ctrl+Shift+n" = Control + Shift + n (uppercase N on most keyboards)
+
+If you type Ctrl+N on your keyboard, you're likely pressing Ctrl+Shift+n
+(because N requires Shift). Your config must match exactly what modifiers are
+pressed. There is no automatic normalization.
+
+Example:
+
+    "take_note": ["Ctrl+Shift+n"]  // Matches when you type Ctrl+N
+
+CapsLock is NOT a modifier
+---------------------------
+
+CapsLock affects which character is produced but does NOT add the Shift
+modifier. Therefore:
+
+- "Ctrl+n" with CapsLock ON still matches "Ctrl+n", NOT "Ctrl+Shift+n"
+- "Ctrl+Shift+n" requires the Shift key to be physically pressed
+
+The keybinding system only recognizes actual modifier keys (Ctrl, Shift, Alt,
+Cmd), not keyboard states like CapsLock or NumLock.
+
+
+MULTI-KEY SEQUENCES
+===================
+
+Separate multiple keys with spaces. Maximum sequence length is 15 keys.
+
+Examples:
+- "g g" - Press 'g' twice (vim-style)
+- "Ctrl+x Ctrl+s" - Press Ctrl+X, then Ctrl+S (emacs-style)
+- "g Shift+g" - Press 'g', then Shift+G
+
+
+SPECIAL KEYS
+============
+
+Use angle brackets for literal space: "<space>"
+
+Other special keys (no brackets needed):
+- Function keys: F1, F2, ... F35
+- Navigation: Home, End, PageUp, PageDown, Up, Down, Left, Right
+- Editing: Tab, Return, Enter, Backspace, Delete, Insert, Escape, Esc
+
+
+MULTIPLE BINDINGS
+=================
+
+Each action can have multiple key bindings:
+
+    {
+      "keybindings": {
+        "search": ["Ctrl+f", "Ctrl+s", "/"],
+        "top_of_file": ["g g", "T", "Home"]
+      }
+    }
+
+
+AVAILABLE ACTIONS
+=================
+
+Action                  Description                         Default Bindings
+------------------------------------------------------------------------------
+next_change             Navigate to next change region      n
+prev_change             Navigate to previous change region  p
+top_of_file             Jump to top of file                 T
+bottom_of_file          Jump to bottom of file              B
+toggle_bookmark         Toggle bookmark on current line     m
+next_bookmark           Navigate to next bookmark           ]
+prev_bookmark           Navigate to previous bookmark       [
+center_region           Center view on current region       c
+collapse_region         Collapse/expand region at cursor    x
+collapse_all            Collapse/expand all regions         Shift+x
+search                  Open search dialog                  Ctrl+f, Ctrl+s
+find_next               Find next search match              F3
+find_prev               Find previous search match          Shift+F3
+reload                  Reload current file                 F5
+take_note               Take note of selected text          Ctrl+Shift+n
+toggle_diff_map         Toggle diff map visibility          Ctrl+Shift+h
+toggle_line_numbers     Toggle line numbers                 Ctrl+Shift+l
+toggle_tab_highlight    Toggle tab character highlighting   Ctrl+Shift+t
+toggle_eol_highlight    Toggle trailing whitespace          Ctrl+Shift+e
+toggle_sidebar          Toggle file sidebar                 Ctrl+Shift+b
+focus_toggle            Switch focus between panes          f
+focus_next              Move focus to next pane             g
+shortcuts_help          Show keyboard shortcuts help        F1, Ctrl+Shift+?
+close_tab               Close current tab                   Ctrl+Shift+w
+next_tab                Switch to next tab                  Ctrl+]
+prev_tab                Switch to previous tab              Ctrl+[
+first_file              Switch to first tab                 Ctrl+1
+last_file               Switch to last tab                  Ctrl+9
+increase_font           Increase font size                  Ctrl++, Ctrl+=
+decrease_font           Decrease font size                  Ctrl+-
+reset_font              Reset font size to default          Ctrl+0
+
+
+RESERVED KEYS
+=============
+
+The following keys have hardcoded behavior and CANNOT be rebound:
+
+Key         Reason
+------------------------------------------------------------------------------
+Tab         Focus switching between base/modified panes (hardcoded)
+Ctrl+Q      Standard quit application shortcut (system level)
+
+If you attempt to bind these keys in your config file, you will receive a
+warning and the binding will be ignored.
+
+
+FALLBACK BEHAVIOR
+=================
+
+- If a keybinding is not specified in the config file, the default binding
+  is used
+- If the config file cannot be loaded, all defaults are used
+- Invalid keybinding entries are warned to stderr and ignored
+
+
+ERROR HANDLING
+==============
+
+The application prints warnings to stderr for:
+- Invalid JSON syntax
+- Missing "keybindings" section
+- Invalid key sequences
+- Duplicate bindings (last one wins)
+- Reserved key usage
+- Conflicting bindings (where one shadows another)
+
+
+EXAMPLE CONFIGURATION
+=====================
+
+See keybindings_example.json for a complete example with all actions.
+
+Basic example:
+
+    {
+      "keybindings": {
+        "next_change": ["n"],
+        "prev_change": ["p"],
+        "top_of_file": ["g g", "T"],
+        "bottom_of_file": ["Shift+g", "B"],
+        "search": ["/", "Ctrl+f"]
+      }
+    }
+
+
+IMPLEMENTATION NOTES
+====================
+
+- Multi-key sequences wait indefinitely for the next key (no timeout)
+- Sequence matching is greedy - complete matches execute immediately
+- Partial matches keep the sequence active waiting for more keys
+- Invalid sequences reset the state and pass through to default handling
+
+
+CONFLICT DETECTION
+==================
+
+The system warns about two types of conflicts:
+
+1. Prefix Shadowing: When a complete binding prevents a longer sequence from
+   ever completing. Example: "g" for one action and "g g" for another. The
+   single "g" will always trigger first.
+
+2. Duplicate Sequences: When the same key sequence is assigned to multiple
+   actions. The last one loaded wins.
+
+All conflicts are reported to stderr during startup.

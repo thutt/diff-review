@@ -40,7 +40,7 @@ class HTMLDelegate(QStyledItemDelegate):
         
         doc = QTextDocument()
         doc.setHtml(html_text)
-        doc.setTextWidth(options.rect.width())
+        # Don't set text width to allow horizontal scrolling without wrapping
         
         # Handle selection highlighting
         if is_selected:
@@ -58,7 +58,7 @@ class HTMLDelegate(QStyledItemDelegate):
         
         doc = QTextDocument()
         doc.setHtml(options.text)
-        doc.setTextWidth(options.rect.width())
+        # Don't set text width to allow proper size calculation without wrapping
         
         return doc.size().toSize()
 
@@ -255,6 +255,8 @@ class SearchResultDialog(QDialog):
         # Results list
         self.result_list = QListWidget()
         self.result_list.setTextElideMode(Qt.TextElideMode.ElideNone)  # Don't truncate text
+        self.result_list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.result_list.setWordWrap(False)
         self.result_list.setItemDelegate(HTMLDelegate())  # Enable HTML rendering
         self.result_list.itemDoubleClicked.connect(self.on_select)
         layout.addWidget(self.result_list)
@@ -407,6 +409,10 @@ class SearchResultDialog(QDialog):
         
         # Populate results list
         for tab_index, tab_title, source_type, line_num, line_idx, line_text, char_pos in results:
+            # Get the tab widget and its file_class (FileButton)
+            tab_widget = self.parent_tab_widget.tab_widget.widget(tab_index)
+            display_path = tab_widget.file_class.tab_relpath()
+            
             # Determine color based on source type
             if source_type == 'base':
                 color = '#2a70c9'  # Darker blue
@@ -419,9 +425,9 @@ class SearchResultDialog(QDialog):
             
             # Format location prefix
             if self.search_all_tabs:
-                location_prefix = f'<span style="color: {color};">[{tab_title}:{line_num}]</span>'
+                location_prefix = f'<span style="color: {color};">[{display_path}:{line_num}]</span>'
             else:
-                location_prefix = f'<span style="color: {color};">[{tab_title}:{line_num}]</span>'
+                location_prefix = f'<span style="color: {color};">[{display_path}:{line_num}]</span>'
             
             item = QListWidgetItem()
             

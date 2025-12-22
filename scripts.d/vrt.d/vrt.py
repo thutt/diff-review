@@ -85,6 +85,9 @@ class FileButton (object):
         label = self.generate_label(self.stats_tab_)
         return label
 
+    def tab_relpath(self):
+        return self.modi_rel_path_
+
     def make_viewer(self, base, modi, note):
         viewer = diff_viewer.DiffViewer(base, modi, note,
                                         self.options_.arg_max_line_length,
@@ -173,7 +176,9 @@ def generate(options, note):
                                                          options.arg_tab_label_stats,
                                                          options.arg_file_label_stats,
                                                          options.editor_class_,
-                                                         options.editor_theme_)
+                                                         options.editor_theme_,
+                                                         options.arg_keybindings,
+                                                         note)
 
     if options.dossier_["commit_msg"] is not None:
         tab_widget.add_commit_msg(options.dossier_["commit_msg"])
