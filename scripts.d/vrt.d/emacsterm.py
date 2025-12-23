@@ -46,6 +46,28 @@ class EmacsWidget(TerminalWidget):
         self.timer.timeout.connect(self.read_output)
         self.timer.start(50)
 
+    def save_buffer(self):
+        """Save the current buffer by sending Ctrl-G Ctrl-G Ctrl-X Ctrl-S"""
+        if self.master_fd is not None and self.process_pid is not None:
+            import time
+            os.write(self.master_fd, b'\x07')  # Ctrl-G
+            time.sleep(0.05)  # 50ms delay
+            os.write(self.master_fd, b'\x07')  # Ctrl-G
+            time.sleep(0.05)
+            os.write(self.master_fd, b'\x18')  # Ctrl-X
+            time.sleep(0.05)
+            os.write(self.master_fd, b'\x13')  # Ctrl-S
+            time.sleep(0.05)
+
+    def quit_editor(self):
+        """Quit emacs by sending Ctrl-X Ctrl-C"""
+        if self.master_fd is not None and self.process_pid is not None:
+            import time
+            os.write(self.master_fd, b'\x18')  # Ctrl-X
+            time.sleep(0.05)
+            os.write(self.master_fd, b'\x03')  # Ctrl-C
+            time.sleep(0.05)
+
     def center_cursor(self):
         """Center the cursor in the emacs window by sending Ctrl-G, Esc, x, recenter, Enter"""
         if self.master_fd is not None and self.process_pid is not None:
@@ -101,12 +123,3 @@ class EmacsWidget(TerminalWidget):
         else:
             super().mousePressEvent(event)
 
-    def closeEvent(self, event):
-        if self.process_pid is not None:
-            try:
-                os.kill(self.process_pid, signal.SIGTERM)
-            except ProcessLookupError:
-                pass
-        if self.master_fd is not None:
-            os.close(self.master_fd)
-        super().closeEvent(event)

@@ -10,6 +10,7 @@ with a sidebar for file selection.
 """
 import os
 import sys
+import signal
 from PyQt6.QtWidgets import (QApplication, QTabWidget, QMainWindow, QHBoxLayout,
                               QVBoxLayout, QWidget, QPushButton, QSplitter,
                               QPlainTextEdit, QMenu, QMessageBox, QProgressDialog, QFileDialog)
@@ -31,6 +32,10 @@ import keybindings
 from commit_msg_handler import CommitMessageTab
 from note_manager import ReviewNotesTab, ReviewNotesTabBase
 from diff_viewer import DiffViewer
+from emacsterm import EmacsWidget
+from vimterm import VimWidget
+from editerm import TerminalWidget
+from editerm import TerminalWidget
 
 
 class OverlayWidget(QWidget):
@@ -318,6 +323,10 @@ class DiffViewerTabWidget(QMainWindow):
         self.sidebar_widget = file_tree_sidebar.FileTreeSidebar(self)
         sidebar_layout.addWidget(self.sidebar_widget)
         self.sidebar_overlay = self.sidebar_container.overlay
+
+        # Add review notes button to sidebar if note file was provided
+        if note_file:
+            self.note_mgr.create_notes_button()
 
         # Keep references for backward compatibility
         self.open_all_button = self.sidebar_widget.open_all_button
@@ -923,6 +932,13 @@ class DiffViewerTabWidget(QMainWindow):
 
     def on_tab_changed(self, index):
         """Handle tab change to update sidebar button states"""
+        # Save previous tab's buffer when switching away
+        if self.last_content_tab_index is not None and self.last_content_tab_index >= 0:
+            if self.last_content_tab_index < self.tab_widget.count():
+                prev_widget = self.tab_widget.widget(self.last_content_tab_index)
+                if prev_widget is not None:
+                    prev_widget.save_buffer()
+
         self.update_button_states()
         self.update_view_menu_states()
 
@@ -1066,6 +1082,22 @@ class DiffViewerTabWidget(QMainWindow):
         if index >= 0 and index < self.tab_widget.count():
             widget = self.tab_widget.widget(index)
 
+            # Save buffer before closing
+            if widget is not None:
+                widget.save_buffer()
+                # For external editors, also quit the editor cleanly
+                if isinstance(widget, TerminalWidget):
+                    widget.quit_editor()
+                    import time
+                    time.sleep(0.15)  # Give editor time to exit
+                    # Reap the child process to prevent zombies
+                    if widget.process_pid is not None:
+                        try:
+                            os.waitpid(widget.process_pid, os.WNOHANG)
+                            widget.process_pid = None  # Prevent double-reap
+                        except (ChildProcessError, OSError):
+                            pass
+
             # Clean up file watcher if this is a DiffViewer
             if hasattr(widget, 'base_file'):
                 self.cleanup_file_watcher(widget)
@@ -1077,8 +1109,8 @@ class DiffViewerTabWidget(QMainWindow):
             if isinstance(widget, CommitMessageTab):
                 if 'commit_msg' in self.file_to_tab_index:
                     del self.file_to_tab_index['commit_msg']
-            # Check if this is the review notes tab
-            elif isinstance(widget, ReviewNotesTabBase):
+            # Check if this is the review notes tab (built-in or external editor)
+            elif isinstance(widget, ReviewNotesTabBase) or (isinstance(widget, TerminalWidget) and getattr(widget, 'is_review_notes', False)):
                 if 'review_notes' in self.file_to_tab_index:
                     del self.file_to_tab_index['review_notes']
             # Regular file tab
@@ -1099,6 +1131,10 @@ class DiffViewerTabWidget(QMainWindow):
                     widget.tab_index = i
 
             self.tab_widget.removeTab(index)
+
+            # Delete the widget to prevent dangling references
+            if widget is not None:
+                widget.deleteLater()
 
             # Update button states after closing
             self.update_button_states()

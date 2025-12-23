@@ -171,6 +171,39 @@ class TerminalWidget(QTextEdit, TabContentBase):
         """Terminal content is not searchable via the normal search mechanism"""
         return []
 
+    def quit_editor(self):
+        """Send quit command to editor - must be implemented by subclasses"""
+        raise NotImplementedError("Subclasses must implement quit_editor()")
+
+    def closeEvent(self, event):
+        """Handle tab close - save and quit if process still alive"""
+        if self.process_pid is not None:
+            try:
+                # Check if process is still alive
+                os.kill(self.process_pid, 0)
+                # Process is alive - user closed tab, not editor
+                # Save and quit cleanly
+                self.save_buffer()
+                self.quit_editor()
+                import time
+                time.sleep(0.1)  # Give editor time to exit
+                # If process is still running, kill it
+                try:
+                    os.kill(self.process_pid, signal.SIGTERM)
+                except ProcessLookupError:
+                    pass
+            except ProcessLookupError:
+                # Process already dead - user closed from within editor
+                pass
+            except OSError:
+                pass
+        if self.master_fd is not None:
+            try:
+                os.close(self.master_fd)
+            except OSError:
+                pass
+        super().closeEvent(event)
+
     def set_master_fd(self, fd):
         self.master_fd = fd
         self.update_terminal_size()

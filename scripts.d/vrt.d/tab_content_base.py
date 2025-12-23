@@ -66,3 +66,10 @@ class TabContentBase:
             where side is one of: 'commit_msg', 'review_notes', 'base', 'modified'
         """
         return []
+
+    def save_buffer(self):
+        """
+        Save the buffer contents if applicable.
+        Subclasses must implement this method.
+        """
+        raise NotImplementedError("Subclasses must implement save_buffer()")

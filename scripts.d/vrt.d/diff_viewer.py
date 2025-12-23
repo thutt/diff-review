@@ -1483,6 +1483,10 @@ class DiffViewer(QWidget, TabContentBase):
         """Set Qt focus to the base text widget"""
         self.base_text.setFocus()
 
+    def save_buffer(self):
+        """Diff viewer tabs have nothing to save"""
+        pass
+
     def search_content(self, search_text, case_sensitive, regex, search_base=True, search_modi=True):
         """
         Search for text in diff viewer.

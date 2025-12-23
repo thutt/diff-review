@@ -44,6 +44,21 @@ class VimWidget(TerminalWidget):
         self.timer.timeout.connect(self.read_output)
         self.timer.start(50)
 
+    def save_buffer(self):
+        """Save the current buffer by sending :w<Enter>"""
+        if self.master_fd is not None and self.process_pid is not None:
+            os.write(self.master_fd, b'\x1b')  # Esc to ensure normal mode
+            os.write(self.master_fd, b':w\r')  # :w and Enter
+
+    def quit_editor(self):
+        """Quit vim by sending :q!"""
+        if self.master_fd is not None and self.process_pid is not None:
+            import time
+            os.write(self.master_fd, b'\x1b')  # Esc
+            time.sleep(0.05)
+            os.write(self.master_fd, b':q!\r')  # :q! and Enter
+            time.sleep(0.05)
+
     def keyPressEvent(self, event):
         if self.master_fd is not None and self.process_pid is not None:
             modifiers = event.modifiers()
@@ -90,12 +105,3 @@ class VimWidget(TerminalWidget):
         else:
             super().mousePressEvent(event)
 
-    def closeEvent(self, event):
-        if self.process_pid is not None:
-            try:
-                os.kill(self.process_pid, signal.SIGTERM)
-            except ProcessLookupError:
-                pass
-        if self.master_fd is not None:
-            os.close(self.master_fd)
-        super().closeEvent(event)

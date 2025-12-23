@@ -114,6 +114,10 @@ class ReviewNotesTab(QPlainTextEdit, ReviewNotesTabBase):
         """Set Qt focus to self (ReviewNotesTab is itself the text widget)"""
         self.setFocus()
 
+    def save_buffer(self):
+        """Review notes tabs have nothing to save"""
+        pass
+
     def reload(self):
         """Reload notes from file, prompting if there are unsaved changes"""
         if self.has_unsaved_changes():

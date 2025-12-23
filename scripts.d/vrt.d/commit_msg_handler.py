@@ -178,6 +178,10 @@ class CommitMessageTab(QWidget, TabContentBase):
         """Set Qt focus to the text widget"""
         self.text_widget.setFocus()
 
+    def save_buffer(self):
+        """Commit message tabs have nothing to save"""
+        pass
+
     def keyPressEvent(self, event):
         """Handle key press events - most handled by tab_manager keybindings now"""
         # All key handling now goes through tab_manager's keybinding system
