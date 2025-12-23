@@ -253,7 +253,6 @@ class DiffViewerTabWidget(QMainWindow):
         # Global view state for all tabs
         self.diff_map_visible = show_diff_map  # Initial state for diff map
         self.line_numbers_visible = show_line_numbers  # Initial state for line numbers
-        self.global_note_file = note_file  # Global note file for all viewers
 
         # Create view state manager
         self.view_state_mgr = view_state_manager.ViewStateManager(
@@ -608,17 +607,6 @@ class DiffViewerTabWidget(QMainWindow):
         """Take note from commit message"""
         self.commit_msg_mgr.take_commit_msg_note(text_widget)
 
-    def get_note_file(self):
-        """Get note file - prefer global, fallback to any viewer"""
-        if self.global_note_file:
-            return self.global_note_file
-
-        viewers = self.get_all_viewers()
-        for viewer in viewers:
-            if viewer.note_file:
-                return viewer.note_file
-        return None
-
     def open_note_file(self):
         """Open a note file using file picker dialog"""
         self.note_mgr.prompt_for_note_file()
@@ -668,7 +656,7 @@ class DiffViewerTabWidget(QMainWindow):
             files_to_open.append(('commit_msg', None))
 
         # Add review notes if note file is configured and not already open
-        if self.global_note_file and 'review_notes' not in self.file_to_tab_index:
+        if self.note_mgr.get_note_file() and 'review_notes' not in self.file_to_tab_index:
             files_to_open.append(('review_notes', None))
 
         # Check which files aren't open yet
@@ -830,14 +818,8 @@ class DiffViewerTabWidget(QMainWindow):
         # Apply global view state to new viewer
         self.view_state_mgr.apply_to_viewer(diff_viewer)
 
-        # Apply global note file if set
-        if self.global_note_file:
-            diff_viewer.note_file = self.global_note_file
-        elif diff_viewer.note_file:
-            # Viewer has a note file (from --note-file) but global doesn't know about it
-            # Notify NoteManager to create button and set up file watching
-            self.note_mgr.set_note_file(diff_viewer.note_file)
-            self.global_note_file = diff_viewer.note_file
+        # Set viewer's note file for display in status bar
+        diff_viewer.note_file = self.note_mgr.get_note_file()
 
         # Set up file watching for this viewer
         self.setup_file_watcher(diff_viewer)

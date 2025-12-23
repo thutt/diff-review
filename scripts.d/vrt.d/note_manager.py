@@ -239,7 +239,12 @@ class ReviewNotesTab(QPlainTextEdit, ReviewNotesTabBase):
 
 
 class NoteManager:
-    """Manages all note-taking functionality across the application"""
+    """Manages all note-taking functionality across the application
+    
+    INVARIANT: The note file pathname is ONLY stored in this module.
+    self.note_file is either None (no note file set) or a string (pathname to note file).
+    No other module should store or cache the note file pathname.
+    """
     
     def __init__(self, tab_widget, note_file):
         """
@@ -249,6 +254,9 @@ class NoteManager:
             tab_widget: Reference to DiffViewerTabWidget
             note_file: Path to note file (from command line), or None
         """
+        assert note_file is None or isinstance(note_file, str), \
+            "note_file must be None or a string"
+        
         self.tab_widget = tab_widget
         self.note_file = note_file
         self.notes_button = None
@@ -263,17 +271,7 @@ class NoteManager:
     
     def get_note_file(self):
         """Get the current note file path"""
-        if self.note_file:
-            return self.note_file
-        
-        if self.tab_widget.global_note_file:
-            return self.tab_widget.global_note_file
-        
-        viewers = self.tab_widget.get_all_viewers()
-        for viewer in viewers:
-            if viewer.note_file:
-                return viewer.note_file
-        return None
+        return self.note_file
     
     def prompt_for_note_file(self):
         """
@@ -299,25 +297,11 @@ class NoteManager:
         return None
     
     def set_note_file(self, note_file):
-        """Set the note file globally across all viewers"""
-        self.note_file = note_file
-        self.tab_widget.global_note_file = note_file
-
-        # Update all existing viewers
-        for viewer in self.tab_widget.get_all_viewers():
-            viewer.note_file = note_file
-            viewer.update_status()
-
-        # Update commit message tab note file if it exists
-        from commit_msg_handler import CommitMessageTab
-        for i in range(self.tab_widget.tab_widget.count()):
-            widget = self.tab_widget.tab_widget.widget(i)
-            if isinstance(widget, CommitMessageTab):
-                widget.note_file = note_file
+        """Set the note file"""
+        assert note_file is None or isinstance(note_file, str), \
+            "note_file must be None or a string"
         
-        # Update commit message handler status (which updates the labels)
-        if self.tab_widget.commit_msg_mgr:
-            self.tab_widget.commit_msg_mgr.update_status()
+        self.note_file = note_file
 
         # Update button text to show the new note file
         self.update_notes_button_text()

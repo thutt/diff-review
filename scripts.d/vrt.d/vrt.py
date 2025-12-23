@@ -88,8 +88,8 @@ class FileButton (object):
     def tab_relpath(self):
         return self.modi_rel_path_
 
-    def make_viewer(self, base, modi, note):
-        viewer = diff_viewer.DiffViewer(base, modi, note,
+    def make_viewer(self, base, modi):
+        viewer = diff_viewer.DiffViewer(base, modi,
                                         self.options_.arg_max_line_length,
                                         show_diff_map(self.options_),
                                         show_line_numbers(self.options_))
@@ -118,7 +118,7 @@ class FileButton (object):
         #
         base   = posixpath.join(root_path, "base.d", self.base_rel_path_)
         modi   = posixpath.join(root_path, "modi.d", self.modi_rel_path_)
-        viewer = self.make_viewer(base, modi, self.options_.arg_note)
+        viewer = self.make_viewer(base, modi)
         tab_widget.add_viewer(viewer)
 
 
