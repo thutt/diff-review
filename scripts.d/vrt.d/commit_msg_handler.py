@@ -147,6 +147,43 @@ class CommitMessageTab(QWidget, TabContentBase):
         font.setPointSize(self.current_font_size)
         self.text_widget.setFont(font)
 
+    def take_note(self):
+        """Take a note from the selected text in the commit message"""
+        cursor = self.text_widget.textCursor()
+        if not cursor.hasSelection():
+            return
+
+        selection_start = cursor.selectionStart()
+        selection_end = cursor.selectionEnd()
+
+        doc = self.text_widget.document()
+        start_block = doc.findBlock(selection_start)
+        end_block = doc.findBlock(selection_end)
+
+        start_line = start_block.blockNumber()
+        end_line = end_block.blockNumber()
+
+        if selection_end == end_block.position():
+            end_line -= 1
+
+        selected_texts = []
+        for line_num in range(start_line, end_line + 1):
+            block = doc.findBlockByNumber(line_num)
+            if block.isValid():
+                selected_texts.append(block.text())
+
+        if not selected_texts:
+            return
+
+        tab_widget = self.commit_msg_handler.tab_widget
+        if not tab_widget:
+            return
+
+        note_mgr = tab_widget.note_mgr
+        line_range = (start_line, end_line + 1)
+        if note_mgr.take_note("Commit Message", "commit_msg", line_range, selected_texts, is_commit_msg=True):
+            pass
+
     def reload(self):
         """Reload commit message from file"""
         commit_msg_text = self.commit_msg_handler.load_commit_msg_text()
