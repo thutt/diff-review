@@ -36,7 +36,6 @@ class CommitMessageTab(QWidget, TabContentBase):
         super().__init__()
         self.commit_msg_handler = commit_msg_handler
         self.current_font_size = 12
-        self.note_file = None  # Will be set by tab manager
 
         # Create main layout
         layout = QVBoxLayout(self)
@@ -115,11 +114,7 @@ class CommitMessageTab(QWidget, TabContentBase):
         self.bookmarks_label = QLabel("Bookmarks: 0")
         self.bookmarks_label.setStyleSheet("color: #5c4a3a; font-weight: bold;")
         status_layout.addWidget(self.bookmarks_label)
-        
-        self.notes_label = QLabel("")
-        self.notes_label.setStyleSheet("color: #5c4a3a; font-weight: bold;")
-        status_layout.addWidget(self.notes_label)
-        
+
         status_layout.addStretch()
 
         # Add widgets to layout
@@ -127,16 +122,8 @@ class CommitMessageTab(QWidget, TabContentBase):
         layout.addWidget(status_widget)
 
     def update_status(self):
-        """Update status bar with current bookmark count and note file"""
+        """Update status bar with current bookmark count"""
         self.bookmarks_label.setText(f"Bookmarks: {len(self.commit_msg_handler.bookmarked_lines)}")
-
-        note_file = self.commit_msg_handler.tab_widget.global_note_file
-        if note_file:
-            import os
-            note_filename = os.path.basename(note_file)
-            self.notes_label.setText(f"Note file: {note_filename}")
-        else:
-            self.notes_label.setText("")
 
     def increase_font_size(self):
         """Increase font size in commit message"""
@@ -318,10 +305,6 @@ class CommitMsgHandler:
 
         # Create commit message tab widget
         tab_widget = CommitMessageTab(commit_msg_text, self)
-
-        # Set note file from global if available
-        if self.tab_widget.global_note_file:
-            tab_widget.note_file = self.tab_widget.global_note_file
 
         # Store reference to tab for status updates
         self.commit_msg_tab = tab_widget
