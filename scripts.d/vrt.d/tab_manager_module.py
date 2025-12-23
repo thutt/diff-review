@@ -323,10 +323,6 @@ class DiffViewerTabWidget(QMainWindow):
         sidebar_layout.addWidget(self.sidebar_widget)
         self.sidebar_overlay = self.sidebar_container.overlay
 
-        # Add review notes button to sidebar if note file was provided
-        if note_file:
-            self.note_mgr.create_notes_button()
-
         # Keep references for backward compatibility
         self.open_all_button = self.sidebar_widget.open_all_button
         self.button_layout = None  # No longer used
@@ -1999,6 +1995,13 @@ class DiffViewerTabWidget(QMainWindow):
 
     def run(self):
         """Show the window and start the application event loop"""
+
+        # Add review notes button to sidebar if note file was provided.
+        # It is done here to ensure it is last.
+        note_file = self.note_mgr.get_note_file()
+        if note_file is not None:
+            self.note_mgr.create_notes_button()
+
         # Set initial View menu states
         self.update_view_menu_states()
         # Apply initial focus tinting (sidebar focused, content dimmed)
