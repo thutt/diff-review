@@ -733,7 +733,7 @@ class DiffViewerTabWidget(QMainWindow):
             # Verify tab still exists (might have been closed)
             if 0 <= tab_index < self.tab_widget.count():
                 widget = self.tab_widget.widget(tab_index)
-                if widget.file_class == file_class:
+                if isinstance(widget, DiffViewer) and widget.file_class == file_class:
                     # Tab exists, switch to it
                     self.tab_widget.setCurrentIndex(tab_index)
                     return
@@ -1104,11 +1104,19 @@ class DiffViewerTabWidget(QMainWindow):
 
             # Update tab_index in remaining viewers
             for i in range(self.tab_widget.count()):
-                widget = self.tab_widget.widget(i)
-                if isinstance(widget, DiffViewer):
-                    widget.tab_index = i
+                w = self.tab_widget.widget(i)
+                if isinstance(w, DiffViewer):
+                    w.tab_index = i
 
             self.tab_widget.removeTab(index)
+
+            # Clear last_content_tab_index if we closed that tab
+            # (prevents save_buffer being called on a new tab at the same index)
+            if self.last_content_tab_index == index:
+                self.last_content_tab_index = None
+            elif self.last_content_tab_index is not None and self.last_content_tab_index > index:
+                # Adjust for shifted indices
+                self.last_content_tab_index -= 1
 
             # Delete the widget to prevent dangling references
             if widget is not None:
