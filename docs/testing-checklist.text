@@ -1,0 +1,91 @@
+This documentation is a living description of what needs to be tested
+after Claude (or a human) make a change to the system.
+
+
+Use these change ranges:
+
+From diff-review: dr -c ba9960b..HEAD
+                  This repository
+
+From Linux      : dr -r linux  -c dee4ef0ebe4d^..HEAD
+                  git clone https://github.com/torvalds/linux.git
+
+From emacs      : dr -c 4418a37c5df^..cb17a8bbf39
+                  git clone https://github.com/emacs-mirror/emacs.git
+
+For each of { Linux, MacOS, Windows}:
+
+o Ensure the 'Highlighting' message in the Diff Viewer tab status bar
+  is displayed fully when a source file is being re-rendered.
+
+o Ensure {default.json, vim.json} keybindings continue to work.
+
+  Claude has a history of breaking keybindings, and adding new keys on
+  its own.
+
+  Use the Shortcuts Dialog (F1) to determine the current keybindings
+  to test.  If something doesn't work, it's a defect and a ticket
+  should be opened.
+
+
+o Sidebar
+
+  + Focus must remain on sidebar when no content tabs are open
+  + If there is a commit message, it must be first.
+  + If there is a review notes file, it must be last.
+
+
+o Ensure Search functionality works
+
+  + Search works across all open tabs, except Emacs & Vim note editors.
+
+  + These searches must be tested:
+
+     : Search for a regular expression
+
+     : Search for straight text.
+
+     : Search all tabs.
+
+     : Search current tab.
+
+    When these are tested, give examples and expected results.
+
+    The search functionality does not work through Terminal-based
+    editors.  This is as-designed.  But, perhaps grep can be used on
+    the file, and results shown.  Selection of grep results wouldn't
+    go to the right line, but it would be better than flying blind.
+
+  Select elements of search results, and make sure the result is focused.
+
+o MacOS Dark Mode
+
+  TBD
+
+o URL system
+  + Http.  Port 80.
+  + Https.  Port 443.
+  + Keyring.
+
+
+  TBD
+
+
+o Emacs & Vim Note Editors
+
+  There has been some difficulty with closing the process, and
+  auto-saving the files.
+
+  The file should be written when the tab is closed with Ctrl-W and
+  with the close button.
+
+  When the tab is switched away, the file should be saved.  This works
+  in both Vim and Emacs by sending keyboard characters to save the
+  file.
+
+  When new notes are appended, the file will need to be reloaded when
+  the Emacs & Vim tabs are selected.  Perhaps this should be
+  automated?
+
+  Most keyboard commands will be sent to the editor, but Ctrl-B,
+  Ctrl-\ and F1 are definitely not.  This is as-designed.
