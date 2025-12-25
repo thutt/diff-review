@@ -58,9 +58,22 @@ o Ensure Search functionality works
 
   Select elements of search results, and make sure the result is focused.
 
-o MacOS Dark Mode
+o MacOS
 
-  TBD
+  + Dark Mode
+
+    TBD
+
+  + Load all files
+
+    Using the Linux change range, poke the Open All Files button and
+    make sure that the progress dialog does not march off the right of
+    the screen.
+
+o Terminal Review Note Editors
+
+  Ensure that the system does not require pyte, unless one of the
+  terminal-based note editors has been specified on the command line.
 
 o URL system
   + Http.  Port 80.

@@ -73,3 +73,28 @@ class TabContentBase:
         Subclasses must implement this method.
         """
         raise NotImplementedError("Subclasses must implement save_buffer()")
+
+    def is_terminal_widget(self):
+        """
+        Check if this is a terminal-based widget (vim/emacs).
+
+        Returns:
+            bool: True if this is a terminal widget, False otherwise
+        """
+        return False
+
+    def quit_editor(self):
+        """
+        Quit the external editor if applicable.
+        Only meaningful for terminal-based widgets.
+        """
+        pass
+
+    def get_process_pid(self):
+        """
+        Get the process ID of any child process.
+
+        Returns:
+            int or None: The process ID, or None if no child process
+        """
+        return None

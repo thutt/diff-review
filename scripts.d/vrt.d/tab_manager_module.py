@@ -31,11 +31,8 @@ import file_tree_sidebar
 import keybindings
 from commit_msg_handler import CommitMessageTab
 from note_manager import ReviewNotesTab, ReviewNotesTabBase
+from tab_content_base import TabContentBase
 from diff_viewer import DiffViewer
-from emacsterm import EmacsWidget
-from vimterm import VimWidget
-from editerm import TerminalWidget
-from editerm import TerminalWidget
 
 
 class OverlayWidget(QWidget):
@@ -1064,15 +1061,15 @@ class DiffViewerTabWidget(QMainWindow):
             if widget is not None:
                 widget.save_buffer()
                 # For external editors, also quit the editor cleanly
-                if isinstance(widget, TerminalWidget):
+                if widget.is_terminal_widget():
                     widget.quit_editor()
                     import time
                     time.sleep(0.15)  # Give editor time to exit
                     # Reap the child process to prevent zombies
-                    if widget.process_pid is not None:
+                    process_pid = widget.get_process_pid()
+                    if process_pid is not None:
                         try:
-                            os.waitpid(widget.process_pid, os.WNOHANG)
-                            widget.process_pid = None  # Prevent double-reap
+                            os.waitpid(process_pid, os.WNOHANG)
                         except (ChildProcessError, OSError):
                             pass
 
@@ -1088,7 +1085,7 @@ class DiffViewerTabWidget(QMainWindow):
                 if 'commit_msg' in self.file_to_tab_index:
                     del self.file_to_tab_index['commit_msg']
             # Check if this is the review notes tab (built-in or external editor)
-            elif isinstance(widget, ReviewNotesTabBase) or (isinstance(widget, TerminalWidget) and getattr(widget, 'is_review_notes', False)):
+            elif isinstance(widget, ReviewNotesTabBase) or (widget.is_terminal_widget() and getattr(widget, 'is_review_notes', False)):
                 if 'review_notes' in self.file_to_tab_index:
                     del self.file_to_tab_index['review_notes']
             # Regular file tab
@@ -1786,8 +1783,7 @@ class DiffViewerTabWidget(QMainWindow):
         if event.type() == event.Type.KeyPress:
             # Only process events for widgets that are part of our application
             # Let dialogs and other Qt widgets handle their own events
-            from editerm import TerminalWidget
-            
+
             is_our_widget = False
             widget = obj
             while widget is not None:
@@ -1804,7 +1800,7 @@ class DiffViewerTabWidget(QMainWindow):
                     is_our_widget = True
                     break
                 # Check if this is a terminal widget
-                if isinstance(widget, TerminalWidget):
+                if isinstance(widget, TabContentBase) and widget.is_terminal_widget():
                     is_our_widget = True
                     break
                 widget = widget.parent()
@@ -1867,9 +1863,8 @@ class DiffViewerTabWidget(QMainWindow):
             # If we reach here, the keyboard event is allowed for the current focus mode
 
             # Check if current widget is a terminal widget
-            from editerm import TerminalWidget
             current_widget = self.tab_widget.currentWidget()
-            is_terminal = isinstance(current_widget, TerminalWidget)
+            is_terminal = current_widget is not None and current_widget.is_terminal_widget()
 
             # Check if this is the commit message widget
             is_commit_msg = isinstance(obj.parent(), CommitMessageTab) if obj.parent() else False

@@ -163,6 +163,14 @@ class TerminalWidget(QTextEdit, TabContentBase):
         """Terminal has no concept of unsaved changes"""
         return False
 
+    def is_terminal_widget(self):
+        """This is a terminal-based widget"""
+        return True
+
+    def get_process_pid(self):
+        """Return the child process ID"""
+        return self.process_pid
+
     def centerCursor(self):
         """External editors manage their own cursor positioning"""
         pass
