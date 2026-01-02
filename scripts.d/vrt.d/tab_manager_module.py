@@ -1156,8 +1156,24 @@ class DiffViewerTabWidget(QMainWindow):
                 self.close_tab(i)
                 break
 
+    def _should_block_shortcut_for_terminal(self):
+        """Check if a shortcut should be blocked because a terminal is focused without escape prefix.
+
+        Returns True if the current widget is a terminal, focus is on content,
+        and the escape prefix is not active.
+        """
+        current_widget = self.tab_widget.currentWidget()
+        if (current_widget is not None and
+                current_widget.is_terminal_widget() and
+                self.focus_mode == 'content' and
+                not current_widget.is_escape_prefix_active()):
+            return True
+        return False
+
     def next_tab(self):
         """Navigate to next tab (left-to-right, wraps around)"""
+        if self._should_block_shortcut_for_terminal():
+            return
         if self.tab_widget.count() > 0:
             current = self.tab_widget.currentIndex()
             next_index = (current + 1) % self.tab_widget.count()
@@ -1169,6 +1185,8 @@ class DiffViewerTabWidget(QMainWindow):
 
     def prev_tab(self):
         """Navigate to previous tab (right-to-left, wraps around)"""
+        if self._should_block_shortcut_for_terminal():
+            return
         if self.tab_widget.count() > 0:
             current = self.tab_widget.currentIndex()
             prev_index = (current - 1) % self.tab_widget.count()
