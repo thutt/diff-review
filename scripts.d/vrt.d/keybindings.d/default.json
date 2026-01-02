@@ -11,7 +11,14 @@
     "search": ["Ctrl+f", "Ctrl+s"],
     "find_next": ["F3"],
     "find_prev": ["Shift+F3"],
-    "cycle_file_change_stats": ["Ctrl+y"]
+    "cycle_file_change_stats": ["Ctrl+y"],
+    "toggle_focus_mode": ["Ctrl+\\"],
+    "quit_application": ["Ctrl+q"]
+  },
+  "terminal": {
+    "terminal_escape": ["Ctrl+;"],
+    "next_bookmark": ["]"],
+    "prev_bookmark": ["["]
   },
   "diff": {
     "next_change": ["n"],

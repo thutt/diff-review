@@ -11,7 +11,14 @@
     "search": ["/"],
     "find_next": ["n"],
     "find_prev": ["Shift+n"],
-    "cycle_file_change_stats": ["Ctrl+y"]
+    "cycle_file_change_stats": ["Ctrl+y"],
+    "toggle_focus_mode": ["Ctrl+\\"],
+    "quit_application": ["Ctrl+q"]
+  },
+  "terminal": {
+    "terminal_escape": ["Ctrl+;"],
+    "next_bookmark": ["]"],
+    "prev_bookmark": ["["]
   },
   "diff": {
     "next_change": ["Ctrl+n"],
@@ -32,6 +39,7 @@
     "toggle_line_numbers": ["Ctrl+l"],
     "toggle_tab_highlight": ["Ctrl+t"],
     "toggle_eol_highlight": ["Ctrl+e"],
+    "toggle_intraline": ["Ctrl+i"],
     "cursor_up": ["k"],
     "cursor_down": ["j"],
     "cursor_left": ["h"],
@@ -44,7 +52,6 @@
     "select_right": ["Shift+l"],
     "select_pageup": ["Shift+pageup"],
     "select_pagedown": ["Shift+pagedown"]
-
   },
   "note": {
     "reload": ["F5"],
@@ -53,7 +60,13 @@
     "cursor_left": ["left"],
     "cursor_right": ["right"],
     "cursor_pageup": ["pageup"],
-    "cursor_pagedown": ["pagedown"]
+    "cursor_pagedown": ["pagedown"],
+    "select_up": ["Shift+up"],
+    "select_down": ["Shift+down"],
+    "select_left": ["Shift+left"],
+    "select_right": ["Shift+right"],
+    "select_pageup": ["Shift+pageup"],
+    "select_pagedown": ["Shift+pagedown"]
   },
   "commit_msg": {
     "take_note": ["Ctrl+Shift+n"],
@@ -67,6 +80,12 @@
     "cursor_left": ["h"],
     "cursor_right": ["l"],
     "cursor_pageup": ["pageup"],
-    "cursor_pagedown": ["pagedown", "<space>"]
+    "cursor_pagedown": ["pagedown", "<space>"],
+    "select_up": ["Shift+up"],
+    "select_down": ["Shift+down"],
+    "select_left": ["Shift+left"],
+    "select_right": ["Shift+right"],
+    "select_pageup": ["Shift+pageup"],
+    "select_pagedown": ["Shift+pagedown"]
   }
 }

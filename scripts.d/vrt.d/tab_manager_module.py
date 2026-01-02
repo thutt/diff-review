@@ -261,6 +261,7 @@ class DiffViewerTabWidget(QMainWindow):
         self.diff_keybindings = keybindings.KeyBindings(keybindings_file, context='diff')
         self.note_keybindings = keybindings.KeyBindings(keybindings_file, context='note')
         self.commit_msg_keybindings = keybindings.KeyBindings(keybindings_file, context='commit_msg')
+        self.terminal_keybindings = keybindings.KeyBindings(keybindings_file, context='terminal')
         self.pending_keys = []  # For multi-key sequences
 
         # Create bookmark manager
@@ -391,10 +392,10 @@ class DiffViewerTabWidget(QMainWindow):
         close_tab_action.triggered.connect(self.close_current_tab)
         file_menu.addAction(close_tab_action)
 
-        # Quit uses hardcoded Ctrl+Q (reserved key), display appropriately
-        quit_text = "Quit\t" + ("Cmd+Q" if sys.platform == 'darwin' else "Ctrl+Q")
+        # Quit - shortcut handled by keybinding system
+        shortcut_text = self._get_shortcut_text('quit_application', self.keybindings)
+        quit_text = "Quit" + (f"\t{shortcut_text}" if shortcut_text else "")
         quit_action = QAction(quit_text, self)
-        quit_action.setShortcut(QKeySequence("Ctrl+Q"))
         quit_action.triggered.connect(self.close)
         file_menu.addAction(quit_action)
 
@@ -1437,7 +1438,8 @@ class DiffViewerTabWidget(QMainWindow):
                 self,
                 keybindings=self.keybindings,
                 diff_keybindings=self.diff_keybindings,
-                commit_msg_keybindings=self.commit_msg_keybindings
+                commit_msg_keybindings=self.commit_msg_keybindings,
+                terminal_keybindings=self.terminal_keybindings
             )
             self.shortcuts_dialog.show()
         else:
@@ -1504,6 +1506,9 @@ class DiffViewerTabWidget(QMainWindow):
         elif action == 'shortcuts_help':
             self.show_shortcuts()
             return
+        elif action == 'quit_application':
+            self.close()
+            return
         elif action == 'find_next':
             self.search_mgr.find_next()
             return
@@ -1538,6 +1543,9 @@ class DiffViewerTabWidget(QMainWindow):
             return
         elif action == 'toggle_sidebar':
             self.toggle_sidebar()
+            return
+        elif action == 'toggle_focus_mode':
+            self.toggle_focus_mode()
             return
         elif action == 'toggle_diff_map':
             self.toggle_diff_map()
@@ -1605,6 +1613,14 @@ class DiffViewerTabWidget(QMainWindow):
                         focused_widget.keyPressEvent(key_event)
                         return
 
+        # Bookmark navigation works from any tab type
+        if action == 'next_bookmark':
+            self.bookmark_mgr.navigate_to_next_bookmark()
+            return
+        elif action == 'prev_bookmark':
+            self.bookmark_mgr.navigate_to_prev_bookmark()
+            return
+
         # Actions that require a viewer
         if not viewer:
             return
@@ -1625,10 +1641,6 @@ class DiffViewerTabWidget(QMainWindow):
             viewer.update_status()
         elif action == 'toggle_bookmark':
             viewer.toggle_bookmark()
-        elif action == 'next_bookmark':
-            self.bookmark_mgr.navigate_to_next_bookmark()
-        elif action == 'prev_bookmark':
-            self.bookmark_mgr.navigate_to_prev_bookmark()
         elif action == 'center_region':
             viewer.center_current_region()
         elif action == 'toggle_collapse_region':
@@ -1811,7 +1823,13 @@ class DiffViewerTabWidget(QMainWindow):
             
             key = event.key()
             modifiers = event.modifiers()
-            
+
+            # Normalize modifiers to ensure consistent comparison with keybindings
+            # event.modifiers() can return KeyboardModifier(0) which may not equal
+            # Qt.KeyboardModifier.NoModifier in direct comparison
+            if not modifiers:
+                modifiers = Qt.KeyboardModifier.NoModifier
+
             # Qt reports ShiftModifier for shifted symbols like $, %, etc.
             # But these symbols can't be typed without Shift, so the Shift is implicit.
             # Strip Shift for these keys to match user expectations.
@@ -1829,10 +1847,57 @@ class DiffViewerTabWidget(QMainWindow):
             
             viewer = self.get_current_viewer()
 
-            # Ctrl-\ - Toggle focus mode (handle before focus filtering)
-            if key == Qt.Key.Key_Backslash and modifiers & Qt.KeyboardModifier.ControlModifier:
-                self.toggle_focus_mode()
-                return True
+            # Check if current widget is a terminal widget - must be done early
+            # to bypass all global key handling except terminal escape prefix.
+            # Only apply terminal passthrough when focus is on content area,
+            # not when sidebar has focus.
+            current_widget = self.tab_widget.currentWidget()
+            is_terminal = (current_widget is not None and
+                           current_widget.is_terminal_widget() and
+                           self.focus_mode == 'content')
+
+            if is_terminal:
+                # Build key sequence for keybinding checks
+                current_key = (key, modifiers)
+                sequence = keybindings.KeySequence([current_key])
+
+                # Check terminal-specific bindings (includes terminal_escape)
+                terminal_action = self.terminal_keybindings.get_action(sequence)
+
+                # Check if escape prefix is currently active
+                if current_widget.is_escape_prefix_active():
+                    # Ignore modifier-only key presses (Shift, Ctrl, Alt, Meta)
+                    # These occur when pressing key combinations like Ctrl+Shift+Q
+                    modifier_keys = (
+                        Qt.Key.Key_Shift, Qt.Key.Key_Control,
+                        Qt.Key.Key_Alt, Qt.Key.Key_Meta,
+                        Qt.Key.Key_Super_L, Qt.Key.Key_Super_R,
+                        Qt.Key.Key_Hyper_L, Qt.Key.Key_Hyper_R,
+                        Qt.Key.Key_AltGr
+                    )
+                    if key in modifier_keys:
+                        return True  # Consume but don't clear prefix
+
+                    # Clear the prefix state (reverts border)
+                    current_widget.set_escape_prefix_active(False)
+
+                    # Check global keybindings first, then terminal-specific
+                    global_action = self.keybindings.get_action(sequence)
+                    if global_action:
+                        self._execute_action(global_action)
+                    elif terminal_action and terminal_action != 'terminal_escape':
+                        # Execute terminal-specific action (e.g., bookmark navigation)
+                        self._execute_action(terminal_action)
+                    # Consume the key either way (action executed or not)
+                    return True
+
+                # Check if this key is the terminal escape prefix
+                if terminal_action == 'terminal_escape':
+                    current_widget.set_escape_prefix_active(True)
+                    return True
+
+                # Let all other keys pass through to the terminal
+                return False
 
             # Determine if the event originated from sidebar or content
             widget = obj
@@ -1862,10 +1927,6 @@ class DiffViewerTabWidget(QMainWindow):
 
             # If we reach here, the keyboard event is allowed for the current focus mode
 
-            # Check if current widget is a terminal widget
-            current_widget = self.tab_widget.currentWidget()
-            is_terminal = current_widget is not None and current_widget.is_terminal_widget()
-
             # Check if this is the commit message widget
             is_commit_msg = isinstance(obj.parent(), CommitMessageTab) if obj.parent() else False
 
@@ -1876,11 +1937,6 @@ class DiffViewerTabWidget(QMainWindow):
             current_key = (key, modifiers)
             sequence = keybindings.KeySequence([current_key])
             action = context_keybindings.get_action(sequence)
-
-            # For terminal widgets, let search commands pass through to the terminal
-            # (vim/emacs have their own search functionality)
-            if is_terminal and action in ('search', 'find_next', 'find_prev'):
-                return False
 
             # Handle search action
             if action == 'search':

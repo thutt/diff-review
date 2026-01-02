@@ -1012,15 +1012,14 @@ class DiffViewer(QWidget, TabContentBase):
         else:
             self.base_text.bookmarked_lines.discard(line_idx)
             self.modified_text.bookmarked_lines.discard(line_idx)
-        
+
         # Sync with global bookmarks using stored references
         if hasattr(self, 'tab_manager') and hasattr(self, 'tab_index'):
-            key = (self.tab_index, line_idx)
             if line_idx in self.bookmarked_lines:
-                self.tab_manager.bookmark_mgr.global_bookmarks[key] = True
-            elif key in self.tab_manager.bookmark_mgr.global_bookmarks:
-                del self.tab_manager.bookmark_mgr.global_bookmarks[key]
-        
+                self.tab_manager.bookmark_mgr.add_bookmark(self.tab_index, line_idx)
+            else:
+                self.tab_manager.bookmark_mgr.remove_bookmark(self.tab_index, line_idx)
+
         # Update visuals
         self.base_text.viewport().update()
         self.modified_text.viewport().update()

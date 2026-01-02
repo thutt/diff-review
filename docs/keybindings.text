@@ -1,251 +1,424 @@
-================================================================================
-                    KEYBOARD BINDINGS CONFIGURATION
-================================================================================
-
-OVERVIEW
-========
-
-The diff_review application supports customizable keyboard bindings through a
-JSON configuration file. You can remap any action to your preferred key
-combinations, including vim-style multi-key sequences.
-
-
-USAGE
-=====
-
-Pass the keybindings file path to the TabManager constructor:
-
-    tab_widget = DiffViewerTabWidget(
-        afr=afr,
-        # ... other parameters ...
-        keybindings_file="/path/to/keybindings.json"  # or None for defaults
-    )
-
-
-CONFIGURATION FILE FORMAT
+KEYBINDINGS CONFIGURATION
 =========================
 
-The configuration file is a JSON file with a "keybindings" object mapping
-action names to lists of key sequences.
+This document describes the structure and semantics of the keybindings
+JSON configuration file used by diff_review.
 
-Basic Structure
+
+FILE LOCATION
+-------------
+
+The keybindings file is a JSON file that can be specified via command
+line.  If not the user does not specified a keybinding file, the
+default scripts.d/vrt.d/keybindings.d/default.json is used.  If no
+keybindings are specified, built-in defaults are used.
+
+
+TOP-LEVEL STRUCTURE
+-------------------
+
+The JSON file contains a dictionary with five major keys:
+
+  {
+    "global": { ... },
+    "terminal": { ... },
+    "diff": { ... },
+    "note": { ... },
+    "commit_msg": { ... }
+  }
+
+Each major key defines a context in which keybindings are active.
+
+
+MAJOR KEY: global
+-----------------
+
+Keybindings that are active regardless of which tab type has focus.
+These shortcuts work in all contexts unless overridden by a
+context-specific binding.
+
+  shortcuts_help      Show the keyboard shortcuts reference dialog.
+                      Default: F1, Ctrl+Shift+?
+
+  quit_application    Quit the application.
+                      Default: Ctrl+q
+
+  close_tab           Close the currently active tab.
+                      Default: Ctrl+w
+
+  next_tab            Switch to the next tab (wraps around).
+                      Default: Ctrl+Tab
+
+  prev_tab            Switch to the previous tab (wraps around).
+                      Default: Ctrl+Shift+Tab
+
+  increase_font       Increase font size in the current tab.
+                      Default: Ctrl++, Ctrl+=
+
+  decrease_font       Decrease font size in the current tab.
+                      Default: Ctrl+-
+
+  reset_font          Reset font size to default in the current tab.
+                      Default: Ctrl+0
+
+  toggle_sidebar      Show or hide the file tree sidebar.
+                      Default: Ctrl+b
+
+  toggle_focus_mode   Toggle between Content mode (keyboard input goes
+                      to the active tab) and Sidebar mode (keyboard
+                      input goes to the file tree).
+                      Default: Ctrl+\
+
+  search              Open the search dialog.
+                      Default: Ctrl+f, Ctrl+s
+
+  find_next           Find the next occurrence of the search term.
+                      Default: F3
+
+  find_prev           Find the previous occurrence of the search term.
+                      Default: Shift+F3
+
+
+MAJOR KEY: terminal
+-------------------
+
+Keybindings specific to terminal editor tabs (Vim, Emacs, Nano).
+These define the escape prefix and commands available after the
+escape prefix is pressed.
+
+  terminal_escape     Escape prefix for terminal editor tabs.  When a
+                      terminal-based editor has focus, all keys pass
+                      through to the editor.  Pressing this key activates
+                      the escape prefix; the next key pressed is
+                      interpreted as a global shortcut or terminal-specific
+                      command.  The terminal border turns blue while the
+                      prefix is active.  Times out after 2 seconds.
+                      Default: Ctrl+`
+
+  next_bookmark       Navigate to the next bookmark (after escape prefix).
+                      Default: ]
+
+  prev_bookmark       Navigate to the previous bookmark (after escape prefix).
+                      Default: [
+
+
+MAJOR KEY: diff
 ---------------
 
-    {
-      "keybindings": {
-        "action_name": ["key_sequence1", "key_sequence2"],
-        "another_action": ["key"]
-      }
-    }
+Keybindings active when a diff viewer tab has focus.  These are used
+for navigating and interacting with side-by-side file comparisons.
+
+  next_change              Jump to the next change region.
+                           Default: n
+
+  prev_change              Jump to the previous change region.
+                           Default: p
+
+  top_of_file              Jump to the top of the file.
+                           Default: T
+
+  bottom_of_file           Jump to the bottom of the file.
+                           Default: B
+
+  toggle_bookmark          Toggle a bookmark on the current line.
+                           Default: m
+
+  next_bookmark            Jump to the next bookmark.
+                           Default: ]
+
+  prev_bookmark            Jump to the previous bookmark.
+                           Default: [
+
+  center_region            Center the view on the current change region.
+                           Default: c
+
+  toggle_collapse_region   Collapse or expand the added/deleted region
+                           at the cursor position.
+                           Default: x
+
+  toggle_collapse_all      Collapse or expand all added/deleted regions.
+                           Default: Shift+x
+
+  take_note                Add the selected text to the review notes
+                           file with file and line context.
+                           Default: Ctrl+n
+
+  jump_to_note             Jump to the review note associated with the
+                           current line, if one exists.
+                           Default: Ctrl+j
+
+  toggle_base_modi_focus   Switch keyboard focus between the base (left)
+                           and modified (right) panes.
+                           Default: Tab
+
+  reload                   Reload the current file from disk.
+                           Default: F5
+
+  toggle_diff_map          Show or hide the diff map (minimap showing
+                           change locations).
+                           Default: Ctrl+d
+
+  toggle_line_numbers      Show or hide line numbers.
+                           Default: Ctrl+l
+
+  toggle_tab_highlight     Toggle highlighting of tab characters.
+                           Default: Ctrl+t
+
+  toggle_eol_highlight     Toggle highlighting of trailing whitespace.
+                           Default: Ctrl+e
+
+  toggle_intraline         Toggle intraline change highlighting (shows
+                           character-level changes within modified lines).
+                           Default: Ctrl+i
+
+  cursor_up                Move cursor up one line.
+                           Default: up
+
+  cursor_down              Move cursor down one line.
+                           Default: down
+
+  cursor_left              Move cursor left one character.
+                           Default: left
+
+  cursor_right             Move cursor right one character.
+                           Default: right
+
+  cursor_pageup            Move cursor up one page.
+                           Default: pageup
+
+  cursor_pagedown          Move cursor down one page.
+                           Default: pagedown, <space>
+
+  select_up                Extend selection upward.
+                           Default: Shift+up
+
+  select_down              Extend selection downward.
+                           Default: Shift+down
+
+  select_left              Extend selection leftward.
+                           Default: Shift+left
+
+  select_right             Extend selection rightward.
+                           Default: Shift+right
+
+  select_pageup            Extend selection up one page.
+                           Default: Shift+pageup
+
+  select_pagedown          Extend selection down one page.
+                           Default: Shift+pagedown
 
 
-KEY SEQUENCE FORMAT
-===================
+MAJOR KEY: note
+---------------
 
-Key sequences are strings with the following rules:
+Keybindings active when a review notes tab has focus.  Review notes
+tabs display the notes file and support basic text navigation.
 
-1. Single keys: "n", "T", "F5"
-2. With modifiers: "Ctrl+f", "Shift+x", "Alt+Home"
-3. Multi-key sequences: "g g", "Ctrl+g g", "Ctrl+x Ctrl+s"
-4. Special keys: "<space>", "Tab", "Return", "Escape"
+  reload                   Reload the notes file from disk.
+                           Default: F5
+
+  cursor_up                Move cursor up one line.
+                           Default: up
+
+  cursor_down              Move cursor down one line.
+                           Default: down
+
+  cursor_left              Move cursor left one character.
+                           Default: left
+
+  cursor_right             Move cursor right one character.
+                           Default: right
+
+  cursor_pageup            Move cursor up one page.
+                           Default: pageup
+
+  cursor_pagedown          Move cursor down one page.
+                           Default: pagedown
+
+  select_up                Extend selection upward.
+                           Default: Shift+up
+
+  select_down              Extend selection downward.
+                           Default: Shift+down
+
+  select_left              Extend selection leftward.
+                           Default: Shift+left
+
+  select_right             Extend selection rightward.
+                           Default: Shift+right
+
+  select_pageup            Extend selection up one page.
+                           Default: Shift+pageup
+
+  select_pagedown          Extend selection down one page.
+                           Default: Shift+pagedown
 
 
-MODIFIERS
-=========
+MAJOR KEY: commit_msg
+---------------------
 
-- Ctrl+       Control key (all platforms)
-- Shift+      Shift key (all platforms)
-- Alt+        Alt/Option key (all platforms, but Option on Mac)
-- Cmd+ or Meta+   Command key (Mac only)
+Keybindings active when the commit message tab has focus.  The commit
+message tab displays the commit message and supports note-taking and
+bookmarks.
 
-Note: All modifiers are allowed on all platforms. The application does not
-reject platform-specific modifiers, but they may not work as expected on
-non-native platforms.
+  take_note                Add the selected text to the review notes.
+                           Default: Ctrl+n
+
+  jump_to_note             Jump to the review note for the current line.
+                           Default: Ctrl+j
+
+  toggle_bookmark          Toggle a bookmark on the current line.
+                           Default: m
+
+  next_bookmark            Jump to the next bookmark.
+                           Default: ]
+
+  prev_bookmark            Jump to the previous bookmark.
+                           Default: [
+
+  reload                   Reload the commit message from disk.
+                           Default: F5
+
+  cursor_up                Move cursor up one line.
+                           Default: up
+
+  cursor_down              Move cursor down one line.
+                           Default: down
+
+  cursor_left              Move cursor left one character.
+                           Default: left
+
+  cursor_right             Move cursor right one character.
+                           Default: right
+
+  cursor_pageup            Move cursor up one page.
+                           Default: pageup
+
+  cursor_pagedown          Move cursor down one page.
+                           Default: pagedown, <space>
+
+  select_up                Extend selection upward.
+                           Default: Shift+up
+
+  select_down              Extend selection downward.
+                           Default: Shift+down
+
+  select_left              Extend selection leftward.
+                           Default: Shift+left
+
+  select_right             Extend selection rightward.
+                           Default: Shift+right
+
+  select_pageup            Extend selection up one page.
+                           Default: Shift+pageup
+
+  select_pagedown          Extend selection down one page.
+                           Default: Shift+pagedown
 
 
-CASE SENSITIVITY
-================
+KEY STRING FORMAT
+-----------------
 
-Single letter keys are case-insensitive. To specify an uppercase letter, use
-the Shift+ modifier:
+Each action maps to a list of key strings.  A key string specifies
+one or more keys that trigger the action.
 
-- Correct: "Shift+n" for uppercase N
-- Incorrect: "N" (treated same as "n")
+Single key:
+  "n"                      The 'n' key alone
+  "F5"                     The F5 function key
+  "Tab"                    The Tab key
 
-Important: Ctrl+Letter combinations
-------------------------------------
+Modified key (with Ctrl, Shift, Alt, or Cmd):
+  "Ctrl+n"                 Ctrl and 'n' together
+  "Ctrl+Shift+Tab"         Ctrl, Shift, and Tab together
+  "Alt+x"                  Alt and 'x' together
 
-When using Ctrl with letter keys, be aware of how your keyboard works:
+Special key names:
+  <space>                  Spacebar (use angle brackets)
+  Tab, Return, Enter       Standard keys
+  Backspace, Delete        Editing keys
+  Escape, Esc              Escape key
+  Home, End                Navigation keys
+  PageUp, PageDown         Page navigation
+  Up, Down, Left, Right    Arrow keys
+  Insert                   Insert key
+  F1 through F35           Function keys
 
-- "Ctrl+n" = Control + n (lowercase, no Shift)
-- "Ctrl+Shift+n" = Control + Shift + n (uppercase N on most keyboards)
+Modifier names:
+  Ctrl                     Control key (Command on macOS in some contexts)
+  Shift                    Shift key
+  Alt                      Alt key (Option on macOS)
+  Cmd                      Command key (macOS only)
 
-If you type Ctrl+N on your keyboard, you're likely pressing Ctrl+Shift+n
-(because N requires Shift). Your config must match exactly what modifiers are
-pressed. There is no automatic normalization.
-
-Example:
-
-    "take_note": ["Ctrl+Shift+n"]  // Matches when you type Ctrl+N
-
-CapsLock is NOT a modifier
----------------------------
-
-CapsLock affects which character is produced but does NOT add the Shift
-modifier. Therefore:
-
-- "Ctrl+n" with CapsLock ON still matches "Ctrl+n", NOT "Ctrl+Shift+n"
-- "Ctrl+Shift+n" requires the Shift key to be physically pressed
-
-The keybinding system only recognizes actual modifier keys (Ctrl, Shift, Alt,
-Cmd), not keyboard states like CapsLock or NumLock.
+Multiple bindings:
+  An action can have multiple key bindings by listing them in an array:
+  "cursor_pagedown": ["pagedown", "<space>"]
 
 
 MULTI-KEY SEQUENCES
-===================
+-------------------
 
-Separate multiple keys with spaces. Maximum sequence length is 15 keys.
+Key sequences of up to 15 keys are supported.  Separate keys with spaces:
 
-Examples:
-- "g g" - Press 'g' twice (vim-style)
-- "Ctrl+x Ctrl+s" - Press Ctrl+X, then Ctrl+S (emacs-style)
-- "g Shift+g" - Press 'g', then Shift+G
+  "g g"                    Press 'g' twice (vim-style go to top)
+  "Ctrl+x Ctrl+s"          Ctrl+x followed by Ctrl+s (emacs-style save)
 
-
-SPECIAL KEYS
-============
-
-Use angle brackets for literal space: "<space>"
-
-Other special keys (no brackets needed):
-- Function keys: F1, F2, ... F35
-- Navigation: Home, End, PageUp, PageDown, Up, Down, Left, Right
-- Editing: Tab, Return, Enter, Backspace, Delete, Insert, Escape, Esc
-
-
-MULTIPLE BINDINGS
-=================
-
-Each action can have multiple key bindings:
-
-    {
-      "keybindings": {
-        "search": ["Ctrl+f", "Ctrl+s", "/"],
-        "top_of_file": ["g g", "T", "Home"]
-      }
-    }
-
-
-AVAILABLE ACTIONS
-=================
-
-Action                  Description                         Default Bindings
-------------------------------------------------------------------------------
-next_change             Navigate to next change region      n
-prev_change             Navigate to previous change region  p
-top_of_file             Jump to top of file                 T
-bottom_of_file          Jump to bottom of file              B
-toggle_bookmark         Toggle bookmark on current line     m
-next_bookmark           Navigate to next bookmark           ]
-prev_bookmark           Navigate to previous bookmark       [
-center_region           Center view on current region       c
-collapse_region         Collapse/expand region at cursor    x
-collapse_all            Collapse/expand all regions         Shift+x
-search                  Open search dialog                  Ctrl+f, Ctrl+s
-find_next               Find next search match              F3
-find_prev               Find previous search match          Shift+F3
-reload                  Reload current file                 F5
-take_note               Take note of selected text          Ctrl+Shift+n
-toggle_diff_map         Toggle diff map visibility          Ctrl+Shift+h
-toggle_line_numbers     Toggle line numbers                 Ctrl+Shift+l
-toggle_tab_highlight    Toggle tab character highlighting   Ctrl+Shift+t
-toggle_eol_highlight    Toggle trailing whitespace          Ctrl+Shift+e
-toggle_sidebar          Toggle file sidebar                 Ctrl+Shift+b
-focus_toggle            Switch focus between panes          f
-focus_next              Move focus to next pane             g
-shortcuts_help          Show keyboard shortcuts help        F1, Ctrl+Shift+?
-close_tab               Close current tab                   Ctrl+Shift+w
-next_tab                Switch to next tab                  Ctrl+]
-prev_tab                Switch to previous tab              Ctrl+[
-first_file              Switch to first tab                 Ctrl+1
-last_file               Switch to last tab                  Ctrl+9
-increase_font           Increase font size                  Ctrl++, Ctrl+=
-decrease_font           Decrease font size                  Ctrl+-
-reset_font              Reset font size to default          Ctrl+0
+Note: If a shorter sequence is a prefix of a longer one, the shorter
+sequence takes precedence and the longer one will never trigger.
 
 
 RESERVED KEYS
-=============
+-------------
 
-The following keys have hardcoded behavior and CANNOT be rebound:
-
-Key         Reason
-------------------------------------------------------------------------------
-Tab         Focus switching between base/modified panes (hardcoded)
-Ctrl+Q      Standard quit application shortcut (system level)
-
-If you attempt to bind these keys in your config file, you will receive a
-warning and the binding will be ignored.
+There are currently no reserved keys.  All keybindings can be
+customized via the configuration file.
 
 
-FALLBACK BEHAVIOR
-=================
+CONTEXT PRECEDENCE
+------------------
 
-- If a keybinding is not specified in the config file, the default binding
-  is used
-- If the config file cannot be loaded, all defaults are used
-- Invalid keybinding entries are warned to stderr and ignored
+When a key is pressed:
+
+1. Context-specific bindings are checked first (diff, note, commit_msg)
+2. If no match, global bindings are checked
+3. If no match, the key passes through to the widget
+
+This allows context-specific actions to override global ones when
+appropriate.
 
 
-ERROR HANDLING
-==============
+TERMINAL EDITOR SPECIAL HANDLING
+--------------------------------
 
-The application prints warnings to stderr for:
-- Invalid JSON syntax
-- Missing "keybindings" section
-- Invalid key sequences
-- Duplicate bindings (last one wins)
-- Reserved key usage
-- Conflicting bindings (where one shadows another)
+When a terminal-based editor tab (Vim, Emacs, Nano) has focus:
+
+1. All keys pass directly to the editor by default
+2. The terminal_escape key activates the escape prefix
+3. The next key after the prefix is checked against global bindings
+4. If it matches a global action, that action executes
+5. If it does not match, the key is consumed (nothing happens)
+6. The prefix times out after 2 seconds if no key is pressed
+
+Visual feedback: The terminal border turns blue while the escape
+prefix is active and reverts when the prefix is consumed or times out.
 
 
 EXAMPLE CONFIGURATION
-=====================
+---------------------
 
-See keybindings_example.json for a complete example with all actions.
-
-Basic example:
-
-    {
-      "keybindings": {
-        "next_change": ["n"],
-        "prev_change": ["p"],
-        "top_of_file": ["g g", "T"],
-        "bottom_of_file": ["Shift+g", "B"],
-        "search": ["/", "Ctrl+f"]
-      }
-    }
-
-
-IMPLEMENTATION NOTES
-====================
-
-- Multi-key sequences wait indefinitely for the next key (no timeout)
-- Sequence matching is greedy - complete matches execute immediately
-- Partial matches keep the sequence active waiting for more keys
-- Invalid sequences reset the state and pass through to default handling
-
-
-CONFLICT DETECTION
-==================
-
-The system warns about two types of conflicts:
-
-1. Prefix Shadowing: When a complete binding prevents a longer sequence from
-   ever completing. Example: "g" for one action and "g g" for another. The
-   single "g" will always trigger first.
-
-2. Duplicate Sequences: When the same key sequence is assigned to multiple
-   actions. The last one loaded wins.
-
-All conflicts are reported to stderr during startup.
+{
+  "global": {
+    "shortcuts_help": ["F1", "Ctrl+Shift+?"],
+    "close_tab": ["Ctrl+w"],
+    "next_tab": ["Ctrl+Tab"],
+    "prev_tab": ["Ctrl+Shift+Tab"],
+    "toggle_sidebar": ["Ctrl+b"],
+    "toggle_focus_mode": ["Ctrl+\\"],
+    "search": ["Ctrl+f"],
+    "terminal_escape": ["Ctrl+;"]
+  },
+  "diff": {
+    "next_change": ["n"],
+    "prev_change": ["p"],
+    "take_note": ["Ctrl+n"]
+  }
+}
