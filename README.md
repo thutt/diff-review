@@ -33,7 +33,13 @@ functions as a **local solo review tool**, a **collaborative
 pre-commit review platform**, and a bridge between experimentation and
 formal pre-merge reviews.
 
----
+Moreover, generating diffs for historical changes requires search
+capabilities (content-based history search, offline traversal) that
+online review systems do not provide.  With diff-review, once the SHA
+is discovered, generate the diffs and view them using this tool; no
+need to fumble around with a Web-based UI to construct the URL to view
+the diff.
+
 
 ## Key Features
 
@@ -41,11 +47,12 @@ formal pre-merge reviews.
 |---------------------------------|--------------------------|---------------------------------------------|
 | Review uncommitted changes      | Yes                      | No                                          |
 | Review committed changes        | Yes                      | Only pre-merge, or already in review system |
-| Review untracked files          | Yes                      | No                                          |
 | Share review without committing | Yes                      | Via patches                                 |
+| Solo / self-review              | Yes                      | Via uploaded, unpublished, commits          |
+| Take note on commit message     | Yes                      | No                                          |
+| Over-length line marker         | Yes                      | No                                          |
 | Requires central server?        | No                       | Yes                                         |
-| Solo/self-review                | Yes                      | Only with uploaded, unpublished, changes    |
-| Create notes using real editor  | Yes (emacs, vim)         | No, only built-in Web-based editor          |
+| Supported editors               | PyQt, emacs, vim         | Web editor                                  |
 
 **Terminology**:
 
