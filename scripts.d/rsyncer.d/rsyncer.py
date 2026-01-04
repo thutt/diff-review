@@ -1,4 +1,4 @@
-# Copyright (c) 2025  Logic Magicians Software (Taylor Hutt).
+# Copyright (c) 2025, 2026  Logic Magicians Software (Taylor Hutt).
 # All Rights Reserved.
 # Licensed under Gnu GPL V3.
 #
@@ -101,12 +101,12 @@ Return Code:
                    dest     = "arg_review_name")
 
     o = parser.add_argument_group("Diff Specification Options")
-    o.add_argument("--dossier",
-                   help     = ("Json file containing change information"),
+    o.add_argument("--diff-dir",
+                   help     = ("Directory containing dossier"),
                    action   = "store",
                    default  = None,
                    required = False,
-                   dest     = "arg_dossier")
+                   dest     = "arg_diff_dir")
 
     o = parser.add_argument_group("Note Taking Options")
     o.add_argument("--note-file",
@@ -227,10 +227,10 @@ def rsync(options):
     if user is None:
         fatal("Unable to get value of ${USER} from environment.")
 
-    assert(options.arg_dossier[0] == '/') # Absolute path
-    src_dir     = os.path.dirname(options.arg_dossier)
-    review_name = os.path.basename(os.path.dirname(options.arg_dossier))
-    rel_dest    = os.path.dirname(src_dir)[1:]
+    assert(options.arg_diff_dir[0] == '/') # Absolute path
+    src_dir     = options.arg_diff_dir
+    review_name = os.path.basename(options.arg_diff_dir)
+    rel_dest    = src_dir[1:]
     src         = "%s@%s:%s" % (user, options.arg_fqdn, src_dir)
     dst         = os.path.join(review_dir, options.arg_fqdn, rel_dest)
     cmd         = [ rsync, "-avz", src, dst ]
@@ -270,7 +270,7 @@ def execute_vrt(options):
     if os.path.exists(resp):
         response_file = [ "@%s" % (resp) ]
     cmd = ([ vrt,
-             "--dossier", options.new_dossier ] +
+             "--diff-dir", os.path.dirname(options.new_dossier) ] +
            response_file)
 
     print("EXEC: %s" % (' '.join(cmd)))

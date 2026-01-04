@@ -1,4 +1,4 @@
-# Copyright (c) 2025  Logic Magicians Software (Taylor Hutt).
+# Copyright (c) 2025, 2026  Logic Magicians Software (Taylor Hutt).
 # All Rights Reserved.
 # Licensed under Gnu GPL V3.
 #
@@ -33,6 +33,18 @@ def get_help_dir():
 
 def get_keybinding_dir():
     return os.path.join(get_script_dir(), "keybindings.d")
+
+
+def rsync_and_rerun(options):
+    # This rsync system is not supported on Windows.
+    parent_dir = os.path.abspath(os.path.join(os.path.dirname(sys.argv[0]),
+                                              "..", ".."))
+
+    rsyncer = os.path.join(parent_dir, "rsyncer")
+    cmd     = [ rsyncer,
+                "--fqdn", options.arg_fqdn,
+                "--diff-dir", options.arg_dossier_path ]
+    os.execv(rsyncer, cmd)
 
 
 def process_extended_help_request(options, opt_extended):

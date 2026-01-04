@@ -1,4 +1,4 @@
-# Copyright (c) 2025  Logic Magicians Software (Taylor Hutt).
+# Copyright (c) 2025, 2026  Logic Magicians Software (Taylor Hutt).
 # All Rights Reserved.
 # Licensed under Gnu GPL V3.
 #
@@ -120,18 +120,6 @@ class FileButton (object):
         modi   = posixpath.join(root_path, "modi.d", self.modi_rel_path_)
         viewer = self.make_viewer(base, modi)
         tab_widget.add_viewer(viewer)
-
-
-def rsync_and_rerun(options):
-    # This rsync system is not supported on Windows.
-    parent_dir = os.path.abspath(os.path.join(os.path.dirname(sys.argv[0]),
-                                              "..", ".."))
-
-    rsyncer = os.path.join(parent_dir, "rsyncer")
-    cmd     = [ rsyncer,
-                "--fqdn", options.arg_fqdn,
-                "--dossier", options.arg_dossier_path ]
-    os.execv(rsyncer, cmd)
 
 
 def add_diff_to_viewer(desc, viewer):
