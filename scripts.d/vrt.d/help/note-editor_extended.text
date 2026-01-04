@@ -1,0 +1,15 @@
+This option allows one to choose one of the supported external editors
+to write review notes.  The editor will be run in a tab of the
+application, and it is provided all keystrokes, except the 'editor
+escape'.  The editor escape character is Ctrl-; by default, but can be
+changed by using a custom keybinding json file.
+
+Pressing the editor escape character will turn the border blue, and
+allow a global view-review-tabs command to be executed within two
+seconds.  If a non-command key is pressed, or two (2) seconds elapse
+without a command key being pressed, the system reverts back to edit
+mode.
+
+Switching away from, or closing the editor tab, or quitting the
+application will automatically inject characters into the editor to
+save the file.

@@ -1,2 +1,2 @@
-A URL from  diffs and be retrieved and viewed.
-[default: %(default)s]
+A URL from which diffs and be retrieved and viewed [default:
+%(default)s].

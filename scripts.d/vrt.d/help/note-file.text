@@ -1,2 +1,2 @@
-Name of note file to which notes will be written.
-[default: %(default)s]
+Full pathname of the file to which review notes will be written
+[default: %(default)s].

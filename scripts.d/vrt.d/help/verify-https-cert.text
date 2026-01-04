@@ -1,2 +1,2 @@
-Require acknowledgment that unverified certificates are insecure.
-[default: %(default)s]
+Require acknowledgment that unverified certificates are insecure
+[default: %(default)s].

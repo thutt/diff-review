@@ -1,0 +1,2 @@
+A color theme for the notes editor [default: %(default)s].
+[choices: %(choices)s]

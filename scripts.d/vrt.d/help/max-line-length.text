@@ -1,2 +1,1 @@
-Set maximum line length of source code.
-[default: %(default)s]
+Set maximum line length of source code [default: %(default)s].

@@ -93,21 +93,25 @@ def regular_help(ext, extended, topic):
     return lines
 
 
+def read_description():
+    help_dir    = get_help_dir()
+    desc_name   = os.path.join(help_dir, "help-description.text")
+    epilog_name = os.path.join(help_dir, "help-epilog.text")
+
+    assert(os.path.exists(desc_name))
+    assert(os.path.exists(epilog_name))
+
+    with open(desc_name, "r") as fp:
+        description = fp.read()
+
+    with open(epilog_name, "r") as fp:
+        epilog = fp.read()
+    return (description, epilog)
+
+
 def configure_parser(ext_options):
     assert(isinstance(ext_options, list))
-    description = ("""
-
-claude facilitates viewing the contents of an already-generated diff.
-
-""")
-
-    help_epilog = ("""
-
-
-Return Code:
-  0       : success
-  non-zero: failure
-""")
+    (description, epilog) = read_description()
     palette_choices = [ ]
     for f in color_palettes_dict.keys():
         palette_choices.append("%-5s : %s" % (f, color_palettes_dict[f]))
@@ -116,7 +120,7 @@ Return Code:
     parser    = argparse.ArgumentParser(usage                 = None,
                                         formatter_class       = formatter,
                                         description           = description,
-                                        epilog                = help_epilog,
+                                        epilog                = epilog,
                                         prog                  = "view-review-tabs",
                                         fromfile_prefix_chars = '@')
 
@@ -155,7 +159,7 @@ Return Code:
                      required = False,
                      dest     = "arg_keyring")
 
-    dso.add_argument("--no-keyring", 
+    dso.add_argument("--no-keyring",
                      help     = ("Do not use system keyring to "
                                  "store credentials"),
                      action   = "store_false",
@@ -210,7 +214,7 @@ Return Code:
                      dest     = "arg_note")
 
     nto.add_argument("--note-editor",
-                     help     = "An editor for writing review notes.",
+                     help     = regular_help(ext, ext_options, "note-editor"),
                      action   = "store",
                      default  = None,
                      required = False,
@@ -219,9 +223,10 @@ Return Code:
                      dest     = "arg_note_editor")
 
     nto.add_argument("--note-editor-theme",
-                     help     = "A color theme for the notes editor.",
+                     help     = regular_help(ext, ext_options,
+                                             "note-editor-theme"),
                      action   = "store",
-                     default  = "classic_amber",
+                     default  = "light",
                      required = False,
                      choices  = ("solarized_dark", "monokai", "dracula",
                                  "gruvbox_dark", "nord", "tomorrow_night",
@@ -246,7 +251,8 @@ Return Code:
 
     # HTTP Certificate Options
     hco.add_argument("--verify-https-cert",
-                     help     = regular_help(ext, ext_options, "verify-https-cert"),
+                     help     = regular_help(ext, ext_options,
+                                             "verify-https-cert"),
                      action   = "store_true",
                      default  = True,
                      required = False,
@@ -372,14 +378,14 @@ Return Code:
 
     # Keybinding Options
     kbo.add_argument("--keybindings",
-                     help     = "Keybinding json file.",
+                     help     = regular_help(ext, ext_options, "keybindings"),
                      action   = "store",
                      default  = os.path.join(get_keybinding_dir(),
                                              "default.json"),
                      required = False,
-                     metavar  = "<keybinding json description pathname>",
+                     metavar  = "<pathname of keybinding json file>",
                      dest     = "arg_keybindings")
-                     
+
 
     # Output Options
     oo.add_argument("--dump-ir",
@@ -484,7 +490,7 @@ def process_command_line():
         except Exception as exc:
             utils.fatal("Unable to import 'pyte'.  "
                         "It must be installed to use emacs.")
-            
+
         try:
             import emacsterm
             options.editor_class_ = emacsterm.EmacsWidget
@@ -498,7 +504,7 @@ def process_command_line():
         except Exception as exc:
             utils.fatal("Unable to import 'pyte'.  "
                         "It must be installed to use Vim.")
-            
+
         try:
             import vimterm
             options.editor_class_ = vimterm.VimWidget
@@ -508,6 +514,6 @@ def process_command_line():
     else:
         options.editor_class_ = None
         options.editor_theme_ = None
-        
+
     # inv: options.dossier_ is now a valid json dictionary.
     return options
