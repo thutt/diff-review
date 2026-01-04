@@ -1,4 +1,4 @@
-# Copyright (c) 2025  Logic Magicians Software (Taylor Hutt).
+# Copyright (c) 2025, 2026  Logic Magicians Software (Taylor Hutt).
 # All Rights Reserved.
 # Licensed under Gnu GPL V3.
 #
@@ -266,6 +266,7 @@ class SCM(object):
             # menu.
             #
             info = {
+                'version'    : 1,
                 'user'       : getpass.getuser(),
                 'name'       : self.review_name_,
                 'root'       : self.review_dir_,
