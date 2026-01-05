@@ -265,21 +265,28 @@ class SCM(object):
             # 'view-review' program to display the review file-selection
             # menu.
             #
+            assert(os.path.dirname(self.review_base_dir_) == self.review_dir_)
+            assert(os.path.dirname(self.review_modi_dir_) == self.review_dir_)
+            rel_base_dir = os.path.basename(self.review_base_dir_)
+            rel_modi_dir = os.path.basename(self.review_modi_dir_)
+
             info = {
-                'version'    : 1,
-                'user'       : getpass.getuser(),
-                'name'       : self.review_name_,
-                'root'       : self.review_dir_,
-                'base'       : self.review_base_dir_,
-                'modi'       : self.review_modi_dir_,
-                'time'       : timestamp,
-                'commit_msg' : self.commit_msg_file_, # Can be None
-                'files'      : [ ]
+                'version'      : 2,
+                'user'         : getpass.getuser(),
+                'name'         : self.review_name_,
+                'root'         : self.review_dir_,
+                'rel_base_dir' : rel_base_dir,
+                'rel_modi_dir' : rel_modi_dir,
+                'time'         : timestamp,
+                'commit_msg'   : self.commit_msg_file_, # Can be None
+                'files'        : [ ]
             }
             for f in self.dossier_:
                 assert(f.modi_file_info_ is not None)
                 assert(f.base_file_info_ is not None)
 
+                # A path for both base and modi are included because
+                # the file could be moved.
                 finfo = {
                     'action'        : f.action(),
                     'modi_rel_path' : f.modi_file_info_.rel_path_,

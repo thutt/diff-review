@@ -20,16 +20,30 @@ import tab_manager_module
 
 class FileButton (object):
     def __init__(self, options, action,
-                 root_path, base_rel_path, modi_rel_path):
-        self.options_       = options
-        self.action_        = action
-        self.root_path_     = root_path
-        self.base_rel_path_ = base_rel_path
-        self.modi_rel_path_ = modi_rel_path
-        self.stats_display_ = True
-        self.desc_          = None
-        self.stats_tab_     = options.arg_tab_label_stats
-        self.stats_file_    = options.arg_file_label_stats
+                 root_path,
+                 base_dir_rel_path, base_file_rel_path,
+                 modi_dir_rel_path, modi_file_rel_path):
+        self.options_            = options
+        self.action_             = action
+        self.root_path_          = root_path
+
+        self.base_dir_rel_path_  = base_dir_rel_path
+        self.base_rel_path_      = base_file_rel_path
+
+        self.modi_dir_rel_path_  = modi_dir_rel_path
+        self.modi_rel_path_      = modi_file_rel_path
+        self.stats_display_      = True
+        self.desc_               = None
+        self.stats_tab_          = options.arg_tab_label_stats
+        self.stats_file_         = options.arg_file_label_stats
+
+    def modi_file_rel_path(self):
+        # Return source-tree relative path.
+        return self.modi_rel_path_
+
+    def base_file_rel_path(self):
+        # Return source-tree relative path.
+        return self.base_rel_path_
 
     def set_stats_tab(self, state):
         assert(isinstance(state, bool))
@@ -70,9 +84,9 @@ class FileButton (object):
                        self.add_line_count(),
                        self.del_line_count(),
                        self.chg_line_count()))
-            label = "%s  %s" % (self.modi_rel_path_, stats)
+            label = "%s  %s" % (self.modi_file_rel_path(), stats)
         else:
-            label = self.modi_rel_path_
+            label = self.modi_file_rel_path()
 
         return label
 
@@ -86,7 +100,7 @@ class FileButton (object):
         return label
 
     def tab_relpath(self):
-        return self.modi_rel_path_
+        return self.modi_file_rel_path()
 
     def make_viewer(self, base, modi):
         viewer = diff_viewer.DiffViewer(base, modi,
@@ -116,8 +130,12 @@ class FileButton (object):
         #  These relative pathnames can be converted into a URL, which
         #  requires '/'.
         #
-        base   = posixpath.join(root_path, "base.d", self.base_rel_path_)
-        modi   = posixpath.join(root_path, "modi.d", self.modi_rel_path_)
+        base   = posixpath.join(root_path,
+                                self.base_dir_rel_path_,
+                                self.base_file_rel_path())
+        modi   = posixpath.join(root_path,
+                                self.modi_dir_rel_path_,
+                                self.modi_file_rel_path())
         viewer = self.make_viewer(base, modi)
         tab_widget.add_viewer(viewer)
 
@@ -175,7 +193,9 @@ def generate(options, note):
         file_inst = FileButton(options,
                                f["action"],
                                options.dossier_["root"],
+                               options.dossier_["rel_base_dir"],
                                f["base_rel_path"],
+                               options.dossier_["rel_modi_dir"],
                                f["modi_rel_path"])
 
         tab_widget.add_file(file_inst)

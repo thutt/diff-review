@@ -1,4 +1,4 @@
-# Copyright (c) 2025  Logic Magicians Software (Taylor Hutt).
+# Copyright (c) 2025, 2026  Logic Magicians Software (Taylor Hutt).
 # All Rights Reserved.
 # Licensed under Gnu GPL V3.
 #
@@ -125,9 +125,9 @@ class FileTreeSidebar(QWidget):
         Add a file to the tree, organized by full directory hierarchy
         
         Args:
-            file_class: File class object with modi_rel_path_ attribute
+            file_class: File class object with modi_file_rel_path()
         """
-        file_path = file_class.modi_rel_path_
+        file_path = file_class.modi_file_rel_path()
         
         # Split path into components
         parts = file_path.split('/')
@@ -379,7 +379,7 @@ class FileTreeSidebar(QWidget):
         text = item.text(0)
         
         # Generate new label from file_class
-        file_path = file_class.modi_rel_path_
+        file_path = file_class.modi_file_rel_path()
         parts = file_path.split('/')
         
         # Extract just the filename (last component)
