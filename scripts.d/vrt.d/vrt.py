@@ -186,16 +186,17 @@ def generate(options, note):
                                                          options.arg_keybindings,
                                                          note)
 
-    if options.dossier_["commit_msg"] is not None:
-        tab_widget.add_commit_msg(options.dossier_["commit_msg"])
+    rev = options.dossier_["revisions"][0]
+    if rev["commit_msg"] is not None:
+        tab_widget.add_commit_msg(rev["commit_msg"])
 
-    for f in options.dossier_["files"]:
+    for f in rev["files"]:
         file_inst = FileButton(options,
                                f["action"],
                                options.dossier_["root"],
-                               options.dossier_["rel_base_dir"],
+                               rev["rel_base_dir"],
                                f["base_rel_path"],
-                               options.dossier_["rel_modi_dir"],
+                               rev["rel_modi_dir"],
                                f["modi_rel_path"])
 
         tab_widget.add_file(file_inst)

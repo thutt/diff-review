@@ -240,13 +240,65 @@ class SCM(object):
         for p in processes:
             p.join()
 
+    def create_change_revision(self, rel_base_dir, rel_modi_dir, commit_msg_file):
+        now       = datetime.datetime.now()
+        timestamp = datetime.datetime.strftime(now, "%Y.%m.%d.%H.%M.%S")
+        revision  = {
+            'rel_base_dir' : rel_base_dir,
+            'rel_modi_dir' : rel_modi_dir,
+            'time'         : timestamp,
+            'commit_msg'   : self.commit_msg_file_, # Can be None
+            'files'        : [ ]
+        }
+
+        for f in self.dossier_:
+            assert(f.modi_file_info_ is not None)
+            assert(f.base_file_info_ is not None)
+            
+            # A path for both base and modi are included because
+            # the file could be moved.
+            finfo = {
+                'action'        : f.action(),
+                'modi_rel_path' : f.modi_file_info_.rel_path_,
+                'base_rel_path' : f.base_file_info_.rel_path_,
+            }
+            revision['files'].append(finfo)
+
+        return revision
+
+    def get_dossier_pathname(self):
+        return os.path.join(self.review_dir_, "dossier.json")
+
+    def create_json_dictionary(self):
+        # Create a JSON dictionary that contains information about the
+        # files written to the review directory.  This is used by the
+        # 'view-review' program to display the review file-selection
+        # menu.
+        #
+        assert(os.path.dirname(self.review_base_dir_) == self.review_dir_)
+        assert(os.path.dirname(self.review_modi_dir_) == self.review_dir_)
+        rel_base_dir = os.path.basename(self.review_base_dir_)
+        rel_modi_dir = os.path.basename(self.review_modi_dir_)
+
+        info = {
+            'version'      : 2,
+            'user'         : getpass.getuser(),
+            'name'         : self.review_name_,
+            'root'         : self.review_dir_,
+            'revisions'    : [ ]
+        }
+
+        revision = self.create_change_revision(rel_base_dir, rel_modi_dir,
+                                               self.commit_msg_file_)
+
+        info['revisions'].append(revision)
+        return info
+
     def generate(self, options):
         self.generate_dossier()
         if self.dossier_ is not None:
             self.update_files_in_review_directory()
 
-            now        = datetime.datetime.now()
-            timestamp  = datetime.datetime.strftime(now, "%Y.%m.%d.%H.%M.%S")
             review_dir = os.path.join(options.arg_review_dir,
                                       options.arg_review_name)
 
@@ -260,40 +312,8 @@ class SCM(object):
             else:
                 self.commit_msg_file_ = None
 
-            # Create a JSON dictionary that contains information about the
-            # files written to the review directory.  This is used by the
-            # 'view-review' program to display the review file-selection
-            # menu.
-            #
-            assert(os.path.dirname(self.review_base_dir_) == self.review_dir_)
-            assert(os.path.dirname(self.review_modi_dir_) == self.review_dir_)
-            rel_base_dir = os.path.basename(self.review_base_dir_)
-            rel_modi_dir = os.path.basename(self.review_modi_dir_)
+            json_dict = self.create_json_dictionary()
 
-            info = {
-                'version'      : 2,
-                'user'         : getpass.getuser(),
-                'name'         : self.review_name_,
-                'root'         : self.review_dir_,
-                'rel_base_dir' : rel_base_dir,
-                'rel_modi_dir' : rel_modi_dir,
-                'time'         : timestamp,
-                'commit_msg'   : self.commit_msg_file_, # Can be None
-                'files'        : [ ]
-            }
-            for f in self.dossier_:
-                assert(f.modi_file_info_ is not None)
-                assert(f.base_file_info_ is not None)
-
-                # A path for both base and modi are included because
-                # the file could be moved.
-                finfo = {
-                    'action'        : f.action(),
-                    'modi_rel_path' : f.modi_file_info_.rel_path_,
-                    'base_rel_path' : f.base_file_info_.rel_path_,
-                }
-                info['files'].append(finfo)
-
-            fname = os.path.join(self.review_dir_, "dossier.json")
-            with open(fname, "w") as fp:
-                json.dump(info, fp, indent = 2)
+            dossier_name = self.get_dossier_pathname()
+            with open(dossier_name, "w") as fp:
+                json.dump(json_dict, fp, indent = 2)
