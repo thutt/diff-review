@@ -1,4 +1,4 @@
-# Copyright (c) 2025  Logic Magicians Software (Taylor Hutt).
+# Copyright (c) 2025, 2026  Logic Magicians Software (Taylor Hutt).
 # All Rights Reserved.
 # Licensed under Gnu GPL V3.
 #
@@ -13,7 +13,7 @@ This module contains the custom Qt widgets used in the diff viewer:
 import sys
 from PyQt6.QtWidgets import QWidget, QPlainTextEdit, QApplication
 from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QColor, QPainter, QFont, QTextCursor, QFontMetrics, QPen
+from PyQt6.QtGui import QColor, QPainter, QFont, QTextCursor, QFontMetricsF, QPen
 from color_palettes import get_current_palette
 
 
@@ -172,12 +172,12 @@ class SyncedPlainTextEdit(QPlainTextEdit):
         self.setTabChangesFocus(False)  # Allow Tab key to be handled in keyPressEvent
         
         # Enable text interaction to allow cursor even in read-only mode
-        self.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByKeyboard | 
+        self.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByKeyboard |
                                       Qt.TextInteractionFlag.TextSelectableByMouse)
-        
+
         font = QFont("Courier", 12, QFont.Weight.Bold)
         self.setFont(font)
-        
+
         self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         
@@ -285,12 +285,12 @@ class SyncedPlainTextEdit(QPlainTextEdit):
     
     def paintEvent(self, event):
         super().paintEvent(event)
-        
+
         palette = get_current_palette()
         painter = QPainter(self.viewport())
-        font_metrics = self.fontMetrics()
+        font_metrics = QFontMetricsF(self.font())
         line_height = font_metrics.height()
-        
+
         first_visible_block = self.firstVisibleBlock()
         first_visible = first_visible_block.blockNumber()
         
@@ -376,12 +376,13 @@ class SyncedPlainTextEdit(QPlainTextEdit):
             pen = QPen(palette.get_color('max_line_length'))
             pen.setWidth(2)
             painter.setPen(pen)
-            
+
             char_width = font_metrics.horizontalAdvance('0')
-            # Calculate x position relative to content, accounting for horizontal scroll
-            content_x_pos = self.max_line_length * char_width
+            doc_margin = self.document().documentMargin()
+            # Calculate x position relative to content, accounting for document margin and horizontal scroll
+            content_x_pos = self.max_line_length * char_width + doc_margin
             x_pos = int(content_x_pos + self.contentOffset().x())
-            
+
             # Only draw if the line is visible in the viewport
             if 0 <= x_pos <= self.viewport().width():
                 painter.drawLine(x_pos, 0, x_pos, self.viewport().height())
