@@ -1,4 +1,4 @@
-# Copyright (c) 2025  Logic Magicians Software (Taylor Hutt).
+# Copyright (c) 2025, 2026  Logic Magicians Software (Taylor Hutt).
 # All Rights Reserved.
 # Licensed under Gnu GPL V3.
 #
@@ -1140,7 +1140,6 @@ class DiffViewer(QWidget, TabContentBase):
             if is_nav_key and (obj == self.base_text or obj == self.modified_text):
                 # Let the event propagate so widget can move its cursor first
                 # We'll sync afterward using a timer
-                print(f"DEBUG eventFilter: nav key {key}, obj={'base' if obj == self.base_text else 'modi'}")
                 from PyQt6.QtCore import QTimer
                 QTimer.singleShot(0, lambda: self._sync_navigation_scroll(obj))
         
@@ -1188,19 +1187,19 @@ class DiffViewer(QWidget, TabContentBase):
             target_widget = self.modified_text
         else:
             target_widget = self.base_text
-        
+
         # Sync scroll positions
         target_widget.verticalScrollBar().setValue(
             source_widget.verticalScrollBar().value())
         target_widget.horizontalScrollBar().setValue(
             source_widget.horizontalScrollBar().value())
-        
+
         # Get new line from source widget
         new_line = source_widget.textCursor().blockNumber()
-        
+
         # Update focused line markers
         target_widget.set_focused_line(new_line)
-        
+
         # Update viewports and line number areas
         target_widget.viewport().update()
         if target_widget.line_number_area:
@@ -1212,20 +1211,22 @@ class DiffViewer(QWidget, TabContentBase):
             target_widget = self.modified_text
         else:
             target_widget = self.base_text
-        
+
         # Sync scroll positions
         target_widget.verticalScrollBar().setValue(
             source_widget.verticalScrollBar().value())
         target_widget.horizontalScrollBar().setValue(
             source_widget.horizontalScrollBar().value())
-        
+
         # Update focused line on target
         target_widget.set_focused_line(new_line)
-        
+
         # Update target viewport and line number area
         target_widget.viewport().update()
         if target_widget.line_number_area:
             target_widget.line_number_area.update()
+
+        QApplication.processEvents()
     
     def _sync_wheel_scroll(self, source_widget):
         """Sync scroll position from source widget to the other widget after wheel event"""
