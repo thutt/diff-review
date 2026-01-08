@@ -1,4 +1,4 @@
-# Copyright (c) 2025  Logic Magicians Software (Taylor Hutt).
+# Copyright (c) 2025, 2026  Logic Magicians Software (Taylor Hutt).
 # All Rights Reserved.
 # Licensed under Gnu GPL V3.
 #
@@ -46,6 +46,52 @@ def git_get_commit_blob_from_commit_sha(scm, file_info, sha):
         line   = ' '.join(stdout[0].split()) # Compress internal whitespace
         fields = line.split()
         return fields[2]
+    else:
+        drutil.fatal("%s: Unable to execute '%s'." %
+                     (drutil.qualid_(), ' '.join(cmd)))
+
+
+def git_get_staged_file_blob_sha(scm, rel_path):
+    cmd = [ scm.scm_path_, "ls-files", "--stage", rel_path ]
+
+    (stdout, stderr, rc) = drutil.execute(scm.verbose_, cmd)
+
+    if rc == 0:
+        # 100644 95adebe4a45e9ef66ca92194b58161a417c34b11 0       scripts.d/dr.d/drgit.py
+        line   = ' '.join(stdout[0].split()) # Compress internal whitespace
+        fields = line.split()
+        return fields[1]
+    else:
+        drutil.fatal("%s: Unable to execute '%s'." %
+                     (drutil.qualid_(), ' '.join(cmd)))
+
+
+def git_get_unstaged_file_blob_sha(scm, rel_path):
+    cmd = [ scm.scm_path_, "hash-object", rel_path ]
+
+    (stdout, stderr, rc) = drutil.execute(scm.verbose_, cmd)
+
+    if rc == 0:
+        # 28dc515b9954e7fb34f47de895e21de3f104d749
+        line   = ' '.join(stdout[0].split()) # Compress internal whitespace
+        fields = line.split()
+        return fields[0]
+    else:
+        drutil.fatal("%s: Unable to execute '%s'." %
+                     (drutil.qualid_(), ' '.join(cmd)))
+
+
+def git_get_head_file_blob_sha(scm, rel_path):
+    # Gets SHA of HEAD revision.
+    cmd = [ scm.scm_path_, "rev-parse", "HEAD:%s" % (rel_path) ]
+
+    (stdout, stderr, rc) = drutil.execute(scm.verbose_, cmd)
+
+    if rc == 0:
+        # 756d8d50165a3bdbe5996b3e91b00664cc93a4ed
+        line   = ' '.join(stdout[0].split()) # Compress internal whitespace
+        fields = line.split()
+        return fields[0]
     else:
         drutil.fatal("%s: Unable to execute '%s'." %
                      (drutil.qualid_(), ' '.join(cmd)))
@@ -219,6 +265,68 @@ class ChangedFile(drscm.ChangedFile):
                              "This template is used in its place.\n")
 
 
+class ChangedFileUnstaged(ChangedFile):
+    def __init__(self, scm, base_file, modi_file):
+        super().__init__(scm, "unstaged", base_file, modi_file)
+
+        # An unstaged file has a 2-stage diff.
+        #
+        # 1. The unstaged change with the staged version.
+        # 2. The on-disk version with the in-git version.
+        #
+        # Here, the base file is the in-git version.
+
+        staged_sha    = git_get_staged_file_blob_sha(scm, base_file.rel_path_)
+        unstaged_sha  = git_get_unstaged_file_blob_sha(scm, base_file.rel_path_)
+        head_sha      = git_get_head_file_blob_sha(scm, base_file.rel_path_)
+        no_chgs       = (staged_sha == head_sha) and (staged_sha == unstaged_sha)
+        unstaged_chgs = (staged_sha == head_sha) and (staged_sha != unstaged_sha)
+        staged_chgs   = (staged_sha != head_sha) and (staged_sha == unstaged_sha)
+        both_chgs     = (staged_sha != head_sha) and (staged_sha != unstaged_sha)
+
+        if staged_chgs or both_chgs:
+            # The file has staged changes; the difference between
+            # unstaged and staged should be viewable.
+            self.staged_file_ = drscm.FileInfo(base_file.rel_path_, staged_sha)
+        else:
+            self.staged_file_ = None
+
+    def update_review_directory(self):
+        super().update_review_directory()
+        # What do do here?
+        print("update_review_directory for an unstaged change.")
+
+
+class ChangedFileDelete(ChangedFile):
+    def __init__(self, scm, base_file, modi_file):
+        super().__init__(scm, "delete", base_file, modi_file)
+
+
+class ChangedFileRename(ChangedFile):
+    def __init__(self, scm, base_file, modi_file):
+        super().__init__(scm, "rename", base_file, modi_file)
+
+
+class ChangedFileAdd(ChangedFile):
+    def __init__(self, scm, base_file, modi_file):
+        super().__init__(scm, "add", base_file, modi_file)
+
+
+class ChangedFileAdd(ChangedFile):
+    def __init__(self, scm, base_file, modi_file):
+        super().__init__(scm, "add", base_file, modi_file)
+
+
+class ChangedFileStaged(ChangedFile):
+    def __init__(self, scm, base_file, modi_file):
+        super().__init__(scm, "staged", base_file, modi_file)
+
+
+class ChangedFileUntracked(ChangedFile):
+    def __init__(self, scm, base_file, modi_file):
+        super().__init__(scm, "untracked", base_file, modi_file)
+
+
 class Git(drscm.SCM):
     def __init__(self, options):
         super().__init__(options)
@@ -266,7 +374,7 @@ class GitStaged(Git):
             modi_file = drscm.FileInfoEmpty(rel_path)
             blob_sha  = git_get_most_recent_commit_blob(self, modi_file)
             base_file = drscm.FileInfo(rel_path, blob_sha)
-            action    = ChangedFile(self, "delete", base_file, modi_file)
+            action    = ChangedFileDelete(self, base_file, modi_file)
 
         elif (idx_ch in (' ', 'A', 'M')) and (wrk_ch == 'M'):
             # Rename (idx_ch == 'R') is a special case that cannot be
@@ -275,7 +383,7 @@ class GitStaged(Git):
             modi_file = drscm.FileInfo(rel_path, None)
             blob_sha  = git_get_most_recent_commit_blob(self, modi_file)
             base_file = drscm.FileInfo(rel_path, blob_sha)
-            action    = ChangedFile(self, "unstaged", base_file, modi_file)
+            action    = ChangedFileUnstaged(self, base_file, modi_file)
 
         elif (idx_ch == 'R') and (wrk_ch in (' ', 'M')):
             # The file has been renamed.
@@ -290,23 +398,23 @@ class GitStaged(Git):
             base_file     = drscm.FileInfo(base_rel_path, None)
             blob_sha      = git_get_most_recent_commit_blob(self, base_file)
             base_file     = drscm.FileInfo(base_rel_path, blob_sha)
-            action        = ChangedFile(self, "rename", base_file, modi_file)
+            action        = ChangedFileRename(self, base_file, modi_file)
 
         elif (idx_ch == 'A') and (wrk_ch == ' '):
             modi_file = drscm.FileInfo(rel_path, None)
             base_file = drscm.FileInfoEmpty(rel_path)
-            action    = ChangedFile(self, "add", base_file, modi_file)
+            action    = ChangedFileAdd(self, base_file, modi_file)
 
         elif (idx_ch == 'M') and wrk_ch == ' ':
             modi_file = drscm.FileInfo(rel_path, None)
             blob_sha  = git_get_most_recent_commit_blob(self, modi_file)
             base_file = drscm.FileInfo(rel_path, blob_sha)
-            action    = ChangedFile(self, "staged", base_file, modi_file)
+            action    = ChangedFileStaged(self, base_file, modi_file)
 
         elif (idx_ch == '?') or (wrk_ch == '?'):
             modi_file = drscm.FileInfo(rel_path, None)
             base_file = drscm.FileInfoEmpty(rel_path)
-            action    = ChangedFile(self, "untracked", base_file, modi_file)
+            action    = ChangedFileUntracked(self, base_file, modi_file)
 
         else:
             raise NotImplementedError("Unknown action: '%s' '%s'  '%s'" %
