@@ -15,7 +15,9 @@ def main():
     try:
         application = PyQt6.QtWidgets.QApplication(sys.argv)
         options = cmdlineargs.process_command_line()
-        return generate_viewer.generate(options, options.arg_note)
+        return generate_viewer.generate(options,
+                                        options.dossier_["mode"],
+                                        options.arg_note)
 
     except KeyboardInterrupt:
         return 0

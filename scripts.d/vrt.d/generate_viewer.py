@@ -9,31 +9,14 @@ import diff_viewer
 import tab_manager_module
 
 class FileButton (object):
-    def __init__(self, options, action,
-                 root_path,
-                 base_dir_rel_path, base_file_rel_path,
-                 modi_dir_rel_path, modi_file_rel_path):
+    def __init__(self, options, action, root_path):
         self.options_            = options
         self.action_             = action
         self.root_path_          = root_path
 
-        self.base_dir_rel_path_  = base_dir_rel_path
-        self.base_rel_path_      = base_file_rel_path
-
-        self.modi_dir_rel_path_  = modi_dir_rel_path
-        self.modi_rel_path_      = modi_file_rel_path
-        self.stats_display_      = True
         self.desc_               = None
         self.stats_tab_          = options.arg_tab_label_stats
         self.stats_file_         = options.arg_file_label_stats
-
-    def modi_file_rel_path(self):
-        # Return source-tree relative path.
-        return self.modi_rel_path_
-
-    def base_file_rel_path(self):
-        # Return source-tree relative path.
-        return self.base_rel_path_
 
     def set_stats_tab(self, state):
         assert(isinstance(state, bool))
@@ -43,6 +26,11 @@ class FileButton (object):
         assert(isinstance(state, bool))
         self.stats_file_ = state
 
+    # Modified file line count.
+    #
+    # The line counts of the other files are immaterial, because this
+    # is the file that will be commited..
+    #
     def modi_line_count(self):
         result = 0
         if self.desc_ is not None:
@@ -66,6 +54,28 @@ class FileButton (object):
         if self.desc_ is not None:
             result = self.desc_.chg_line_count()
         return result
+
+
+class FileButtonCommitted (FileButton):
+    def __init__(self, options, action,
+                 root_path,
+                 base_dir_rel_path, base_file_rel_path,
+                 modi_dir_rel_path, modi_file_rel_path):
+        super().__init__(options, action, root_path)
+
+        self.base_dir_rel_path_  = base_dir_rel_path
+        self.base_rel_path_      = base_file_rel_path
+
+        self.modi_dir_rel_path_  = modi_dir_rel_path
+        self.modi_rel_path_      = modi_file_rel_path
+
+    def modi_file_rel_path(self):
+        # Return source-tree relative path.
+        return self.modi_rel_path_
+
+    def base_file_rel_path(self):
+        # Return source-tree relative path.
+        return self.base_rel_path_
 
     def generate_label(self, enable_stats):
         if self.desc_ is not None and enable_stats:
@@ -130,6 +140,23 @@ class FileButton (object):
         tab_widget.add_viewer(viewer)
 
 
+class FileButtonUncommitted(FileButtonCommitted):
+    def __init__(self, options, action,
+                 root_path,
+                 base_dir_rel_path, base_file_rel_path,
+                 modi_dir_rel_path, modi_file_rel_path):
+        super().__init__(options, action, root_path,
+                         base_dir_rel_path, base_file_rel_path,
+                         modi_dir_rel_path, modi_file_rel_path)
+
+        self.base_dir_rel_path_  = base_dir_rel_path
+        self.base_rel_path_      = base_file_rel_path
+
+        self.modi_dir_rel_path_  = modi_dir_rel_path
+        self.modi_rel_path_      = modi_file_rel_path
+
+
+
 def show_diff_map(options):
     return options.arg_diff_map
 
@@ -156,7 +183,7 @@ def add_diff_to_viewer(desc, viewer):
     viewer.finalize()
 
 
-def generate(options, note):
+def generate(options, mode, note):
     tab_widget = tab_manager_module.DiffViewerTabWidget(options.afr_,
                                                         options.arg_display_n_lines,
                                                         options.arg_display_n_chars,
@@ -181,13 +208,23 @@ def generate(options, note):
         tab_widget.add_commit_msg(rev["commit_msg"])
 
     for f in rev["files"]:
-        file_inst = FileButton(options,
-                               f["action"],
-                               options.dossier_["root"],
-                               rev["rel_base_dir"],
-                               f["base_rel_path"],
-                               rev["rel_modi_dir"],
-                               f["modi_rel_path"])
+        if mode == "committed":
+            file_inst = FileButtonCommitted(options,
+                                            f["action"],
+                                            options.dossier_["root"],
+                                            rev["rel_base_dir"],
+                                            f["base_rel_path"],
+                                            rev["rel_modi_dir"],
+                                            f["modi_rel_path"])
+        else:
+            assert(mode == "uncommitted")
+            file_inst = FileButtonUncommitted(options,
+                                              f["action"],
+                                              options.dossier_["root"],
+                                              rev["rel_base_dir"],
+                                              f["base_rel_path"],
+                                              rev["rel_modi_dir"],
+                                              f["modi_rel_path"])
 
         tab_widget.add_file(file_inst)
 
