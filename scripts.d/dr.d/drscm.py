@@ -185,11 +185,32 @@ class SCM(object):
         self.commit_msg_      = None # Change description /
                                      # commit message, if present.
         self.commit_msg_file_ = None # Pathname of file.
+        self.dossier_mode_    = self.get_dossier_mode()
+        self.scm_name_        = self.get_name()
 
         if options.arg_scm == "git":
             self.scm_path_ = options.arg_git_path
         else:
             drutil.fatal("Unhandled path to SCM tool.")
+
+    def get_name_(self):
+        raise NotImplementedError("%s: not implemented" % (self.qualid_()))
+
+    def get_dossier_mode_(self):
+        raise NotImplementedError("%s: not implemented" % (self.qualid_()))
+
+    def get_name(self):
+        return self.get_name_()
+
+    def get_dossier_mode(self):
+        mode = self.get_dossier_mode_()
+
+        # There are two dossier formats that must be processed by
+        # view-review-tabs (vrt).  If a new SCM is added, and a new
+        # mode is added, vrt will need to be updated.
+        assert(mode in ("committed",    # Dossier: committed change.
+                        "uncommitted")) # Dossier: uncommitted change.
+        return mode
 
     # Returns a single string that represents the information about
     # the change that should be conveyed to the user.  For example the
@@ -244,11 +265,11 @@ class SCM(object):
         now       = datetime.datetime.now()
         timestamp = datetime.datetime.strftime(now, "%Y.%m.%d.%H.%M.%S")
         revision  = {
-            'rel_base_dir' : rel_base_dir,
-            'rel_modi_dir' : rel_modi_dir,
-            'time'         : timestamp,
-            'commit_msg'   : self.commit_msg_file_, # Can be None
-            'files'        : [ ]
+            "rel_base_dir" : rel_base_dir,
+            "rel_modi_dir" : rel_modi_dir,
+            "time"         : timestamp,
+            "commit_msg"   : self.commit_msg_file_, # Can be None
+            "files"        : [ ]
         }
 
         for f in self.dossier_:
@@ -258,11 +279,11 @@ class SCM(object):
             # A path for both base and modi are included because
             # the file could be moved.
             finfo = {
-                'action'        : f.action(),
-                'modi_rel_path' : f.modi_file_info_.rel_path_,
-                'base_rel_path' : f.base_file_info_.rel_path_,
+                "action"        : f.action(),
+                "modi_rel_path" : f.modi_file_info_.rel_path_,
+                "base_rel_path" : f.base_file_info_.rel_path_,
             }
-            revision['files'].append(finfo)
+            revision["files"].append(finfo)
 
         return revision
 
@@ -281,17 +302,19 @@ class SCM(object):
         rel_modi_dir = os.path.basename(self.review_modi_dir_)
 
         info = {
-            'version'      : 2,
-            'user'         : getpass.getuser(),
-            'name'         : self.review_name_,
-            'root'         : self.review_dir_,
-            'revisions'    : [ ]
+            "version"      : 2,
+            "scm"          : self.scm_name_,
+            "mode"         : self.dossier_mode_,
+            "user"         : getpass.getuser(),
+            "name"         : self.review_name_,
+            "root"         : self.review_dir_,
+            "revisions"    : [ ]
         }
 
         revision = self.create_change_revision(rel_base_dir, rel_modi_dir,
                                                self.commit_msg_file_)
 
-        info['revisions'].append(revision)
+        info["revisions"].append(revision)
         return info
 
     def generate(self, options):

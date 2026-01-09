@@ -344,6 +344,9 @@ class Git(drscm.SCM):
                 deleted += int(info[1])
         return (files, added, deleted)
 
+    def get_name_(self):
+        return "git"
+
 
 # GitStaged:
 #
@@ -352,6 +355,9 @@ class Git(drscm.SCM):
 class GitStaged(Git):
     def __init__(self, options):
         super().__init__(options)
+
+    def get_dossier_mode_(self):
+        return "uncommitted"    # Uncommitted changes in the client.
 
     def get_unstaged_change_info(self):
         stdout = git_get_unstaged_numstat(self)
@@ -447,6 +453,9 @@ class GitStaged(Git):
 class GitCommitted(Git):
     def __init__(self, options):
         super().__init__(options)
+
+    def get_dossier_mode_(self):
+        return "committed"    # Uncommitted changes in the client.
 
     # Returns a range that covers a single SHA, or a range of SHA values.
     def get_change_range(self):
