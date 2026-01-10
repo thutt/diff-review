@@ -448,15 +448,15 @@ class FileTreeSidebar(QWidget):
                 should_show = True
             elif diff_mode == generate_viewer.DIFF_MODE_BASE_STAGE:
                 # HEAD vs Staged: show files with staged content
-                # FileButton (staged-only) or FileButtonStaged with has_staged()
-                if isinstance(file_class, generate_viewer.FileButtonStaged):
+                # FileButton (staged-only) or FileButtonUnstaged with has_staged()
+                if isinstance(file_class, generate_viewer.FileButtonUnstaged):
                     should_show = file_class.has_staged()
                 else:
                     # FileButton is used for staged-only files
                     should_show = True
             else:  # DIFF_MODE_STAGE_MODI
                 # Staged vs Working: show only files with both staged and unstaged
-                should_show = (isinstance(file_class, generate_viewer.FileButtonStaged)
+                should_show = (isinstance(file_class, generate_viewer.FileButtonUnstaged)
                                and file_class.has_staged())
 
             item.setHidden(not should_show)

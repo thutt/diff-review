@@ -146,7 +146,7 @@ class FileButton(FileButtonBase): # Committed & not-unstaged uncommited.
         tab_widget.add_viewer(viewer)
 
 
-class FileButtonStaged(FileButtonBase):
+class FileButtonUnstaged(FileButtonBase):
     def __init__(self, options, action,
                  root_path,
                  base_dir_rel_path, base_file_rel_path,
@@ -316,15 +316,15 @@ def generate(options, mode, note):
                                    f["modi_rel_path"])
         else:
             assert(mode == "uncommitted" and f["action"] == "unstaged")
-            file_inst = FileButtonStaged(options,
-                                         f["action"],
-                                         options.dossier_["root"],
-                                         rev["rel_base_dir"],
-                                         f["base_rel_path"],
-                                         rev["rel_modi_dir"],
-                                         f["modi_rel_path"],
-                                         rev["rel_stage_dir"],
-                                         f["stage_rel_path"])
+            file_inst = FileButtonUnstaged(options,
+                                           f["action"],
+                                           options.dossier_["root"],
+                                           rev["rel_base_dir"],
+                                           f["base_rel_path"],
+                                           rev["rel_modi_dir"],
+                                           f["modi_rel_path"],
+                                           rev["rel_stage_dir"],
+                                           f["stage_rel_path"])
 
         tab_widget.add_file(file_inst)
 

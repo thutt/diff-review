@@ -1,4 +1,4 @@
-# Copyright (c) 2025  Logic Magicians Software (Taylor Hutt).
+# Copyright (c) 2025, 2026  Logic Magicians Software (Taylor Hutt).
 # All Rights Reserved.
 # Licensed under Gnu GPL V3.
 #
@@ -979,7 +979,7 @@ class DiffViewerTabWidget(QMainWindow):
             # Reload if staged diff mode changed while this tab was not visible
             if viewer._needs_staged_mode_reload:
                 file_class = viewer.file_class
-                if isinstance(file_class, generate_viewer.FileButtonStaged):
+                if isinstance(file_class, generate_viewer.FileButtonUnstaged):
                     self.reload_staged_viewer(viewer, file_class)
 
     def update_view_menu_states(self):
@@ -1076,7 +1076,7 @@ class DiffViewerTabWidget(QMainWindow):
         # Find all open staged file viewers and mark them for reload
         current_index = self.tab_widget.currentIndex()
         for file_class in self.file_classes:
-            if not isinstance(file_class, generate_viewer.FileButtonStaged):
+            if not isinstance(file_class, generate_viewer.FileButtonUnstaged):
                 continue
             if file_class not in self.file_to_tab_index:
                 continue
@@ -1176,10 +1176,10 @@ class DiffViewerTabWidget(QMainWindow):
 
         This includes:
         - FileButton instances (staged-only files, always show HEAD vs Staged)
-        - FileButtonStaged instances where has_staged() is True
+        - FileButtonUnstaged instances where has_staged() is True
         """
         for file_class in self.file_classes:
-            if isinstance(file_class, generate_viewer.FileButtonStaged):
+            if isinstance(file_class, generate_viewer.FileButtonUnstaged):
                 if file_class.has_staged():
                     return True
             elif isinstance(file_class, generate_viewer.FileButton):
@@ -1190,10 +1190,10 @@ class DiffViewerTabWidget(QMainWindow):
     def has_any_staged_and_unstaged(self):
         """Return True if any file has both staged and unstaged changes.
 
-        Only FileButtonStaged instances with has_staged() True qualify.
+        Only FileButtonUnstaged instances with has_staged() True qualify.
         """
         for file_class in self.file_classes:
-            if isinstance(file_class, generate_viewer.FileButtonStaged):
+            if isinstance(file_class, generate_viewer.FileButtonUnstaged):
                 if file_class.has_staged():
                     return True
         return False
