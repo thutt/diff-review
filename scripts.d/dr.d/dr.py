@@ -1,4 +1,4 @@
-# Copyright (c) 2025  Logic Magicians Software (Taylor Hutt).
+# Copyright (c) 2025, 2026  Logic Magicians Software (Taylor Hutt).
 # All Rights Reserved.
 # Licensed under Gnu GPL V3.
 #
@@ -17,8 +17,9 @@ def process_command_line():
 
     options.review_dir = os.path.join(options.arg_review_dir,
                                       options.arg_review_name)
-    options.review_base_dir = os.path.join(options.review_dir, "base.d")
-    options.review_modi_dir = os.path.join(options.review_dir, "modi.d")
+    options.review_base_dir  = os.path.join(options.review_dir, "base.d")
+    options.review_stage_dir = os.path.join(options.review_dir, "stage.d")
+    options.review_modi_dir  = os.path.join(options.review_dir, "modi.d")
 
     if options.arg_scm == "git":
         if options.arg_change_id is None:

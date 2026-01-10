@@ -264,10 +264,18 @@ class ChangedFile(drscm.ChangedFile):
                              "\n"
                              "This template is used in its place.\n")
 
+    def get_dossier_representation(self):
+        return {
+            "action"          : self.action(),
+            "modi_rel_path"   : self.modi_file_info_.rel_path_,
+            "base_rel_path"   : self.base_file_info_.rel_path_,
+        }
+
 
 class ChangedFileUnstaged(ChangedFile):
-    def __init__(self, scm, base_file, modi_file):
+    def __init__(self, scm, base_file, stage_file, modi_file):
         super().__init__(scm, "unstaged", base_file, modi_file)
+        self.staged_file_info_ = stage_file
 
         # An unstaged file has a 2-stage diff.
         #
@@ -276,25 +284,39 @@ class ChangedFileUnstaged(ChangedFile):
         #
         # Here, the base file is the in-git version.
 
-        staged_sha    = git_get_staged_file_blob_sha(scm, base_file.rel_path_)
-        unstaged_sha  = git_get_unstaged_file_blob_sha(scm, base_file.rel_path_)
-        head_sha      = git_get_head_file_blob_sha(scm, base_file.rel_path_)
-        no_chgs       = (staged_sha == head_sha) and (staged_sha == unstaged_sha)
-        unstaged_chgs = (staged_sha == head_sha) and (staged_sha != unstaged_sha)
-        staged_chgs   = (staged_sha != head_sha) and (staged_sha == unstaged_sha)
-        both_chgs     = (staged_sha != head_sha) and (staged_sha != unstaged_sha)
+        # staged_sha    = git_get_staged_file_blob_sha(scm, base_file.rel_path_)
+        # unstaged_sha  = git_get_unstaged_file_blob_sha(scm, base_file.rel_path_)
+        # head_sha      = git_get_head_file_blob_sha(scm, base_file.rel_path_)
+        # no_chgs       = (staged_sha == head_sha) and (staged_sha == unstaged_sha)
+        # unstaged_chgs = (staged_sha == head_sha) and (staged_sha != unstaged_sha)
+        # staged_chgs   = (staged_sha != head_sha) and (staged_sha == unstaged_sha)
+        # both_chgs     = (staged_sha != head_sha) and (staged_sha != unstaged_sha)
 
-        if staged_chgs or both_chgs:
-            # The file has staged changes; the difference between
-            # unstaged and staged should be viewable.
-            self.staged_file_ = drscm.FileInfo(base_file.rel_path_, staged_sha)
-        else:
-            self.staged_file_ = None
+        # if staged_chgs or both_chgs:
+        #     # The file has staged changes; the difference between
+        #     # unstaged and staged should be viewable.
+        #     self.staged_file_info_ = drscm.FileInfo(base_file.rel_path_, staged_sha)
+        # else:
+        #     self.staged_file_info_ = None
 
     def update_review_directory(self):
         super().update_review_directory()
-        # What do do here?
-        print("update_review_directory for an unstaged change.")
+        if self.staged_file_info_ is not None:
+            self.copy_to_review_directory(self.scm_.review_stage_dir_,
+                                          self.staged_file_info_)
+
+
+    def get_dossier_representation(self):
+        staged = None
+        if self.staged_file_info_ is not None:
+            staged = self.staged_file_info_.rel_path_
+
+        return {
+            "action"         : self.action(),
+            "modi_rel_path"  : self.modi_file_info_.rel_path_,
+            "base_rel_path"  : self.base_file_info_.rel_path_,
+            "stage_rel_path" : staged
+        }
 
 
 class ChangedFileDelete(ChangedFile):
@@ -386,10 +408,25 @@ class GitStaged(Git):
             # Rename (idx_ch == 'R') is a special case that cannot be
             # processed by Unstaged.
             #
-            modi_file = drscm.FileInfo(rel_path, None)
-            blob_sha  = git_get_most_recent_commit_blob(self, modi_file)
-            base_file = drscm.FileInfo(rel_path, blob_sha)
-            action    = ChangedFileUnstaged(self, base_file, modi_file)
+            staged_sha    = git_get_staged_file_blob_sha(self, rel_path)
+            unstaged_sha  = git_get_unstaged_file_blob_sha(self, rel_path)
+            head_sha      = git_get_head_file_blob_sha(self, rel_path)
+            no_chgs       = ((staged_sha == head_sha) and
+                             (staged_sha == unstaged_sha))
+            unstaged_chgs = ((staged_sha == head_sha) and
+                             (staged_sha != unstaged_sha))
+            staged_chgs   = ((staged_sha != head_sha) and
+                             (staged_sha == unstaged_sha))
+            both_chgs     = ((staged_sha != head_sha) and
+                             (staged_sha != unstaged_sha))
+            modi_file     = drscm.FileInfo(rel_path, None)
+            blob_sha      = git_get_most_recent_commit_blob(self, modi_file)
+            base_file     = drscm.FileInfo(rel_path, blob_sha)
+            staged_file   = None
+            if staged_chgs or both_chgs:
+                staged_file = drscm.FileInfo(rel_path, staged_sha)
+            action = ChangedFileUnstaged(self, base_file,
+                                         staged_file, modi_file)
 
         elif (idx_ch == 'R') and (wrk_ch in (' ', 'M')):
             # The file has been renamed.

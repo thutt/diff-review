@@ -97,13 +97,18 @@ class ChangedFile(object):
         #
         self.base_file_info_   = None
 
-    def set_base_file_info(self, file_info):
-        assert(isinstance(file_info, FileInfo))
-        self.base_file_info_ = file_info
 
-    def set_modi_file_info(self, file_info):
-        assert(isinstance(file_info, FileInfo))
-        self.modi_file_info_ = file_info
+    # def set_base_file_info(self, file_info):
+    #     assert(isinstance(file_info, FileInfo))
+    #     self.base_file_info_ = file_info
+
+    # def set_stage_file_info(self, file_info):
+    #     assert(isinstance(file_info, FileInfo))
+    #     self.stage_file_info_ = file_info
+
+    # def set_modi_file_info(self, file_info):
+    #     assert(isinstance(file_info, FileInfo))
+    #     self.modi_file_info_ = file_info
 
     def output_name(self, dest_dir, file_info):
         assert(isinstance(file_info, FileInfo))
@@ -156,6 +161,8 @@ class ChangedFile(object):
         self.copy_to_review_directory(self.scm_.review_modi_dir_,
                                       self.modi_file_info_)
 
+    def get_dossier_representation(self):
+        raise NotImplementedError("%s: not implemented" % (self.qualid_()))
 
 # SCM
 #
@@ -174,19 +181,20 @@ class SCM(object):
                           inspect.stack()[1].function)
 
     def __init__(self, options):
-        self.review_name_     = options.arg_review_name
-        self.change_id_       = options.arg_change_id
-        self.review_dir_      = options.review_dir
-        self.review_base_dir_ = options.review_base_dir
-        self.review_modi_dir_ = options.review_modi_dir
-        self.dossier_         = None # None -> no change to review.
-        self.verbose_         = options.arg_verbose
-        self.n_threads_       = options.arg_threads
-        self.commit_msg_      = None # Change description /
-                                     # commit message, if present.
-        self.commit_msg_file_ = None # Pathname of file.
-        self.dossier_mode_    = self.get_dossier_mode()
-        self.scm_name_        = self.get_name()
+        self.review_name_      = options.arg_review_name
+        self.change_id_        = options.arg_change_id
+        self.review_dir_       = options.review_dir
+        self.review_base_dir_  = options.review_base_dir
+        self.review_stage_dir_ = options.review_stage_dir
+        self.review_modi_dir_  = options.review_modi_dir
+        self.dossier_          = None # None -> no change to review.
+        self.verbose_          = options.arg_verbose
+        self.n_threads_        = options.arg_threads
+        self.commit_msg_       = None # Change description /
+                                      # commit message, if present.
+        self.commit_msg_file_  = None # Pathname of file.
+        self.dossier_mode_     = self.get_dossier_mode()
+        self.scm_name_         = self.get_name()
 
         if options.arg_scm == "git":
             self.scm_path_ = options.arg_git_path
@@ -261,28 +269,35 @@ class SCM(object):
         for p in processes:
             p.join()
 
-    def create_change_revision(self, rel_base_dir, rel_modi_dir, commit_msg_file):
+    def create_change_revision(self, rel_base_dir, rel_stage_dir,
+                               rel_modi_dir, commit_msg_file):
         now       = datetime.datetime.now()
         timestamp = datetime.datetime.strftime(now, "%Y.%m.%d.%H.%M.%S")
         revision  = {
-            "rel_base_dir" : rel_base_dir,
-            "rel_modi_dir" : rel_modi_dir,
-            "time"         : timestamp,
-            "commit_msg"   : self.commit_msg_file_, # Can be None
-            "files"        : [ ]
+            "rel_base_dir"  : rel_base_dir,
+            "rel_modi_dir"  : rel_modi_dir,
+            "rel_stage_dir" : rel_stage_dir,
+            "time"          : timestamp,
+            "commit_msg"    : self.commit_msg_file_, # Can be None
+            "files"         : [ ]
         }
 
         for f in self.dossier_:
+            assert(isinstance(f, ChangedFile))
             assert(f.modi_file_info_ is not None)
             assert(f.base_file_info_ is not None)
             
             # A path for both base and modi are included because
             # the file could be moved.
-            finfo = {
-                "action"        : f.action(),
-                "modi_rel_path" : f.modi_file_info_.rel_path_,
-                "base_rel_path" : f.base_file_info_.rel_path_,
-            }
+            if False:
+                finfo = {
+                    "action"        : f.action(),
+                    "modi_rel_path" : f.modi_file_info_.rel_path_,
+                    "base_rel_path" : f.base_file_info_.rel_path_,
+                }
+            else:
+                finfo = f.get_dossier_representation()
+
             revision["files"].append(finfo)
 
         return revision
@@ -297,9 +312,11 @@ class SCM(object):
         # menu.
         #
         assert(os.path.dirname(self.review_base_dir_) == self.review_dir_)
+        assert(os.path.dirname(self.review_stage_dir_) == self.review_dir_)
         assert(os.path.dirname(self.review_modi_dir_) == self.review_dir_)
-        rel_base_dir = os.path.basename(self.review_base_dir_)
-        rel_modi_dir = os.path.basename(self.review_modi_dir_)
+        rel_base_dir  = os.path.basename(self.review_base_dir_)
+        rel_stage_dir = os.path.basename(self.review_stage_dir_)
+        rel_modi_dir  = os.path.basename(self.review_modi_dir_)
 
         info = {
             "version"      : 2,
@@ -311,7 +328,8 @@ class SCM(object):
             "revisions"    : [ ]
         }
 
-        revision = self.create_change_revision(rel_base_dir, rel_modi_dir,
+        revision = self.create_change_revision(rel_base_dir, rel_stage_dir,
+                                               rel_modi_dir,
                                                self.commit_msg_file_)
 
         info["revisions"].append(revision)

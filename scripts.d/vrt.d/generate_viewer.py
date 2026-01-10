@@ -8,7 +8,13 @@ import diffmgrng as diffmgr
 import diff_viewer
 import tab_manager_module
 
-class FileButton (object):
+# Diff mode constants for staged files.
+# These control which pair of files to compare.
+DIFF_MODE_BASE_MODI  = 0  # HEAD vs Working (default)
+DIFF_MODE_BASE_STAGE = 1  # HEAD vs Staged
+DIFF_MODE_STAGE_MODI = 2  # Staged vs Working
+
+class FileButtonBase(object):
     def __init__(self, options, action, root_path):
         self.options_            = options
         self.action_             = action
@@ -56,7 +62,7 @@ class FileButton (object):
         return result
 
 
-class FileButtonCommitted (FileButton):
+class FileButton(FileButtonBase): # Committed & not-unstaged uncommited.
     def __init__(self, options, action,
                  root_path,
                  base_dir_rel_path, base_file_rel_path,
@@ -140,14 +146,13 @@ class FileButtonCommitted (FileButton):
         tab_widget.add_viewer(viewer)
 
 
-class FileButtonUncommitted(FileButtonCommitted):
+class FileButtonStaged(FileButtonBase):
     def __init__(self, options, action,
                  root_path,
                  base_dir_rel_path, base_file_rel_path,
-                 modi_dir_rel_path, modi_file_rel_path):
-        super().__init__(options, action, root_path,
-                         base_dir_rel_path, base_file_rel_path,
-                         modi_dir_rel_path, modi_file_rel_path)
+                 modi_dir_rel_path, modi_file_rel_path,
+                 stage_dir_rel_path, stage_file_rel_path):
+        super().__init__(options, action, root_path)
 
         self.base_dir_rel_path_  = base_dir_rel_path
         self.base_rel_path_      = base_file_rel_path
@@ -155,6 +160,98 @@ class FileButtonUncommitted(FileButtonCommitted):
         self.modi_dir_rel_path_  = modi_dir_rel_path
         self.modi_rel_path_      = modi_file_rel_path
 
+        self.stage_dir_rel_path_ = stage_dir_rel_path
+        self.stage_rel_path_     = stage_file_rel_path
+
+    def has_staged(self):
+        return self.stage_rel_path_ is not None
+
+    def get_diff_paths(self, mode, root_path):
+        # Returns (base_path, modi_path) for the given diff mode.
+        # root_path is the resolved root (URL or local path).
+        if mode == DIFF_MODE_BASE_STAGE:
+            base_dir = self.base_dir_rel_path_
+            base_rel = self.base_file_rel_path()
+            modi_dir = self.stage_dir_rel_path_
+            modi_rel = self.stage_file_rel_path()
+        elif mode == DIFF_MODE_STAGE_MODI:
+            base_dir = self.stage_dir_rel_path_
+            base_rel = self.stage_file_rel_path()
+            modi_dir = self.modi_dir_rel_path_
+            modi_rel = self.modi_file_rel_path()
+        else:  # DIFF_MODE_BASE_MODI (default)
+            base_dir = self.base_dir_rel_path_
+            base_rel = self.base_file_rel_path()
+            modi_dir = self.modi_dir_rel_path_
+            modi_rel = self.modi_file_rel_path()
+
+        base = posixpath.join(root_path, base_dir, base_rel)
+        modi = posixpath.join(root_path, modi_dir, modi_rel)
+        return (base, modi)
+
+    def modi_file_rel_path(self):
+        # Return source-tree relative path.
+        return self.modi_rel_path_
+
+    def stage_file_rel_path(self):
+        # Return source-tree relative path.
+        return self.stage_rel_path_
+
+    def base_file_rel_path(self):
+        # Return source-tree relative path.
+        return self.base_rel_path_
+
+    def generate_label(self, enable_stats):
+        if self.desc_ is not None and enable_stats:
+            stats =  ("[%d | A: %d / D: %d / C: %d]" %
+                      (self.modi_line_count(),
+                       self.add_line_count(),
+                       self.del_line_count(),
+                       self.chg_line_count()))
+            label = "%s  %s" % (self.modi_file_rel_path(), stats)
+        else:
+            label = self.modi_file_rel_path()
+
+        return label
+
+
+    def button_label(self):
+        label = self.generate_label(self.stats_file_)
+        return label
+
+    def tab_label(self):
+        label = self.generate_label(self.stats_tab_)
+        return label
+
+    def tab_relpath(self):
+        return self.modi_file_rel_path()
+
+    def make_viewer(self, base, modi):
+        viewer = diff_viewer.DiffViewer(base, modi,
+                                        self.options_.arg_max_line_length,
+                                        show_diff_map(self.options_),
+                                        show_line_numbers(self.options_))
+
+        self.desc_ = diffmgr.create_diff_descriptor(self.options_.afr_,
+                                                    self.options_.arg_verbose,
+                                                    self.options_.intraline_percent_,
+                                                    self.options_.arg_dump_ir,
+                                                    base, modi)
+        add_diff_to_viewer(self.desc_, viewer)
+
+        return viewer
+
+    def add_viewer(self, tab_widget):
+        url = self.options_.arg_dossier_url
+        if url is not None:
+            root_path = url
+        else:
+            root_path = self.root_path_
+
+        mode = tab_widget.get_staged_diff_mode()
+        base, modi = self.get_diff_paths(mode, root_path)
+        viewer = self.make_viewer(base, modi)
+        tab_widget.add_viewer(viewer)
 
 
 def show_diff_map(options):
@@ -201,30 +298,33 @@ def generate(options, mode, note):
                                                         options.editor_class_,
                                                         options.editor_theme_,
                                                         options.arg_keybindings,
-                                                        note)
+                                                        note,
+                                                        mode)
 
     rev = options.dossier_["revisions"][0]
     if rev["commit_msg"] is not None:
         tab_widget.add_commit_msg(rev["commit_msg"])
 
     for f in rev["files"]:
-        if mode == "committed":
-            file_inst = FileButtonCommitted(options,
-                                            f["action"],
-                                            options.dossier_["root"],
-                                            rev["rel_base_dir"],
-                                            f["base_rel_path"],
-                                            rev["rel_modi_dir"],
-                                            f["modi_rel_path"])
+        if mode == "committed" or f["action"] != "unstaged":
+            file_inst = FileButton(options,
+                                   f["action"],
+                                   options.dossier_["root"],
+                                   rev["rel_base_dir"],
+                                   f["base_rel_path"],
+                                   rev["rel_modi_dir"],
+                                   f["modi_rel_path"])
         else:
-            assert(mode == "uncommitted")
-            file_inst = FileButtonUncommitted(options,
-                                              f["action"],
-                                              options.dossier_["root"],
-                                              rev["rel_base_dir"],
-                                              f["base_rel_path"],
-                                              rev["rel_modi_dir"],
-                                              f["modi_rel_path"])
+            assert(mode == "uncommitted" and f["action"] == "unstaged")
+            file_inst = FileButtonStaged(options,
+                                         f["action"],
+                                         options.dossier_["root"],
+                                         rev["rel_base_dir"],
+                                         f["base_rel_path"],
+                                         rev["rel_modi_dir"],
+                                         f["modi_rel_path"],
+                                         rev["rel_stage_dir"],
+                                         f["stage_rel_path"])
 
         tab_widget.add_file(file_inst)
 

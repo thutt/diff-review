@@ -29,6 +29,7 @@ import commit_msg_handler
 import search_manager
 import file_tree_sidebar
 import keybindings
+import generate_viewer
 from commit_msg_handler import CommitMessageTab
 from note_manager import ReviewNotesTab, ReviewNotesTabBase
 from tab_content_base import TabContentBase
@@ -200,13 +201,16 @@ class DiffViewerTabWidget(QMainWindow):
                  editor_class,
                  editor_theme,
                  keybindings_file,
-                 note_file):
+                 note_file,
+                 review_mode       : str):  # "committed" or "uncommitted"
         if QApplication.instance() is None:
             self._app = QApplication(sys.argv)
         else:
             self._app = QApplication.instance()
 
         super().__init__()
+
+        self.review_mode_ = review_mode
 
         self.afr_ = afr
         self.display_lines = display_lines
@@ -250,6 +254,9 @@ class DiffViewerTabWidget(QMainWindow):
         # Global view state for all tabs
         self.diff_map_visible = show_diff_map  # Initial state for diff map
         self.line_numbers_visible = show_line_numbers  # Initial state for line numbers
+
+        # Staged diff mode: controls which file pair to compare for staged files
+        self.staged_diff_mode_ = generate_viewer.DIFF_MODE_BASE_MODI
 
         # Create view state manager
         self.view_state_mgr = view_state_manager.ViewStateManager(
@@ -525,6 +532,37 @@ class DiffViewerTabWidget(QMainWindow):
             action.triggered.connect(lambda checked, name=palette_name: self.switch_palette(name))
             self.palette_action_group.addAction(action)
             palette_menu.addAction(action)
+
+        # Compare menu (only for uncommitted reviews)
+        self.compare_menu = menubar.addMenu("Compare")
+        self.compare_action_group = QActionGroup(self)
+        self.compare_action_group.setExclusive(True)
+
+        self.compare_base_modi_action = QAction("HEAD vs Working", self)
+        self.compare_base_modi_action.setCheckable(True)
+        self.compare_base_modi_action.setChecked(True)  # Default mode
+        self.compare_base_modi_action.triggered.connect(
+            lambda: self.set_staged_diff_mode(generate_viewer.DIFF_MODE_BASE_MODI))
+        self.compare_action_group.addAction(self.compare_base_modi_action)
+        self.compare_menu.addAction(self.compare_base_modi_action)
+
+        self.compare_base_stage_action = QAction("HEAD vs Staged", self)
+        self.compare_base_stage_action.setCheckable(True)
+        self.compare_base_stage_action.triggered.connect(
+            lambda: self.set_staged_diff_mode(generate_viewer.DIFF_MODE_BASE_STAGE))
+        self.compare_action_group.addAction(self.compare_base_stage_action)
+        self.compare_menu.addAction(self.compare_base_stage_action)
+
+        self.compare_stage_modi_action = QAction("Staged vs Working", self)
+        self.compare_stage_modi_action.setCheckable(True)
+        self.compare_stage_modi_action.triggered.connect(
+            lambda: self.set_staged_diff_mode(generate_viewer.DIFF_MODE_STAGE_MODI))
+        self.compare_action_group.addAction(self.compare_stage_modi_action)
+        self.compare_menu.addAction(self.compare_stage_modi_action)
+
+        # Hide Compare menu for committed reviews
+        if self.review_mode_ == "committed":
+            self.compare_menu.menuAction().setVisible(False)
 
         # Help menu
         help_menu = menubar.addMenu("Help")
@@ -938,6 +976,11 @@ class DiffViewerTabWidget(QMainWindow):
             if viewer._needs_color_refresh:
                 viewer.refresh_colors()
                 viewer._needs_color_refresh = False
+            # Reload if staged diff mode changed while this tab was not visible
+            if viewer._needs_staged_mode_reload:
+                file_class = viewer.file_class
+                if isinstance(file_class, generate_viewer.FileButtonStaged):
+                    self.reload_staged_viewer(viewer, file_class)
 
     def update_view_menu_states(self):
         """Enable/disable View menu items based on current tab type"""
@@ -1010,6 +1053,171 @@ class DiffViewerTabWidget(QMainWindow):
 
             # Update Review Notes item style in tree
             self.sidebar_widget.update_notes_state(is_open, is_active)
+
+    def get_staged_diff_mode(self):
+        """Return the current staged diff mode."""
+        return self.staged_diff_mode_
+
+    def set_staged_diff_mode(self, mode):
+        """Set the staged diff mode and update affected viewers.
+
+        The current tab (if it's a staged file) is reloaded immediately.
+        Other staged file tabs are marked dirty and reloaded when selected.
+        """
+        if mode == self.staged_diff_mode_:
+            return
+
+        self.staged_diff_mode_ = mode
+
+        # Update sidebar visibility based on mode
+        self.sidebar_widget.update_file_visibility_for_mode(
+            self.file_classes, mode)
+
+        # Find all open staged file viewers and mark them for reload
+        current_index = self.tab_widget.currentIndex()
+        for file_class in self.file_classes:
+            if not isinstance(file_class, generate_viewer.FileButtonStaged):
+                continue
+            if file_class not in self.file_to_tab_index:
+                continue
+
+            tab_index = self.file_to_tab_index[file_class]
+            viewer = self.tab_widget.widget(tab_index)
+            if not isinstance(viewer, DiffViewer):
+                continue
+
+            if tab_index == current_index:
+                # Current tab: reload immediately
+                self.reload_staged_viewer(viewer, file_class)
+            else:
+                # Other tabs: mark dirty for reload on selection
+                viewer._needs_staged_mode_reload = True
+
+    def reload_staged_viewer(self, viewer, file_class):
+        """Reload a staged file viewer with the current diff mode."""
+        import diffmgrng as diffmgr
+
+        url = file_class.options_.arg_dossier_url
+        if url is not None:
+            root_path = url
+        else:
+            root_path = file_class.root_path_
+
+        base, modi = file_class.get_diff_paths(self.staged_diff_mode_, root_path)
+
+        # Save current scroll position
+        v_scroll_pos = viewer.base_text.verticalScrollBar().value()
+        h_scroll_pos = viewer.base_text.horizontalScrollBar().value()
+
+        # Clear line number area backgrounds
+        viewer.base_line_area.line_backgrounds.clear()
+        viewer.modified_line_area.line_backgrounds.clear()
+
+        # Reset highlighting state
+        viewer.highlighting_applied = False
+        viewer.highlighting_in_progress = False
+        viewer.highlighting_next_line = 0
+
+        # Clear bookmarks
+        viewer.bookmarked_lines.clear()
+        viewer.base_text.bookmarked_lines.clear()
+        viewer.modified_text.bookmarked_lines.clear()
+
+        # Clear notes
+        viewer.note_count = 0
+        viewer.base_noted_lines.clear()
+        viewer.modified_noted_lines.clear()
+        viewer.base_text.noted_lines.clear()
+        viewer.modified_text.noted_lines.clear()
+        viewer.base_line_area.noted_lines.clear()
+        viewer.modified_line_area.noted_lines.clear()
+
+        # Clear existing data
+        viewer.base_display = []
+        viewer.modified_display = []
+        viewer.base_line_nums = []
+        viewer.modified_line_nums = []
+        viewer.change_regions = []
+        viewer.base_line_objects = []
+        viewer.modified_line_objects = []
+
+        # Update file paths
+        viewer.base_file = base
+        viewer.modified_file = modi
+
+        # Reload diff
+        desc = diffmgr.create_diff_descriptor(self.afr_,
+                                              False,
+                                              self.intraline_percent,
+                                              self.dump_ir,
+                                              base, modi)
+
+        # Set changed region count
+        viewer.set_changed_region_count(desc.base_.n_changed_regions_)
+
+        for idx in range(len(desc.base_.lines_)):
+            base_line = desc.base_.lines_[idx]
+            modi_line = desc.modi_.lines_[idx]
+            viewer.add_line(base_line, modi_line)
+
+        viewer.finalize()
+        viewer.ensure_highlighting_applied()
+
+        # Restore scroll position
+        viewer.base_text.verticalScrollBar().setValue(v_scroll_pos)
+        viewer.base_text.horizontalScrollBar().setValue(h_scroll_pos)
+        viewer.modified_text.verticalScrollBar().setValue(v_scroll_pos)
+        viewer.modified_text.horizontalScrollBar().setValue(h_scroll_pos)
+
+        viewer._needs_staged_mode_reload = False
+
+    def has_any_staged_content(self):
+        """Return True if any file has staged content (for HEAD vs Staged mode).
+
+        This includes:
+        - FileButton instances (staged-only files, always show HEAD vs Staged)
+        - FileButtonStaged instances where has_staged() is True
+        """
+        for file_class in self.file_classes:
+            if isinstance(file_class, generate_viewer.FileButtonStaged):
+                if file_class.has_staged():
+                    return True
+            elif isinstance(file_class, generate_viewer.FileButton):
+                # FileButton is used for staged-only files in uncommitted mode
+                return True
+        return False
+
+    def has_any_staged_and_unstaged(self):
+        """Return True if any file has both staged and unstaged changes.
+
+        Only FileButtonStaged instances with has_staged() True qualify.
+        """
+        for file_class in self.file_classes:
+            if isinstance(file_class, generate_viewer.FileButtonStaged):
+                if file_class.has_staged():
+                    return True
+        return False
+
+    def update_compare_menu_state(self):
+        """Enable/disable Compare menu items based on staged content availability."""
+        if self.review_mode_ == "committed":
+            return
+
+        has_staged_content = self.has_any_staged_content()
+        has_staged_and_unstaged = self.has_any_staged_and_unstaged()
+
+        self.compare_base_stage_action.setEnabled(has_staged_content)
+        self.compare_stage_modi_action.setEnabled(has_staged_and_unstaged)
+
+        # If current mode is not available, reset to default mode
+        if (self.staged_diff_mode_ == generate_viewer.DIFF_MODE_BASE_STAGE
+                and not has_staged_content):
+            self.compare_base_modi_action.setChecked(True)
+            self.set_staged_diff_mode(generate_viewer.DIFF_MODE_BASE_MODI)
+        elif (self.staged_diff_mode_ == generate_viewer.DIFF_MODE_STAGE_MODI
+                and not has_staged_and_unstaged):
+            self.compare_base_modi_action.setChecked(True)
+            self.set_staged_diff_mode(generate_viewer.DIFF_MODE_BASE_MODI)
 
     def get_all_viewers(self):
         """
@@ -2081,6 +2289,8 @@ class DiffViewerTabWidget(QMainWindow):
 
         # Set initial View menu states
         self.update_view_menu_states()
+        # Set initial Compare menu states (enable/disable based on staged content)
+        self.update_compare_menu_state()
         # Apply initial focus tinting (sidebar focused, content dimmed)
         self.update_focus_tinting()
         self.show()

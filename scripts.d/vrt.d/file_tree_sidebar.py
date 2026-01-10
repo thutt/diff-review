@@ -422,3 +422,69 @@ class FileTreeSidebar(QWidget):
     def update_open_all_text(self, total_files):
         """Update the Open All button text"""
         self.open_all_button.setText(f"Open All ({total_files}) Files")
+
+    def update_file_visibility_for_mode(self, file_classes, diff_mode):
+        """Update file visibility based on diff mode.
+
+        HEAD vs Working: Show all files
+        HEAD vs Staged: Show only files with staged content
+        Staged vs Working: Show only files with both staged and unstaged content
+
+        Args:
+            file_classes: List of all file class instances
+            diff_mode: Current diff mode constant
+        """
+        import generate_viewer
+
+        visible_count = 0
+        for file_class in file_classes:
+            if file_class not in self.file_items:
+                continue
+
+            item = self.file_items[file_class]
+
+            if diff_mode == generate_viewer.DIFF_MODE_BASE_MODI:
+                # HEAD vs Working: show all files
+                should_show = True
+            elif diff_mode == generate_viewer.DIFF_MODE_BASE_STAGE:
+                # HEAD vs Staged: show files with staged content
+                # FileButton (staged-only) or FileButtonStaged with has_staged()
+                if isinstance(file_class, generate_viewer.FileButtonStaged):
+                    should_show = file_class.has_staged()
+                else:
+                    # FileButton is used for staged-only files
+                    should_show = True
+            else:  # DIFF_MODE_STAGE_MODI
+                # Staged vs Working: show only files with both staged and unstaged
+                should_show = (isinstance(file_class, generate_viewer.FileButtonStaged)
+                               and file_class.has_staged())
+
+            item.setHidden(not should_show)
+            if should_show:
+                visible_count += 1
+
+        # Update directory visibility - hide empty directories
+        self._update_directory_visibility()
+
+        # Update Open All button text with visible count
+        self.open_all_button.setText(f"Open All ({visible_count}) Files")
+
+    def _update_directory_visibility(self):
+        """Hide directories that have no visible children."""
+        # Process directories from deepest to shallowest
+        # Sort by path depth (number of slashes) in reverse order
+        sorted_dirs = sorted(self.dir_items.keys(),
+                            key=lambda p: p.count('/'),
+                            reverse=True)
+
+        for dir_path in sorted_dirs:
+            dir_item = self.dir_items[dir_path]
+            has_visible_child = False
+
+            for i in range(dir_item.childCount()):
+                child = dir_item.child(i)
+                if not child.isHidden():
+                    has_visible_child = True
+                    break
+
+            dir_item.setHidden(not has_visible_child)

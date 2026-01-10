@@ -70,6 +70,7 @@ class DiffViewer(QWidget, TabContentBase):
         self.highlighting_next_line = 0  # Next line to highlight
         self._needs_highlighting_update = False  # Set by tab_manager for deferred updates
         self._needs_color_refresh = False  # Set by tab_manager for deferred color updates
+        self._needs_staged_mode_reload = False  # Set when staged diff mode changes
         
         self.current_font_size = 12  # Default font size
         
