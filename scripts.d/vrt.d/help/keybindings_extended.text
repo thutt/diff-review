@@ -1,0 +1,9 @@
+The keybindings are contained in a json file describing keyboard
+characters and their assignment to specific actions within the
+view-review-tabs program.
+
+A set of keybindings for Vim users is in the same directory as the
+default.json file.
+
+The complete documentation for the format of this json file is in
+docs/keybindings.text.

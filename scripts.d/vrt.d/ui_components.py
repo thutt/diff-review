@@ -228,8 +228,6 @@ class SyncedPlainTextEdit(QPlainTextEdit):
         self.viewport().update()
     
     def keyPressEvent(self, event):
-        # Ctrl+N now handled by DiffViewer.eventFilter
-        
         key = event.key()
         modifiers = event.modifiers()
         
@@ -275,7 +273,9 @@ class SyncedPlainTextEdit(QPlainTextEdit):
             new_line = cursor.blockNumber()
             self.set_focused_line(new_line)
             
-            # Syncing to other_widget removed - now handled by DiffViewer.eventFilter
+            # Sync to other pane via viewer
+            if hasattr(self, 'viewer') and self.viewer:
+                self.viewer._sync_navigation_from_widget(self, new_line)
             
             self.viewport().update()
             if self.line_number_area:

@@ -1,2 +1,1 @@
-Automatically reload changed files into viewer.
-[default: %(default)s]
+Automatically reload changed files into viewer [default: %(default)s].

@@ -1,0 +1,3 @@
+The external editor to use for writing review notes. It will run in a
+tab of this application [default: %(default)s].  [choices:
+%(choices)s]

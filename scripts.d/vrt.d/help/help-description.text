@@ -1,0 +1,75 @@
+This program shows side-by-side diffs of a repository change generated
+by 'diff-review' (dr).
+
+
+The UI that is presented works on Linux, Mac and Windows, and has
+built-in help that describes how to use it.  This tool has extensive
+--help text to help one make the best usage of the tool.  This basic
+help describes options in general terms.  Many options have
+supplemental help text that provides more detail; be sure to these
+these supplemental help options for more information.
+
+
+Here are a few comments on how one might use diff-review (dr) and
+view-review-tabs (vrt):
+
+  o Self Review
+
+    While developing, one can use dr and vrt to iteratively see the
+    changes made to the repository.
+
+    + Run 'dr' to generate the diffs.
+
+    + Run 'vrt &' to have the diff-viewer run in the background.
+
+    + Make more source changes.
+
+    + Re-run 'dr'.  'vrt' running in the background will automatically
+      reload files that have been modified.
+
+  o Collaborative Review
+
+    Your colleagues can send the console output of 'dr' to the
+    group's email address and the diffs can be viewed.
+
+    The development machine will be named 'gungla.example.com'.
+
+    + If the development machine has no facility for graphical
+      display, and no webserver that can serve the diffs, the '--fqdn'
+      option can be provided when generating the diffs.  This will add
+      an additional 'vrt' command line to the console output.
+
+      dr --fqdn gungla.example.com
+
+        diff-review:  /home/thutt/review/default
+
+            staged   scripts.d/vrt.d/cmdlineargs.py
+          unstaged   scripts.d/vrt.d/help/help-description.text
+               add   scripts.d/vrt.d/help/help-epilog.text
+
+        Changes:  unstaged [1 files, 34 lines]  staged [3 files  39 lines]
+        Viewer :  vrt --fqdn 'gungla.example.com' --diff-dir '/home/thutt/review/default'
+        Viewer :  vrt --diff-url https://hoth.harp-project.com:443/home/thutt/review/default
+        Viewer :  vr -R '/home/thutt/review' -r 'default'
+        Elapsed:  0:00:00.246591
+
+      The potential reviewer can execute:
+
+        vrt --fqdn 'gungla.example.com' --diff-dir '/home/thutt/review/default'
+
+      And the entirety of the generated diffs will be rsynced from
+      gungla.example.com to the local machine, and then vrt will be
+      invoked to show the diffs using all the built-in capabilities of
+      the viewer.
+
+    + If the development machine has a webserver that can provide the
+      diffs, then the following command can be executed to view the
+      diffs directly served by the development machine via HTTP or
+      HTTPS (see 'HTTP Specification Options' in the dr '--help'):
+
+        vrt --diff-url https://hoth.harp-project.com:443/home/thutt/review/default
+
+  o Archeology
+
+    dr and vrt can be used to generate and view the diffs of any
+    change that exists in the repository.

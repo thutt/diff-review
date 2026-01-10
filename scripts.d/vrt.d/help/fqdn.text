@@ -1,2 +1,2 @@
-Fully qualified domain name of the host where the diffs were created.
-[default: %(default)s]
+Fully qualified domain name (FQDN) of the host on which the diffs were
+generated [default: %(default)s].

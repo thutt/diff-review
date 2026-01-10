@@ -479,12 +479,11 @@ class CommitMsgHandler:
 
         # Sync with global bookmarks
         tab_index = self.tab_widget.tab_widget.currentIndex()
-        key = (tab_index, line_idx)
 
         if line_idx in self.bookmarked_lines:
-            self.tab_widget.bookmark_mgr.global_bookmarks[key] = True
-        elif key in self.tab_widget.bookmark_mgr.global_bookmarks:
-            del self.tab_widget.bookmark_mgr.global_bookmarks[key]
+            self.tab_widget.bookmark_mgr.add_bookmark(tab_index, line_idx)
+        else:
+            self.tab_widget.bookmark_mgr.remove_bookmark(tab_index, line_idx)
 
         # Force repaint to show bookmark indicators
         text_widget.viewport().update()

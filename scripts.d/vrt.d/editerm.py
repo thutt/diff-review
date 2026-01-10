@@ -109,11 +109,13 @@ def map_pyte_color_to_qcolor(color_name, is_background):
 class TerminalWidget(QTextEdit, TabContentBase):
     process_exited = pyqtSignal(int)
 
+    ESCAPE_PREFIX_TIMEOUT = 2000  # milliseconds
+    ESCAPE_PREFIX_BORDER_COLOR = "#4499DD"  # Medium bright blue
+
     def __init__(self, parent, theme, pathname):
         super().__init__(parent)
         self.current_font_size = 10
         self.theme = TerminalTheme.get_theme(theme)
-        self.setup_terminal()
         self.pathname = pathname
         self.command_buffer = ""
         self.history = []
@@ -124,6 +126,9 @@ class TerminalWidget(QTextEdit, TabContentBase):
         self.updating_display = False
         self.process_pid = None
         self.timer = None
+        self.escape_prefix_active = False
+        self.escape_prefix_timer = None
+        self.setup_terminal()
 
     def setup_terminal(self):
         self.setReadOnly(False)
@@ -159,6 +164,47 @@ class TerminalWidget(QTextEdit, TabContentBase):
         self.setFont(font)
         self.update_terminal_size()
 
+    def set_escape_prefix_active(self, active):
+        """Set the escape prefix state and update border visual feedback"""
+        self.escape_prefix_active = active
+
+        if active:
+            # Show colored border
+            theme_name, bg_color, fg_color = self.theme
+            self.setStyleSheet(f"""
+                QTextEdit {{
+                    background-color: {bg_color};
+                    color: {fg_color};
+                    border: 3px solid {self.ESCAPE_PREFIX_BORDER_COLOR};
+                }}
+            """)
+            # Start timeout timer
+            if self.escape_prefix_timer is None:
+                self.escape_prefix_timer = QTimer(self)
+                self.escape_prefix_timer.setSingleShot(True)
+                self.escape_prefix_timer.timeout.connect(self._on_escape_prefix_timeout)
+            self.escape_prefix_timer.start(self.ESCAPE_PREFIX_TIMEOUT)
+        else:
+            # Restore normal border
+            theme_name, bg_color, fg_color = self.theme
+            self.setStyleSheet(f"""
+                QTextEdit {{
+                    background-color: {bg_color};
+                    color: {fg_color};
+                }}
+            """)
+            # Stop timer if running
+            if self.escape_prefix_timer is not None:
+                self.escape_prefix_timer.stop()
+
+    def is_escape_prefix_active(self):
+        """Return whether the escape prefix is currently active"""
+        return self.escape_prefix_active
+
+    def _on_escape_prefix_timeout(self):
+        """Handle escape prefix timeout - revert border"""
+        self.set_escape_prefix_active(False)
+
     def has_unsaved_changes(self):
         """Terminal has no concept of unsaved changes"""
         return False
@@ -166,6 +212,10 @@ class TerminalWidget(QTextEdit, TabContentBase):
     def is_terminal_widget(self):
         """This is a terminal-based widget"""
         return True
+
+    def focus_content(self):
+        """Set Qt focus to this terminal widget"""
+        self.setFocus()
 
     def get_process_pid(self):
         """Return the child process ID"""

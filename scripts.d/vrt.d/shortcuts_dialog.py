@@ -1,4 +1,4 @@
-# Copyright (c) 2025  Logic Magicians Software (Taylor Hutt).
+# Copyright (c) 2025, 2026  Logic Magicians Software (Taylor Hutt).
 # All Rights Reserved.
 # Licensed under Gnu GPL V3.
 #
@@ -40,17 +40,18 @@ def is_dark_mode(palette):
 
 class ShortcutsDialog(QDialog):
     """Dialog that displays a quick reference card for keyboard shortcuts"""
-    
+
     def __init__(self, parent=None, keybindings=None, diff_keybindings=None,
-                 commit_msg_keybindings=None):
+                 commit_msg_keybindings=None, terminal_keybindings=None):
         super().__init__(parent, Qt.WindowType.Window)
         self.setWindowTitle("Keyboard Shortcuts Reference")
         self.setMinimumSize(900, 700)
-        
+
         # Store keybindings for dynamic shortcut display
         self.keybindings = keybindings
         self.diff_keybindings = diff_keybindings
         self.commit_msg_keybindings = commit_msg_keybindings
+        self.terminal_keybindings = terminal_keybindings
         
         layout = QVBoxLayout(self)
         
@@ -296,14 +297,21 @@ class ShortcutsDialog(QDialog):
         
         # Get shortcuts from keybindings
         close_tab = self._get_shortcut_text('close_tab', self.keybindings) or f"{mod_key}+w"
+        quit_application = self._get_shortcut_text('quit_application', self.keybindings) or f"{mod_key}+q"
         search = self._get_shortcut_text('search', self.keybindings) or f"{mod_key}+f"
         find_next = self._get_shortcut_text('find_next', self.keybindings) or "F3"
         find_prev = self._get_shortcut_text('find_prev', self.keybindings) or "Shift+F3"
         toggle_sidebar = self._get_shortcut_text('toggle_sidebar', self.keybindings) or f"{mod_key}+b"
+        toggle_focus_mode = self._get_shortcut_text('toggle_focus_mode', self.keybindings) or f"{mod_key}+\\"
         shortcuts_help = self._get_shortcut_text('shortcuts_help', self.keybindings) or "F1"
         increase_font = self._get_shortcut_text('increase_font', self.keybindings) or f"{mod_key}++"
         decrease_font = self._get_shortcut_text('decrease_font', self.keybindings) or f"{mod_key}+-"
         reset_font = self._get_shortcut_text('reset_font', self.keybindings) or f"{mod_key}+0"
+
+        # Terminal editor shortcuts
+        terminal_escape = self._get_shortcut_text('terminal_escape', self.terminal_keybindings) or f"{mod_key}+`"
+        term_next_bookmark = self._get_shortcut_text('next_bookmark', self.terminal_keybindings) or "]"
+        term_prev_bookmark = self._get_shortcut_text('prev_bookmark', self.terminal_keybindings) or "["
         
         # Diff viewer shortcuts
         next_change = self._get_shortcut_text('next_change', self.diff_keybindings) or "n"
@@ -444,7 +452,7 @@ class ShortcutsDialog(QDialog):
                 <th>Action</th>
             </tr>
             <tr>
-                <td><span class="shortcut">{mod_key}+\\</span></td>
+                <td><span class="shortcut">{toggle_focus_mode}</span></td>
                 <td>Toggle between File Selection mode and Viewer mode</td>
             </tr>
         </table>
@@ -481,11 +489,11 @@ class ShortcutsDialog(QDialog):
                 <td>Enter File Selection mode</td>
             </tr>
             <tr>
-                <td><span class="shortcut">{mod_key}+q</span></td>
+                <td><span class="shortcut">{quit_application}</span></td>
                 <td>Quit application</td>
             </tr>
         </table>
-        
+
         <h2>Viewer Mode (Content Area)</h2>
         
         <h3>Common to All Tab Types</h3>
@@ -523,7 +531,7 @@ class ShortcutsDialog(QDialog):
                 <td>Close current tab</td>
             </tr>
             <tr>
-                <td><span class="shortcut">{mod_key}+q</span></td>
+                <td><span class="shortcut">{quit_application}</span></td>
                 <td>Quit application</td>
             </tr>
             <tr>
@@ -755,6 +763,50 @@ class ShortcutsDialog(QDialog):
             Review Notes tabs support standard text navigation and search (listed under "Common to All Tab Types" above).
             They do not have additional specialized shortcuts.
         </p>
+
+        <h3>Terminal Editor Tabs (Vim, Emacs)</h3>
+        <p style="color: {note_color}; margin-left: 10px; margin-top: 5px; font-size: 0.95em;">
+            When using a terminal-based editor for review notes, all keyboard input is passed directly to the editor.
+            To access global shortcuts or terminal-specific commands, use the escape prefix sequence.
+        </p>
+        <table>
+            <tr>
+                <th width="30%">Shortcut</th>
+                <th>Action</th>
+            </tr>
+            <tr>
+                <td><span class="shortcut">{terminal_escape}</span></td>
+                <td>Escape prefix - next key is interpreted as a global or terminal shortcut</td>
+            </tr>
+            <tr>
+                <td><span class="shortcut">{terminal_escape}</span> then <span class="shortcut">{toggle_focus_mode}</span></td>
+                <td>Switch to File Selection mode</td>
+            </tr>
+            <tr>
+                <td><span class="shortcut">{terminal_escape}</span> then <span class="shortcut">{toggle_sidebar}</span></td>
+                <td>Toggle sidebar visibility</td>
+            </tr>
+            <tr>
+                <td><span class="shortcut">{terminal_escape}</span> then <span class="shortcut">{close_tab}</span></td>
+                <td>Close current tab (saves and exits editor)</td>
+            </tr>
+            <tr>
+                <td><span class="shortcut">{terminal_escape}</span> then <span class="shortcut">{quit_application}</span></td>
+                <td>Quit application</td>
+            </tr>
+            <tr>
+                <td><span class="shortcut">{terminal_escape}</span> then <span class="shortcut">{term_next_bookmark}</span></td>
+                <td>Navigate to next bookmark</td>
+            </tr>
+            <tr>
+                <td><span class="shortcut">{terminal_escape}</span> then <span class="shortcut">{term_prev_bookmark}</span></td>
+                <td>Navigate to previous bookmark</td>
+            </tr>
+        </table>
+        <p style="color: {note_color}; margin-left: 10px; margin-top: 5px; font-size: 0.95em;">
+            When the escape prefix is active, the terminal border turns blue. The prefix times out after 2 seconds
+            if no key is pressed. If a non-recognized key is pressed after the prefix, it is ignored and the border reverts.
+        </p>
         """
-        
+
         return html_result

@@ -1,15 +1,16 @@
 Reviewing code well requires comments to be made and then provided as
 feedback to the author.  In most cases, online review systems have the
 best editor that a web browser can offer, but that's usually a very,
-very poor excuse for an editor; it's not integrated into the code, and
-generally has no features to make you productive.
+very poor excuse for an editor and generally has no features to make
+you productive.
 
-This note taking feature of this tool (also available through the
-File|Open Note menu), writes notes into the selected file, which you
-can simultaneously edit in the editor that makes you most productive.
-
-Note taking can be done with any open tab.
-
+The note file you have chosen will show up in the sidebar as 'Review
+Notes'.  Clicking on this in the sidebar will load the editor and you
+can make comments aobut the selected text.  If you have not specified
+an editor (--note-editor), the default PyQt6 editor will be used.  If
+have specified an editor, that will be loaded in a tab instead
+(switching away from the tab, or closing the tab will automatically
+save the note file).
 
 To take a note using the keyboard:
 
@@ -19,8 +20,6 @@ To take a note using the keyboard:
   Press Ctrl-N.
 
   The selected lines will be written to the note file.
-
-  Now switch to your editor, refresh the file, and add your comments.
 
 To take a note using the mouse:
 
@@ -34,3 +33,7 @@ To take a note using the mouse:
 
   Additionally, the lines will have a slight background color change
   to signify that a note has been taken on them.
+
+The notes, contained in the text file, are a good way to get a big
+picture of the change, while also curating your notes while not having
+to commit each note individually on a web-based system.

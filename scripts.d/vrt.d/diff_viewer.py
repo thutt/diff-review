@@ -1,4 +1,4 @@
-# Copyright (c) 2025  Logic Magicians Software (Taylor Hutt).
+# Copyright (c) 2025, 2026  Logic Magicians Software (Taylor Hutt).
 # All Rights Reserved.
 # Licensed under Gnu GPL V3.
 #
@@ -1012,15 +1012,14 @@ class DiffViewer(QWidget, TabContentBase):
         else:
             self.base_text.bookmarked_lines.discard(line_idx)
             self.modified_text.bookmarked_lines.discard(line_idx)
-        
+
         # Sync with global bookmarks using stored references
         if hasattr(self, 'tab_manager') and hasattr(self, 'tab_index'):
-            key = (self.tab_index, line_idx)
             if line_idx in self.bookmarked_lines:
-                self.tab_manager.bookmark_mgr.global_bookmarks[key] = True
-            elif key in self.tab_manager.bookmark_mgr.global_bookmarks:
-                del self.tab_manager.bookmark_mgr.global_bookmarks[key]
-        
+                self.tab_manager.bookmark_mgr.add_bookmark(self.tab_index, line_idx)
+            else:
+                self.tab_manager.bookmark_mgr.remove_bookmark(self.tab_index, line_idx)
+
         # Update visuals
         self.base_text.viewport().update()
         self.modified_text.viewport().update()
@@ -1188,23 +1187,46 @@ class DiffViewer(QWidget, TabContentBase):
             target_widget = self.modified_text
         else:
             target_widget = self.base_text
-        
+
         # Sync scroll positions
         target_widget.verticalScrollBar().setValue(
             source_widget.verticalScrollBar().value())
         target_widget.horizontalScrollBar().setValue(
             source_widget.horizontalScrollBar().value())
-        
+
         # Get new line from source widget
         new_line = source_widget.textCursor().blockNumber()
-        
+
         # Update focused line markers
         target_widget.set_focused_line(new_line)
-        
+
         # Update viewports and line number areas
         target_widget.viewport().update()
         if target_widget.line_number_area:
             target_widget.line_number_area.update()
+
+    def _sync_navigation_from_widget(self, source_widget, new_line):
+        """Sync navigation from source widget to target widget - called from SyncedPlainTextEdit.keyPressEvent"""
+        if source_widget == self.base_text:
+            target_widget = self.modified_text
+        else:
+            target_widget = self.base_text
+
+        # Sync scroll positions
+        target_widget.verticalScrollBar().setValue(
+            source_widget.verticalScrollBar().value())
+        target_widget.horizontalScrollBar().setValue(
+            source_widget.horizontalScrollBar().value())
+
+        # Update focused line on target
+        target_widget.set_focused_line(new_line)
+
+        # Update target viewport and line number area
+        target_widget.viewport().update()
+        if target_widget.line_number_area:
+            target_widget.line_number_area.update()
+
+        QApplication.processEvents()
     
     def _sync_wheel_scroll(self, source_widget):
         """Sync scroll position from source widget to the other widget after wheel event"""

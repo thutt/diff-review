@@ -1,4 +1,4 @@
-# Copyright (c) 2025  Logic Magicians Software (Taylor Hutt).
+# Copyright (c) 2025, 2026  Logic Magicians Software (Taylor Hutt).
 # All Rights Reserved.
 # Licensed under Gnu GPL V3.
 #
@@ -144,9 +144,22 @@ class HelpDialog(QDialog):
             <li><b>Diff Viewer Tabs:</b> Full navigation (N/P/C/T/B), collapse regions (X), all common shortcuts</li>
             <li><b>Commit Message Tab:</b> Search ({mod_key}+S/{mod_key}+F), Take Note ({mod_key}+N), Jump to Note ({mod_key}+J), Bookmarks (M/[/])</li>
             <li><b>Review Notes Tab:</b> Search ({mod_key}+S/{mod_key}+F), standard text navigation</li>
+            <li><b>Terminal Editor Tabs (Vim/Emacs):</b> All keys pass to editor; use escape prefix for global shortcuts (see below)</li>
             <li><b>All Tabs:</b> Tab switching (Ctrl+Tab/Ctrl+Shift+Tab), Close tab ({mod_key}+W), Search (F3/Shift+F3)</li>
         </ul>
         <p><i>Note: Diff-specific shortcuts (N, P, C, T, B, X) only work in diff viewer tabs, not in commit message or review notes tabs.</i></p>
+
+        <h3>Terminal Editor Tabs</h3>
+        <p>When using a terminal-based editor (Vim, Emacs) for review notes, all keyboard input is passed
+        directly to the editor. This allows full use of editor-native commands without interference from the application.</p>
+        <ul>
+            <li><b>Escape Prefix:</b> Press {mod_key}+` (backtick) to activate the escape prefix; the terminal border turns blue</li>
+            <li><b>Global Shortcuts:</b> After the escape prefix, press any global shortcut (e.g., {mod_key}+\\ to switch modes, {mod_key}+B to toggle sidebar)</li>
+            <li><b>Bookmark Navigation:</b> After the escape prefix, press ] for next bookmark or [ for previous bookmark</li>
+            <li><b>Timeout:</b> The escape prefix times out after 2 seconds if no key is pressed</li>
+            <li><b>Cancel:</b> Press any non-recognized key after the prefix to cancel (key is consumed, border reverts)</li>
+            <li><b>Tab Close:</b> Closing a terminal editor tab saves the buffer and exits the editor cleanly</li>
+        </ul>
         
         <h3>Sidebar</h3>
         <ul>

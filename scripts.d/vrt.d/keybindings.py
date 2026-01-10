@@ -1,4 +1,4 @@
-# Copyright (c) 2025  Logic Magicians Software (Taylor Hutt).
+# Copyright (c) 2025, 2026  Logic Magicians Software (Taylor Hutt).
 # All Rights Reserved.
 # Licensed under Gnu GPL V3.
 #
@@ -41,6 +41,7 @@ class KeyBindings:
     DEFAULT_BINDINGS = {
         'global': {
             'shortcuts_help': ['F1', 'Ctrl+Shift+?'],
+            'quit_application': ['Ctrl+q'],
             'close_tab': ['Ctrl+w'],
             'next_tab': ['Ctrl+Tab'],
             'prev_tab': ['Ctrl+Shift+Tab'],
@@ -48,9 +49,15 @@ class KeyBindings:
             'decrease_font': ['Ctrl+-'],
             'reset_font': ['Ctrl+0'],
             'toggle_sidebar': ['Ctrl+b'],
+            'toggle_focus_mode': ['Ctrl+\\'],
             'search': ['Ctrl+f', 'Ctrl+s'],
             'find_next': ['F3'],
             'find_prev': ['Shift+F3'],
+        },
+        'terminal': {
+            'terminal_escape': ['Ctrl+;'],
+            'next_bookmark': [']'],
+            'prev_bookmark': ['['],
         },
         'diff': {
             'next_change': ['n'],
@@ -88,7 +95,6 @@ class KeyBindings:
 
     # Reserved keys that should not be rebound (hardcoded behavior)
     RESERVED_KEYS = {
-        'Ctrl+Q': 'Standard quit application (system level)',
     }
 
     def __init__(self, config_file=None, context='global'):
