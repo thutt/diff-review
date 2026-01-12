@@ -17,9 +17,10 @@ def process_command_line():
 
     options.review_dir = os.path.join(options.arg_review_dir,
                                       options.arg_review_name)
-    options.review_base_dir  = os.path.join(options.review_dir, "base.d")
-    options.review_stage_dir = os.path.join(options.review_dir, "stage.d")
-    options.review_modi_dir  = os.path.join(options.review_dir, "modi.d")
+    options.review_sha_dir  = os.path.join(options.review_dir, "sha.d")
+    options.review_base_dir = os.path.join(options.review_dir, "base.d")
+    options.review_stag_dir = os.path.join(options.review_dir, "stag.d")
+    options.review_modi_dir = os.path.join(options.review_dir, "modi.d")
 
     if options.arg_scm == "git":
         if options.arg_change_id is None:

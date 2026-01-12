@@ -127,7 +127,7 @@ class FileTreeSidebar(QWidget):
         Args:
             file_class: File class object with modi_file_rel_path()
         """
-        file_path = file_class.modi_file_rel_path()
+        file_path = file_class.display_path()
         
         # Split path into components
         parts = file_path.split('/')
@@ -379,7 +379,7 @@ class FileTreeSidebar(QWidget):
         text = item.text(0)
         
         # Generate new label from file_class
-        file_path = file_class.modi_file_rel_path()
+        file_path = file_class.display_path()
         parts = file_path.split('/')
         
         # Extract just the filename (last component)

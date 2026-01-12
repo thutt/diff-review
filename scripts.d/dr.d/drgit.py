@@ -8,6 +8,22 @@ import shutil
 import drscm
 import drutil
 
+# git cat-file -t <sha>
+#
+# Will tell the 'kind' of the SHA:
+#
+#    blob   - file content
+#    tree   - directory listing
+#    commit - commit object
+#    tag    - annotated tag
+#
+#
+# A SHA of all '0' is for a non-present entity:
+#
+#    (added file (base)
+#    deleted file (modi))
+
+
 def git_is_blob(scm, file_info):
     # Check that the SHA for this file references a blob (file
     # contents), or is an empty file.
@@ -237,6 +253,9 @@ class ChangedFile(drscm.ChangedFile):
             for l in contents:
                 fp.write("%s\n" % (l))
 
+    def get_change_contents_(self, scm, file_info):
+        return git_get_file_contents(scm, file_info)
+
     def copy_to_review_directory_(self, dest_dir, file_info):
         assert(isinstance(file_info, drscm.FileInfo))
         assert(not file_info.empty()) # Empty handled by caller.
@@ -265,57 +284,62 @@ class ChangedFile(drscm.ChangedFile):
                              "This template is used in its place.\n")
 
     def get_dossier_representation(self):
+        # display_path is the string used to display the pathname.
+
+        modi_info = self.modi_file_info_.rel_path_
+        if self.modi_file_info_.chg_id_ is not None:
+            modi_info = self.modi_file_info_.chg_id_
+
         return {
             "action"          : self.action(),
+            "display_path"    : self.modi_file_info_.rel_path_,
+            "base"            : self.base_file_info_.chg_id_,
+            "modi"            : modi_info,
+
             "modi_rel_path"   : self.modi_file_info_.rel_path_,
             "base_rel_path"   : self.base_file_info_.rel_path_,
         }
 
 
 class ChangedFileUnstaged(ChangedFile):
-    def __init__(self, scm, base_file, stage_file, modi_file):
+    def __init__(self, scm, base_file, stag_file, modi_file):
         super().__init__(scm, "unstaged", base_file, modi_file)
-        self.staged_file_info_ = stage_file
+        self.stag_file_info_ = stag_file
 
-        # An unstaged file has a 2-stage diff.
-        #
-        # 1. The unstaged change with the staged version.
-        # 2. The on-disk version with the in-git version.
-        #
-        # Here, the base file is the in-git version.
+        print("base: ", base_file.__dict__)
+        print("modi: ", modi_file.__dict__)
+        if stag_file is not None:
+            print("stag: ", stag_file.__dict__)
+        else:
+            print("stag: ", stag_file)
 
-        # staged_sha    = git_get_staged_file_blob_sha(scm, base_file.rel_path_)
-        # unstaged_sha  = git_get_unstaged_file_blob_sha(scm, base_file.rel_path_)
-        # head_sha      = git_get_head_file_blob_sha(scm, base_file.rel_path_)
-        # no_chgs       = (staged_sha == head_sha) and (staged_sha == unstaged_sha)
-        # unstaged_chgs = (staged_sha == head_sha) and (staged_sha != unstaged_sha)
-        # staged_chgs   = (staged_sha != head_sha) and (staged_sha == unstaged_sha)
-        # both_chgs     = (staged_sha != head_sha) and (staged_sha != unstaged_sha)
-
-        # if staged_chgs or both_chgs:
-        #     # The file has staged changes; the difference between
-        #     # unstaged and staged should be viewable.
-        #     self.staged_file_info_ = drscm.FileInfo(base_file.rel_path_, staged_sha)
-        # else:
-        #     self.staged_file_info_ = None
 
     def update_review_directory(self):
         super().update_review_directory()
-        if self.staged_file_info_ is not None:
-            self.copy_to_review_directory(self.scm_.review_stage_dir_,
-                                          self.staged_file_info_)
+        if self.stag_file_info_ is not None:
+            print("++++++ ChangedFileUnstaged update stag file",
+                  self.scm_.review_stag_dir_, self.stag_file_info_.__dict__)
+
+            self.copy_to_review_sha_directory(False, self.stag_file_info_)
 
 
     def get_dossier_representation(self):
-        staged = None
-        if self.staged_file_info_ is not None:
-            staged = self.staged_file_info_.rel_path_
+        stag = None
+        stag_name = None
+        if self.stag_file_info_ is not None:
+            stag      = self.stag_file_info_.rel_path_
+            stag_name = self.stag_file_info_.chg_id_
 
         return {
-            "action"         : self.action(),
-            "modi_rel_path"  : self.modi_file_info_.rel_path_,
-            "base_rel_path"  : self.base_file_info_.rel_path_,
-            "stage_rel_path" : staged
+            "action"        : self.action(),
+            "display_path"  : self.modi_file_info_.rel_path_,
+            "base"          : self.base_file_info_.chg_id_,
+            "stag"          : stag_name,
+            "modi"          : self.modi_file_info_.rel_path_,
+
+            "modi_rel_path" : self.modi_file_info_.rel_path_,
+            "base_rel_path" : self.base_file_info_.rel_path_,
+            "stag_rel_path" : stag
         }
 
 
@@ -410,7 +434,12 @@ class GitStaged(Git):
             #
             staged_sha    = git_get_staged_file_blob_sha(self, rel_path)
             unstaged_sha  = git_get_unstaged_file_blob_sha(self, rel_path)
-            head_sha      = git_get_head_file_blob_sha(self, rel_path)
+            if idx_ch == 'A':
+                # When adding a new file, there is no HEAD sha.
+                head_sha = None
+            else:
+                head_sha = git_get_head_file_blob_sha(self, rel_path)
+
             no_chgs       = ((staged_sha == head_sha) and
                              (staged_sha == unstaged_sha))
             unstaged_chgs = ((staged_sha == head_sha) and

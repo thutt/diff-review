@@ -66,7 +66,10 @@ class FileButton(FileButtonBase): # Committed & not-unstaged uncommited.
     def __init__(self, options, action,
                  root_path,
                  base_dir_rel_path, base_file_rel_path,
-                 modi_dir_rel_path, modi_file_rel_path):
+                 modi_dir_rel_path, modi_file_rel_path,
+                 sha_dir_rel_path,
+                 display_path,
+                 base_chg_id, modi_chg_id):
         super().__init__(options, action, root_path)
 
         self.base_dir_rel_path_  = base_dir_rel_path
@@ -74,6 +77,15 @@ class FileButton(FileButtonBase): # Committed & not-unstaged uncommited.
 
         self.modi_dir_rel_path_  = modi_dir_rel_path
         self.modi_rel_path_      = modi_file_rel_path
+
+        self.sha_dir_rel_path_   = sha_dir_rel_path
+
+        self.display_path_       = display_path
+        self.base_chg_id_        = base_chg_id
+        self.modi_chg_id_        = modi_chg_id
+
+    def display_path(self):
+        return self.display_path_
 
     def modi_file_rel_path(self):
         # Return source-tree relative path.
@@ -90,9 +102,9 @@ class FileButton(FileButtonBase): # Committed & not-unstaged uncommited.
                        self.add_line_count(),
                        self.del_line_count(),
                        self.chg_line_count()))
-            label = "%s  %s" % (self.modi_file_rel_path(), stats)
+            label = "%s  %s" % (self.display_path(), stats)
         else:
-            label = self.modi_file_rel_path()
+            label = self.display_path()
 
         return label
 
@@ -106,7 +118,7 @@ class FileButton(FileButtonBase): # Committed & not-unstaged uncommited.
         return label
 
     def tab_relpath(self):
-        return self.modi_file_rel_path()
+        return self.display_path()
 
     def make_viewer(self, base, modi):
         viewer = diff_viewer.DiffViewer(base, modi,
@@ -123,6 +135,10 @@ class FileButton(FileButtonBase): # Committed & not-unstaged uncommited.
 
         return viewer
 
+    def get_base_chg_id_path(self):
+        return posixpath.join(self.root_path_, self.sha_dir_rel_path_,
+                              self.base_chg_id_)
+
     def add_viewer(self, tab_widget):
         url = self.options_.arg_dossier_url
         if url is not None:
@@ -136,9 +152,7 @@ class FileButton(FileButtonBase): # Committed & not-unstaged uncommited.
         #  These relative pathnames can be converted into a URL, which
         #  requires '/'.
         #
-        base   = posixpath.join(root_path,
-                                self.base_dir_rel_path_,
-                                self.base_file_rel_path())
+        base   = self.get_base_chg_id_path()
         modi   = posixpath.join(root_path,
                                 self.modi_dir_rel_path_,
                                 self.modi_file_rel_path())
@@ -151,7 +165,12 @@ class FileButtonUnstaged(FileButtonBase):
                  root_path,
                  base_dir_rel_path, base_file_rel_path,
                  modi_dir_rel_path, modi_file_rel_path,
-                 stage_dir_rel_path, stage_file_rel_path):
+                 stag_dir_rel_path, stag_file_rel_path,
+                 sha_dir_rel_path,
+                 display_path,
+                 base_chg_id,
+                 stag_chg_id,
+                 modi_path):
         super().__init__(options, action, root_path)
 
         self.base_dir_rel_path_  = base_dir_rel_path
@@ -160,42 +179,58 @@ class FileButtonUnstaged(FileButtonBase):
         self.modi_dir_rel_path_  = modi_dir_rel_path
         self.modi_rel_path_      = modi_file_rel_path
 
-        self.stage_dir_rel_path_ = stage_dir_rel_path
-        self.stage_rel_path_     = stage_file_rel_path
+        self.stag_dir_rel_path_  = stag_dir_rel_path
+        self.stag_rel_path_      = stag_file_rel_path
+
+        self.display_path_       = display_path
+        self.sha_dir_rel_path_   = sha_dir_rel_path
+        self.base_chg_id_        = base_chg_id
+        self.stag_chg_id_        = stag_chg_id
+        self.modi_path_          = modi_path
+
+    def get_base_chg_id_path(self):
+        return posixpath.join(self.root_path_, self.sha_dir_rel_path_,
+                              self.base_chg_id_)
+
+    def get_stag_chg_id_path(self):
+        return posixpath.join(self.root_path_, self.sha_dir_rel_path_,
+                              self.stag_chg_id_)
+
+    def get_modi_chg_id_path(self):
+        return posixpath.join(self.root_path_, self.modi_dir_rel_path_,
+                              self.modi_path_)
 
     def has_staged(self):
-        return self.stage_rel_path_ is not None
+        return self.stag_rel_path_ is not None
 
     def get_diff_paths(self, mode, root_path):
         # Returns (base_path, modi_path) for the given diff mode.
         # root_path is the resolved root (URL or local path).
         if mode == DIFF_MODE_BASE_STAGE:
-            base_dir = self.base_dir_rel_path_
-            base_rel = self.base_file_rel_path()
-            modi_dir = self.stage_dir_rel_path_
-            modi_rel = self.stage_file_rel_path()
+            base = self.get_base_chg_id_path()
+            modi = self.get_modi_chg_id_path()
         elif mode == DIFF_MODE_STAGE_MODI:
-            base_dir = self.stage_dir_rel_path_
-            base_rel = self.stage_file_rel_path()
+            base = self.get_stag_chg_id_path()
+            modi = self.get_modi_chg_id_path()
+        else:
+            assert(mode == DIFF_MODE_BASE_MODI)
+            base = self.get_base_chg_id_path()
             modi_dir = self.modi_dir_rel_path_
             modi_rel = self.modi_file_rel_path()
-        else:  # DIFF_MODE_BASE_MODI (default)
-            base_dir = self.base_dir_rel_path_
-            base_rel = self.base_file_rel_path()
-            modi_dir = self.modi_dir_rel_path_
-            modi_rel = self.modi_file_rel_path()
+            modi = posixpath.join(root_path, modi_dir, modi_rel)
 
-        base = posixpath.join(root_path, base_dir, base_rel)
-        modi = posixpath.join(root_path, modi_dir, modi_rel)
         return (base, modi)
+
+    def display_path(self):
+        return self.display_path_
 
     def modi_file_rel_path(self):
         # Return source-tree relative path.
         return self.modi_rel_path_
 
-    def stage_file_rel_path(self):
+    def stag_file_rel_path(self):
         # Return source-tree relative path.
-        return self.stage_rel_path_
+        return self.stag_rel_path_
 
     def base_file_rel_path(self):
         # Return source-tree relative path.
@@ -208,9 +243,9 @@ class FileButtonUnstaged(FileButtonBase):
                        self.add_line_count(),
                        self.del_line_count(),
                        self.chg_line_count()))
-            label = "%s  %s" % (self.modi_file_rel_path(), stats)
+            label = "%s  %s" % (self.display_path(), stats)
         else:
-            label = self.modi_file_rel_path()
+            label = self.display_path()
 
         return label
 
@@ -224,7 +259,7 @@ class FileButtonUnstaged(FileButtonBase):
         return label
 
     def tab_relpath(self):
-        return self.modi_file_rel_path()
+        return self.display_path()
 
     def make_viewer(self, base, modi):
         viewer = diff_viewer.DiffViewer(base, modi,
@@ -313,7 +348,11 @@ def generate(options, mode, note):
                                    rev["rel_base_dir"],
                                    f["base_rel_path"],
                                    rev["rel_modi_dir"],
-                                   f["modi_rel_path"])
+                                   f["modi_rel_path"],
+                                   rev["rel_sha_dir"],
+                                   f["display_path"],
+                                   f["base"],
+                                   f["modi"])
         else:
             assert(mode == "uncommitted" and f["action"] == "unstaged")
             file_inst = FileButtonUnstaged(options,
@@ -323,8 +362,13 @@ def generate(options, mode, note):
                                            f["base_rel_path"],
                                            rev["rel_modi_dir"],
                                            f["modi_rel_path"],
-                                           rev["rel_stage_dir"],
-                                           f["stage_rel_path"])
+                                           rev["rel_stag_dir"],
+                                           f["stag_rel_path"],
+                                           rev["rel_sha_dir"],
+                                           f["display_path"],
+                                           f["base"],
+                                           f["stag"],
+                                           f["modi"])
 
         tab_widget.add_file(file_inst)
 

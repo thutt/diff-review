@@ -25,16 +25,25 @@ import drutil
 #   does not has an associated SCM change id.
 #
 #   inv: FileInfo.rel_path_ is not None
-#   inv: FileInfo.chg_id_ is     None   -> On-disk disk file.
-#   inv: FileInfo.chg_id_ is not None   -> In-SCM file.
 #
-#   inv: not FileInfo.empty() -> File contents specified by rel_path_ and
-#                                chg_id_
-#   inv: FileInfo.empty()     -> File contents are empty file
+#   inv: FileInfo.empty()             -> FileInfo.chg_id_ a special sentinel
+#
+#   inv: not FileInfo.empty() and
+#        FileInfo.chg_id_ is None     -> On-disk disk file.
+#
+#   inv: not FileInfo.empty() and
+#        FileInfo.chg_id_ is not None -> In-SCM file.
+#
+#   inv: not FileInfo.empty()         -> File contents specified by
+#                                        rel_path_ and chg_id_
+#
+#   inv: FileInfo.empty()             -> File contents are empty file,
+#                                        with a special FileInfo.chg_id_
 #
 class FileInfo(object):
     def __init__(self, rel_path, chg_id):
         assert(rel_path is not None)
+        assert(chg_id is None or isinstance(chg_id, str))
         self.rel_path_ = rel_path
         self.chg_id_   = chg_id
 
@@ -44,7 +53,10 @@ class FileInfo(object):
 
 class FileInfoEmpty(FileInfo):
     def __init__(self, rel_path):
-        super().__init__(rel_path, None)
+        # This change id is a sentinel used for emtpy files.  It will
+        # not conflict with a real change id, but can be shared by all
+        # files that are empty.
+        super().__init__(rel_path, '_______________EMPTY_FILE_______________')
 
     def empty(self):
         return True
@@ -97,19 +109,6 @@ class ChangedFile(object):
         #
         self.base_file_info_   = None
 
-
-    # def set_base_file_info(self, file_info):
-    #     assert(isinstance(file_info, FileInfo))
-    #     self.base_file_info_ = file_info
-
-    # def set_stage_file_info(self, file_info):
-    #     assert(isinstance(file_info, FileInfo))
-    #     self.stage_file_info_ = file_info
-
-    # def set_modi_file_info(self, file_info):
-    #     assert(isinstance(file_info, FileInfo))
-    #     self.modi_file_info_ = file_info
-
     def output_name(self, dest_dir, file_info):
         assert(isinstance(file_info, FileInfo))
         return os.path.join(dest_dir, file_info.rel_path_)
@@ -134,6 +133,20 @@ class ChangedFile(object):
     def copy_to_review_directory_(self, dest_dir, file_info):
         raise NotImplementedError("%s: not implemented" % (self.qualid_()))
 
+    # This function gets the contents of the 'chg_id_' field of 'file_info'.
+    #
+    def get_change_contents_(self, scm, file_info):
+        raise NotImplementedError("%s: not implemented" % (self.qualid_()))
+
+    def get_change_contents(self, scm, file_info):
+        return self.get_change_contents_(scm, file_info)
+
+    def create_empty_file(self, dest_dir, file_info):
+        out_name = self.output_name(dest_dir, file_info)
+        self.create_output_dir(out_name)
+        with open(out_name, "w") as fp:
+            pass
+
     # This function copies 'file_info' into the review directory by
     # invoking the extension-implemented copy_to_review_directory_().
     # The called function will extract the file from the SCM, or from
@@ -145,12 +158,31 @@ class ChangedFile(object):
     def copy_to_review_directory(self, dest_dir, file_info):
         assert(isinstance(file_info, FileInfo))
         if not file_info.empty():
+            # Copy non-empty file.
             self.copy_to_review_directory_(dest_dir, file_info)
         else:
-            out_name = self.output_name(dest_dir, file_info)
-            self.create_output_dir(out_name)
-            with open(out_name, "w") as fp:
-                pass
+            self.create_empty_file(dest_dir, file_info)
+
+    def copy_to_review_sha_directory(self, is_base_file, file_info):
+        assert(isinstance(file_info, FileInfo))
+
+        # XXX If chg_id_ is None, that means it's an uncommitted, unstaged file.
+        #     This has to be a physcial file copy.
+        if file_info.chg_id_ is not None:
+            fname = os.path.join(self.scm_.review_sha_dir_, file_info.chg_id_)
+            self.create_output_dir(fname)
+
+            if not os.path.exists(fname):
+                contents = ""
+                if not file_info.empty():
+                    contents = self.get_change_contents(self.scm_, file_info)
+                    contents = '\n'.join(contents)
+
+                with open(fname, "w") as fp:
+                    fp.write(contents)
+        else:
+            assert(not is_base_file) # XXX conjecture: base file must have a chg_id!
+            self.copy_to_review_directory(self.scm_.review_modi_dir_, file_info)
 
     # This function copies both the base and modified files into the
     # review directory.
@@ -158,8 +190,16 @@ class ChangedFile(object):
     def update_review_directory(self):
         self.copy_to_review_directory(self.scm_.review_base_dir_,
                                       self.base_file_info_)
+
+        self.copy_to_review_sha_directory(True, self.base_file_info_)
+        print("updated base: ", self.base_file_info_.__dict__, self.base_file_info_.empty())
+
         self.copy_to_review_directory(self.scm_.review_modi_dir_,
                                       self.modi_file_info_)
+
+        self.copy_to_review_sha_directory(False, self.modi_file_info_)
+        print("updated modi: ", self.modi_file_info_.__dict__, self.modi_file_info_.empty())
+
 
     def get_dossier_representation(self):
         raise NotImplementedError("%s: not implemented" % (self.qualid_()))
@@ -184,8 +224,9 @@ class SCM(object):
         self.review_name_      = options.arg_review_name
         self.change_id_        = options.arg_change_id
         self.review_dir_       = options.review_dir
+        self.review_sha_dir_   = options.review_sha_dir
         self.review_base_dir_  = options.review_base_dir
-        self.review_stage_dir_ = options.review_stage_dir
+        self.review_stag_dir_  = options.review_stag_dir
         self.review_modi_dir_  = options.review_modi_dir
         self.dossier_          = None # None -> no change to review.
         self.verbose_          = options.arg_verbose
@@ -269,17 +310,19 @@ class SCM(object):
         for p in processes:
             p.join()
 
-    def create_change_revision(self, rel_base_dir, rel_stage_dir,
+    def create_change_revision(self,
+                               rel_sha_dir, rel_base_dir, rel_stag_dir,
                                rel_modi_dir, commit_msg_file):
         now       = datetime.datetime.now()
         timestamp = datetime.datetime.strftime(now, "%Y.%m.%d.%H.%M.%S")
         revision  = {
-            "rel_base_dir"  : rel_base_dir,
-            "rel_modi_dir"  : rel_modi_dir,
-            "rel_stage_dir" : rel_stage_dir,
-            "time"          : timestamp,
-            "commit_msg"    : self.commit_msg_file_, # Can be None
-            "files"         : [ ]
+            "rel_sha_dir"  : rel_sha_dir,
+            "rel_base_dir" : rel_base_dir,
+            "rel_modi_dir" : rel_modi_dir,
+            "rel_stag_dir" : rel_stag_dir,
+            "time"         : timestamp,
+            "commit_msg"   : self.commit_msg_file_, # Can be None
+            "files"        : [ ]
         }
 
         for f in self.dossier_:
@@ -287,17 +330,7 @@ class SCM(object):
             assert(f.modi_file_info_ is not None)
             assert(f.base_file_info_ is not None)
             
-            # A path for both base and modi are included because
-            # the file could be moved.
-            if False:
-                finfo = {
-                    "action"        : f.action(),
-                    "modi_rel_path" : f.modi_file_info_.rel_path_,
-                    "base_rel_path" : f.base_file_info_.rel_path_,
-                }
-            else:
-                finfo = f.get_dossier_representation()
-
+            finfo = f.get_dossier_representation()
             revision["files"].append(finfo)
 
         return revision
@@ -311,12 +344,14 @@ class SCM(object):
         # 'view-review' program to display the review file-selection
         # menu.
         #
+        assert(os.path.dirname(self.review_sha_dir_) == self.review_dir_)
         assert(os.path.dirname(self.review_base_dir_) == self.review_dir_)
-        assert(os.path.dirname(self.review_stage_dir_) == self.review_dir_)
+        assert(os.path.dirname(self.review_stag_dir_) == self.review_dir_)
         assert(os.path.dirname(self.review_modi_dir_) == self.review_dir_)
-        rel_base_dir  = os.path.basename(self.review_base_dir_)
-        rel_stage_dir = os.path.basename(self.review_stage_dir_)
-        rel_modi_dir  = os.path.basename(self.review_modi_dir_)
+        rel_sha_dir  = os.path.basename(self.review_sha_dir_)
+        rel_base_dir = os.path.basename(self.review_base_dir_)
+        rel_stag_dir = os.path.basename(self.review_stag_dir_)
+        rel_modi_dir = os.path.basename(self.review_modi_dir_)
 
         info = {
             "version"      : 2,
@@ -328,7 +363,9 @@ class SCM(object):
             "revisions"    : [ ]
         }
 
-        revision = self.create_change_revision(rel_base_dir, rel_stage_dir,
+        revision = self.create_change_revision(rel_sha_dir,
+                                               rel_base_dir,
+                                               rel_stag_dir,
                                                rel_modi_dir,
                                                self.commit_msg_file_)
 
