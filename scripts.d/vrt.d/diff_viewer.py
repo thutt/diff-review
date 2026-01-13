@@ -17,10 +17,10 @@ from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import (QColor, QFont, QTextCursor, QAction, QFontMetrics,
                          QTextCharFormat, QTextBlockFormat, QPainter, QPen)
 
-from utils import extract_display_path
 from search_dialogs import SearchDialog, SearchResultDialog
 from ui_components import LineNumberArea, DiffMapWidget, SyncedPlainTextEdit
 import color_palettes
+import generate_viewer
 from tab_content_base import TabContentBase
 
 
@@ -28,6 +28,7 @@ class DiffViewer(QWidget, TabContentBase):
     def __init__(self,
                  base_file: str,
                  modified_file: str,
+                 display_path: str,
                  max_line_length: int,
                  show_diff_map: bool,
                  show_line_numbers: bool):
@@ -35,11 +36,12 @@ class DiffViewer(QWidget, TabContentBase):
             self._app = QApplication(sys.argv)
         else:
             self._app = QApplication.instance()
-        
+
         super().__init__()
-        
+
         self.base_file = base_file
         self.modified_file = modified_file
+        self.display_path = display_path
         self.max_line_length = max_line_length
         self.show_diff_map = show_diff_map
         self.show_line_numbers = show_line_numbers
@@ -71,7 +73,8 @@ class DiffViewer(QWidget, TabContentBase):
         self._needs_highlighting_update = False  # Set by tab_manager for deferred updates
         self._needs_color_refresh = False  # Set by tab_manager for deferred color updates
         self._needs_staged_mode_reload = False  # Set when staged diff mode changes
-        
+        self.staged_diff_mode = None  # Diff mode for unstaged files (set by tab_manager)
+
         self.current_font_size = 12  # Default font size
         
         self.collapsed_regions = []  # List of (start_line, end_line, region_type) tuples for collapsed change regions
@@ -83,31 +86,31 @@ class DiffViewer(QWidget, TabContentBase):
     
     def setup_gui(self):
         # Note: No window title needed when used in tabs
-        
+
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
-        
+
         label_layout = QHBoxLayout()
-        
+
         base_container = QHBoxLayout()
-        base_type_label = QLabel("Base")
-        base_type_label.setStyleSheet("font-weight: bold; color: blue; padding: 2px 5px;")
-        base_file_label = QLabel(extract_display_path(self.base_file))
+        self.base_type_label = QLabel("Base")
+        self.base_type_label.setStyleSheet("font-weight: bold; color: blue; padding: 2px 5px;")
+        base_file_label = QLabel(self.display_path)
         base_file_label.setFrameStyle(QFrame.Shape.Panel | QFrame.Shadow.Sunken)
-        base_container.addWidget(base_type_label)
+        base_container.addWidget(self.base_type_label)
         base_container.addWidget(base_file_label, 1)
-        
+
         spacer = QLabel("")
-        
+
         modified_container = QHBoxLayout()
-        modified_type_label = QLabel("Modified")
-        modified_type_label.setStyleSheet("font-weight: bold; color: green; padding: 2px 5px;")
-        modified_file_label = QLabel(extract_display_path(self.modified_file))
+        self.modified_type_label = QLabel("Modified")
+        self.modified_type_label.setStyleSheet("font-weight: bold; color: green; padding: 2px 5px;")
+        modified_file_label = QLabel(self.display_path)
         modified_file_label.setFrameStyle(QFrame.Shape.Panel | QFrame.Shadow.Sunken)
-        modified_container.addWidget(modified_type_label)
+        modified_container.addWidget(self.modified_type_label)
         modified_container.addWidget(modified_file_label, 1)
-        
+
         label_layout.addLayout(base_container, 1)
         label_layout.addWidget(spacer, 0)
         label_layout.addLayout(modified_container, 1)
@@ -218,7 +221,27 @@ class DiffViewer(QWidget, TabContentBase):
     def set_changed_region_count(self, count):
         """Set the number of changed regions from the diff descriptor"""
         self.n_changed_regions = count
-    
+
+    def set_staged_diff_mode(self, mode):
+        """Set the staged diff mode and update panel labels accordingly.
+
+        For unstaged files, this shows which versions are being compared:
+        - DIFF_MODE_BASE_MODI: Base (HEAD) vs Modified (Working)
+        - DIFF_MODE_BASE_STAGE: Base (HEAD) vs Modified (Staged)
+        - DIFF_MODE_STAGE_MODI: Base (Staged) vs Modified (Working)
+        """
+        self.staged_diff_mode = mode
+
+        if mode == generate_viewer.DIFF_MODE_BASE_MODI:
+            self.base_type_label.setText("Base (HEAD)")
+            self.modified_type_label.setText("Modified (Working)")
+        elif mode == generate_viewer.DIFF_MODE_BASE_STAGE:
+            self.base_type_label.setText("Base (HEAD)")
+            self.modified_type_label.setText("Modified (Staged)")
+        elif mode == generate_viewer.DIFF_MODE_STAGE_MODI:
+            self.base_type_label.setText("Base (Staged)")
+            self.modified_type_label.setText("Modified (Working)")
+
     def add_line(self, base, modi):
         base_text = base.line_.rstrip('\n') if hasattr(base, 'line_') else ''
         modi_text = modi.line_.rstrip('\n') if hasattr(modi, 'line_') else ''

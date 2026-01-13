@@ -65,18 +65,10 @@ class FileButtonBase(object):
 class FileButton(FileButtonBase): # Committed & not-unstaged uncommited.
     def __init__(self, options, action,
                  root_path,
-                 base_dir_rel_path, base_file_rel_path,
-                 modi_dir_rel_path, modi_file_rel_path,
                  sha_dir_rel_path,
                  display_path,
                  base_chg_id, modi_chg_id):
         super().__init__(options, action, root_path)
-
-        self.base_dir_rel_path_  = base_dir_rel_path
-        self.base_rel_path_      = base_file_rel_path
-
-        self.modi_dir_rel_path_  = modi_dir_rel_path
-        self.modi_rel_path_      = modi_file_rel_path
 
         self.sha_dir_rel_path_   = sha_dir_rel_path
 
@@ -86,14 +78,6 @@ class FileButton(FileButtonBase): # Committed & not-unstaged uncommited.
 
     def display_path(self):
         return self.display_path_
-
-    def modi_file_rel_path(self):
-        # Return source-tree relative path.
-        return self.modi_rel_path_
-
-    def base_file_rel_path(self):
-        # Return source-tree relative path.
-        return self.base_rel_path_
 
     def generate_label(self, enable_stats):
         if self.desc_ is not None and enable_stats:
@@ -122,6 +106,7 @@ class FileButton(FileButtonBase): # Committed & not-unstaged uncommited.
 
     def make_viewer(self, base, modi):
         viewer = diff_viewer.DiffViewer(base, modi,
+                                        self.display_path(),
                                         self.options_.arg_max_line_length,
                                         show_diff_map(self.options_),
                                         show_line_numbers(self.options_))
@@ -139,6 +124,10 @@ class FileButton(FileButtonBase): # Committed & not-unstaged uncommited.
         return posixpath.join(self.root_path_, self.sha_dir_rel_path_,
                               self.base_chg_id_)
 
+    def get_modi_chg_id_path(self):
+        return posixpath.join(self.root_path_, self.sha_dir_rel_path_,
+                              self.modi_chg_id_)
+
     def add_viewer(self, tab_widget):
         url = self.options_.arg_dossier_url
         if url is not None:
@@ -152,10 +141,11 @@ class FileButton(FileButtonBase): # Committed & not-unstaged uncommited.
         #  These relative pathnames can be converted into a URL, which
         #  requires '/'.
         #
+        #
+        # XXX The diff view panel paths are set here, but they should
+        # be the display path for each panel.
         base   = self.get_base_chg_id_path()
-        modi   = posixpath.join(root_path,
-                                self.modi_dir_rel_path_,
-                                self.modi_file_rel_path())
+        modi   = self.get_modi_chg_id_path()
         viewer = self.make_viewer(base, modi)
         tab_widget.add_viewer(viewer)
 
@@ -163,24 +153,16 @@ class FileButton(FileButtonBase): # Committed & not-unstaged uncommited.
 class FileButtonUnstaged(FileButtonBase):
     def __init__(self, options, action,
                  root_path,
-                 base_dir_rel_path, base_file_rel_path,
-                 modi_dir_rel_path, modi_file_rel_path,
-                 stag_dir_rel_path, stag_file_rel_path,
                  sha_dir_rel_path,
+                 modi_dir_rel_path, modi_file_rel_path,
                  display_path,
                  base_chg_id,
                  stag_chg_id,
                  modi_path):
         super().__init__(options, action, root_path)
 
-        self.base_dir_rel_path_  = base_dir_rel_path
-        self.base_rel_path_      = base_file_rel_path
-
         self.modi_dir_rel_path_  = modi_dir_rel_path
         self.modi_rel_path_      = modi_file_rel_path
-
-        self.stag_dir_rel_path_  = stag_dir_rel_path
-        self.stag_rel_path_      = stag_file_rel_path
 
         self.display_path_       = display_path
         self.sha_dir_rel_path_   = sha_dir_rel_path
@@ -196,22 +178,22 @@ class FileButtonUnstaged(FileButtonBase):
         return posixpath.join(self.root_path_, self.sha_dir_rel_path_,
                               self.stag_chg_id_)
 
-    def get_modi_chg_id_path(self):
+    def get_modi_path(self):
         return posixpath.join(self.root_path_, self.modi_dir_rel_path_,
                               self.modi_path_)
 
     def has_staged(self):
-        return self.stag_rel_path_ is not None
+        return self.stag_chg_id_ is not None
 
     def get_diff_paths(self, mode, root_path):
         # Returns (base_path, modi_path) for the given diff mode.
         # root_path is the resolved root (URL or local path).
         if mode == DIFF_MODE_BASE_STAGE:
             base = self.get_base_chg_id_path()
-            modi = self.get_modi_chg_id_path()
+            modi = self.get_modi_path()
         elif mode == DIFF_MODE_STAGE_MODI:
             base = self.get_stag_chg_id_path()
-            modi = self.get_modi_chg_id_path()
+            modi = self.get_modi_path()
         else:
             assert(mode == DIFF_MODE_BASE_MODI)
             base = self.get_base_chg_id_path()
@@ -228,14 +210,6 @@ class FileButtonUnstaged(FileButtonBase):
         # Return source-tree relative path.
         return self.modi_rel_path_
 
-    def stag_file_rel_path(self):
-        # Return source-tree relative path.
-        return self.stag_rel_path_
-
-    def base_file_rel_path(self):
-        # Return source-tree relative path.
-        return self.base_rel_path_
-
     def generate_label(self, enable_stats):
         if self.desc_ is not None and enable_stats:
             stats =  ("[%d | A: %d / D: %d / C: %d]" %
@@ -248,7 +222,6 @@ class FileButtonUnstaged(FileButtonBase):
             label = self.display_path()
 
         return label
-
 
     def button_label(self):
         label = self.generate_label(self.stats_file_)
@@ -263,6 +236,7 @@ class FileButtonUnstaged(FileButtonBase):
 
     def make_viewer(self, base, modi):
         viewer = diff_viewer.DiffViewer(base, modi,
+                                        self.display_path(),
                                         self.options_.arg_max_line_length,
                                         show_diff_map(self.options_),
                                         show_line_numbers(self.options_))
@@ -284,7 +258,7 @@ class FileButtonUnstaged(FileButtonBase):
             root_path = self.root_path_
 
         mode = tab_widget.get_staged_diff_mode()
-        base, modi = self.get_diff_paths(mode, root_path)
+        (base, modi) = self.get_diff_paths(mode, root_path)
         viewer = self.make_viewer(base, modi)
         tab_widget.add_viewer(viewer)
 
@@ -345,10 +319,6 @@ def generate(options, mode, note):
             file_inst = FileButton(options,
                                    f["action"],
                                    options.dossier_["root"],
-                                   rev["rel_base_dir"],
-                                   f["base_rel_path"],
-                                   rev["rel_modi_dir"],
-                                   f["modi_rel_path"],
                                    rev["rel_sha_dir"],
                                    f["display_path"],
                                    f["base"],
@@ -358,13 +328,9 @@ def generate(options, mode, note):
             file_inst = FileButtonUnstaged(options,
                                            f["action"],
                                            options.dossier_["root"],
-                                           rev["rel_base_dir"],
-                                           f["base_rel_path"],
+                                           rev["rel_sha_dir"],
                                            rev["rel_modi_dir"],
                                            f["modi_rel_path"],
-                                           rev["rel_stag_dir"],
-                                           f["stag_rel_path"],
-                                           rev["rel_sha_dir"],
                                            f["display_path"],
                                            f["base"],
                                            f["stag"],

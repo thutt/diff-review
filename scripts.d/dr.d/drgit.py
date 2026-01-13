@@ -267,6 +267,7 @@ class ChangedFile(drscm.ChangedFile):
             self.create_output_dir(out_name)
             self.write_file(out_name, contents)
         else:
+            # Uncommitted change.
             out_name = self.output_name(dest_dir, file_info)
             self.create_output_dir(out_name)
             try:
@@ -306,22 +307,12 @@ class ChangedFileUnstaged(ChangedFile):
         super().__init__(scm, "unstaged", base_file, modi_file)
         self.stag_file_info_ = stag_file
 
-        print("base: ", base_file.__dict__)
-        print("modi: ", modi_file.__dict__)
-        if stag_file is not None:
-            print("stag: ", stag_file.__dict__)
-        else:
-            print("stag: ", stag_file)
-
-
     def update_review_directory(self):
         super().update_review_directory()
+
         if self.stag_file_info_ is not None:
-            print("++++++ ChangedFileUnstaged update stag file",
-                  self.scm_.review_stag_dir_, self.stag_file_info_.__dict__)
-
+            assert(self.stag_file_info_.chg_id_ is not None) # Must be blob SHA
             self.copy_to_review_sha_directory(False, self.stag_file_info_)
-
 
     def get_dossier_representation(self):
         stag = None
@@ -478,9 +469,11 @@ class GitStaged(Git):
             action    = ChangedFileAdd(self, base_file, modi_file)
 
         elif (idx_ch == 'M') and wrk_ch == ' ':
-            modi_file = drscm.FileInfo(rel_path, None)
-            blob_sha  = git_get_most_recent_commit_blob(self, modi_file)
-            base_file = drscm.FileInfo(rel_path, blob_sha)
+            temp_file = drscm.FileInfo(rel_path, None)
+            base_sha  = git_get_most_recent_commit_blob(self, temp_file)
+            base_file = drscm.FileInfo(rel_path, base_sha)
+            stag_sha  = git_get_staged_file_blob_sha(self, rel_path)
+            modi_file = drscm.FileInfo(rel_path, stag_sha)
             action    = ChangedFileStaged(self, base_file, modi_file)
 
         elif (idx_ch == '?') or (wrk_ch == '?'):

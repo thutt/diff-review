@@ -246,7 +246,7 @@ class DiffViewerTabWidget(QMainWindow):
         # Storage for file classes and their buttons
         self.file_classes = []
         self.file_buttons = []
-        self.file_to_tab_index = {}  # Maps file_class to tab index
+        self.file_to_tab_index = {}  # Maps tab key to tab index (see _make_tab_key)
         self.current_file_class = None  # Track which file is being added
         self.sidebar_visible = True
         self.saved_splitter_sizes = None  # Stores splitter sizes when sidebar is hidden
@@ -693,7 +693,8 @@ class DiffViewerTabWidget(QMainWindow):
 
         # Check which files aren't open yet
         for file_class in self.file_classes:
-            if file_class not in self.file_to_tab_index:
+            tab_key = self._make_tab_key(file_class)
+            if tab_key not in self.file_to_tab_index:
                 files_to_open.append(('file', file_class))
 
         if len(files_to_open) == 0:
@@ -761,11 +762,23 @@ class DiffViewerTabWidget(QMainWindow):
             self.update_focus_tinting()
             self.update_status_focus_indicator()
 
+    def _make_tab_key(self, file_class):
+        """Create a key for file_to_tab_index.
+
+        For FileButtonUnstaged, includes the current staged_diff_mode_ so that
+        the same file can have multiple tabs open with different diff modes.
+        For other file types, just returns file_class.
+        """
+        if isinstance(file_class, generate_viewer.FileButtonUnstaged):
+            return (file_class, self.staged_diff_mode_)
+        return file_class
+
     def on_file_clicked(self, file_class):
         """Handle file button click"""
-        # Check if tab already exists for this file
-        if file_class in self.file_to_tab_index:
-            tab_index = self.file_to_tab_index[file_class]
+        # Check if tab already exists for this file (and mode, for unstaged files)
+        tab_key = self._make_tab_key(file_class)
+        if tab_key in self.file_to_tab_index:
+            tab_index = self.file_to_tab_index[tab_key]
             # Verify tab still exists (might have been closed)
             if 0 <= tab_index < self.tab_widget.count():
                 widget = self.tab_widget.widget(tab_index)
@@ -774,7 +787,7 @@ class DiffViewerTabWidget(QMainWindow):
                     self.tab_widget.setCurrentIndex(tab_index)
                     return
             # Tab was closed, remove from mapping
-            del self.file_to_tab_index[file_class]
+            del self.file_to_tab_index[tab_key]
 
         # No existing tab, create new one
         self.current_file_class = file_class  # Store for add_viewer to use
@@ -834,9 +847,12 @@ class DiffViewerTabWidget(QMainWindow):
         diff_viewer.modified_text.customContextMenuRequested.connect(
             lambda pos: self.show_diff_context_menu(pos, diff_viewer.modified_text, 'modified'))
 
-        # Track file to tab mapping
+        # Track file to tab mapping and store mode on viewer
         if file_class:
-            self.file_to_tab_index[file_class] = index
+            tab_key = self._make_tab_key(file_class)
+            self.file_to_tab_index[tab_key] = index
+            if isinstance(file_class, generate_viewer.FileButtonUnstaged):
+                diff_viewer.set_staged_diff_mode(self.staged_diff_mode_)
 
         # Switch to new tab (skip during bulk loading to avoid visual slowdown)
         if not self._bulk_loading:
@@ -976,11 +992,6 @@ class DiffViewerTabWidget(QMainWindow):
             if viewer._needs_color_refresh:
                 viewer.refresh_colors()
                 viewer._needs_color_refresh = False
-            # Reload if staged diff mode changed while this tab was not visible
-            if viewer._needs_staged_mode_reload:
-                file_class = viewer.file_class
-                if isinstance(file_class, generate_viewer.FileButtonUnstaged):
-                    self.reload_staged_viewer(viewer, file_class)
 
     def update_view_menu_states(self):
         """Enable/disable View menu items based on current tab type"""
@@ -1004,21 +1015,34 @@ class DiffViewerTabWidget(QMainWindow):
     def update_button_states(self):
         """Update all item states in tree view based on open tabs and currently selected tab"""
         current_tab_index = self.tab_widget.currentIndex()
+        current_widget = self.tab_widget.widget(current_tab_index) if current_tab_index >= 0 else None
 
         # Update file items in tree view
         for file_class in self.file_classes:
-            # Check if tab is open
-            is_open = file_class in self.file_to_tab_index
-            if is_open:
-                tab_index = self.file_to_tab_index[file_class]
-                if not (0 <= tab_index < self.tab_widget.count()):
-                    is_open = False
-
-            # Check if this tab is currently selected
+            # Check if any tab is open for this file (any mode)
+            is_open = False
             is_active = False
-            if is_open:
-                tab_index = self.file_to_tab_index[file_class]
-                is_active = (tab_index == current_tab_index)
+
+            if isinstance(file_class, generate_viewer.FileButtonUnstaged):
+                # Check all possible modes for unstaged files
+                for mode in [generate_viewer.DIFF_MODE_BASE_MODI,
+                             generate_viewer.DIFF_MODE_BASE_STAGE,
+                             generate_viewer.DIFF_MODE_STAGE_MODI]:
+                    tab_key = (file_class, mode)
+                    if tab_key in self.file_to_tab_index:
+                        tab_index = self.file_to_tab_index[tab_key]
+                        if 0 <= tab_index < self.tab_widget.count():
+                            is_open = True
+                            if tab_index == current_tab_index:
+                                is_active = True
+                            break
+            else:
+                # Regular file - simple key
+                if file_class in self.file_to_tab_index:
+                    tab_index = self.file_to_tab_index[file_class]
+                    if 0 <= tab_index < self.tab_widget.count():
+                        is_open = True
+                        is_active = (tab_index == current_tab_index)
 
             self.sidebar_widget.update_file_state(file_class, is_open, is_active)
 
@@ -1069,107 +1093,12 @@ class DiffViewerTabWidget(QMainWindow):
 
         self.staged_diff_mode_ = mode
 
-        # Update sidebar visibility based on mode
+        # Update sidebar visibility based on mode.
+        # Existing tabs are left unchanged - they retain their original mode.
+        # Clicking a file in the sidebar will open a new tab with the new mode
+        # (or switch to an existing tab if one exists for that file+mode).
         self.sidebar_widget.update_file_visibility_for_mode(
             self.file_classes, mode)
-
-        # Find all open staged file viewers and mark them for reload
-        current_index = self.tab_widget.currentIndex()
-        for file_class in self.file_classes:
-            if not isinstance(file_class, generate_viewer.FileButtonUnstaged):
-                continue
-            if file_class not in self.file_to_tab_index:
-                continue
-
-            tab_index = self.file_to_tab_index[file_class]
-            viewer = self.tab_widget.widget(tab_index)
-            if not isinstance(viewer, DiffViewer):
-                continue
-
-            if tab_index == current_index:
-                # Current tab: reload immediately
-                self.reload_staged_viewer(viewer, file_class)
-            else:
-                # Other tabs: mark dirty for reload on selection
-                viewer._needs_staged_mode_reload = True
-
-    def reload_staged_viewer(self, viewer, file_class):
-        """Reload a staged file viewer with the current diff mode."""
-        import diffmgrng as diffmgr
-
-        url = file_class.options_.arg_dossier_url
-        if url is not None:
-            root_path = url
-        else:
-            root_path = file_class.root_path_
-
-        base, modi = file_class.get_diff_paths(self.staged_diff_mode_, root_path)
-
-        # Save current scroll position
-        v_scroll_pos = viewer.base_text.verticalScrollBar().value()
-        h_scroll_pos = viewer.base_text.horizontalScrollBar().value()
-
-        # Clear line number area backgrounds
-        viewer.base_line_area.line_backgrounds.clear()
-        viewer.modified_line_area.line_backgrounds.clear()
-
-        # Reset highlighting state
-        viewer.highlighting_applied = False
-        viewer.highlighting_in_progress = False
-        viewer.highlighting_next_line = 0
-
-        # Clear bookmarks
-        viewer.bookmarked_lines.clear()
-        viewer.base_text.bookmarked_lines.clear()
-        viewer.modified_text.bookmarked_lines.clear()
-
-        # Clear notes
-        viewer.note_count = 0
-        viewer.base_noted_lines.clear()
-        viewer.modified_noted_lines.clear()
-        viewer.base_text.noted_lines.clear()
-        viewer.modified_text.noted_lines.clear()
-        viewer.base_line_area.noted_lines.clear()
-        viewer.modified_line_area.noted_lines.clear()
-
-        # Clear existing data
-        viewer.base_display = []
-        viewer.modified_display = []
-        viewer.base_line_nums = []
-        viewer.modified_line_nums = []
-        viewer.change_regions = []
-        viewer.base_line_objects = []
-        viewer.modified_line_objects = []
-
-        # Update file paths
-        viewer.base_file = base
-        viewer.modified_file = modi
-
-        # Reload diff
-        desc = diffmgr.create_diff_descriptor(self.afr_,
-                                              False,
-                                              self.intraline_percent,
-                                              self.dump_ir,
-                                              base, modi)
-
-        # Set changed region count
-        viewer.set_changed_region_count(desc.base_.n_changed_regions_)
-
-        for idx in range(len(desc.base_.lines_)):
-            base_line = desc.base_.lines_[idx]
-            modi_line = desc.modi_.lines_[idx]
-            viewer.add_line(base_line, modi_line)
-
-        viewer.finalize()
-        viewer.ensure_highlighting_applied()
-
-        # Restore scroll position
-        viewer.base_text.verticalScrollBar().setValue(v_scroll_pos)
-        viewer.base_text.horizontalScrollBar().setValue(h_scroll_pos)
-        viewer.modified_text.verticalScrollBar().setValue(v_scroll_pos)
-        viewer.modified_text.horizontalScrollBar().setValue(h_scroll_pos)
-
-        viewer._needs_staged_mode_reload = False
 
     def has_any_staged_content(self):
         """Return True if any file has staged content (for HEAD vs Staged mode).
@@ -1300,8 +1229,13 @@ class DiffViewerTabWidget(QMainWindow):
             # Regular file tab
             elif hasattr(widget, 'file_class'):
                 file_class = widget.file_class
-                if file_class in self.file_to_tab_index:
-                    del self.file_to_tab_index[file_class]
+                # For unstaged files, key includes the mode stored on the viewer
+                if isinstance(file_class, generate_viewer.FileButtonUnstaged):
+                    tab_key = (file_class, widget.staged_diff_mode)
+                else:
+                    tab_key = file_class
+                if tab_key in self.file_to_tab_index:
+                    del self.file_to_tab_index[tab_key]
 
             # Update indices in mapping for tabs after this one
             for key, tab_idx in list(self.file_to_tab_index.items()):
@@ -1500,10 +1434,16 @@ class DiffViewerTabWidget(QMainWindow):
 
 
         # Re-render all tab labels
-        for file_class, tab_index in self.file_to_tab_index.items():
+        for key, tab_index in self.file_to_tab_index.items():
             # Skip commit_msg and review_notes - they don't have file_class
-            if isinstance(file_class, str):
+            if isinstance(key, str):
                 continue
+
+            # Key is either file_class or (file_class, mode) tuple
+            if isinstance(key, tuple):
+                file_class = key[0]
+            else:
+                file_class = key
 
             if 0 <= tab_index < self.tab_widget.count():
                 new_label = file_class.tab_label()

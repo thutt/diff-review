@@ -165,40 +165,36 @@ class ChangedFile(object):
 
     def copy_to_review_sha_directory(self, is_base_file, file_info):
         assert(isinstance(file_info, FileInfo))
+        assert(file_info.chg_id_ is not None) # Only uncommitted files have no chg_id_
 
-        # XXX If chg_id_ is None, that means it's an uncommitted, unstaged file.
-        #     This has to be a physcial file copy.
-        if file_info.chg_id_ is not None:
-            fname = os.path.join(self.scm_.review_sha_dir_, file_info.chg_id_)
-            self.create_output_dir(fname)
+        fname = os.path.join(self.scm_.review_sha_dir_, file_info.chg_id_)
+        self.create_output_dir(fname)
 
-            if not os.path.exists(fname):
-                contents = ""
-                if not file_info.empty():
-                    contents = self.get_change_contents(self.scm_, file_info)
-                    contents = '\n'.join(contents)
+        if not os.path.exists(fname):
+            contents = ""
+            if not file_info.empty():
+                contents = self.get_change_contents(self.scm_, file_info)
+                contents = '\n'.join(contents)
 
-                with open(fname, "w") as fp:
-                    fp.write(contents)
-        else:
-            assert(not is_base_file) # XXX conjecture: base file must have a chg_id!
-            self.copy_to_review_directory(self.scm_.review_modi_dir_, file_info)
-
+            with open(fname, "w") as fp:
+                fp.write(contents)
+        
     # This function copies both the base and modified files into the
     # review directory.
     #
     def update_review_directory(self):
         self.copy_to_review_directory(self.scm_.review_base_dir_,
-                                      self.base_file_info_)
+                                      self.base_file_info_) # XXX remove ultimately.
 
         self.copy_to_review_sha_directory(True, self.base_file_info_)
-        print("updated base: ", self.base_file_info_.__dict__, self.base_file_info_.empty())
 
-        self.copy_to_review_directory(self.scm_.review_modi_dir_,
-                                      self.modi_file_info_)
+        if self.modi_file_info_.chg_id_ is not None:
+            self.copy_to_review_sha_directory(False, self.modi_file_info_)
+        else:
+            # No chg_id_ means no blob sha; copy physical file.
+            self.copy_to_review_directory(self.scm_.review_modi_dir_,
+                                          self.modi_file_info_)
 
-        self.copy_to_review_sha_directory(False, self.modi_file_info_)
-        print("updated modi: ", self.modi_file_info_.__dict__, self.modi_file_info_.empty())
 
 
     def get_dossier_representation(self):

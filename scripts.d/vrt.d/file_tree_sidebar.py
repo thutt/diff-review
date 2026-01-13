@@ -121,12 +121,6 @@ class FileTreeSidebar(QWidget):
         self.tree.insertTopLevelItem(insert_pos, item)
     
     def add_file(self, file_class):
-        """
-        Add a file to the tree, organized by full directory hierarchy
-        
-        Args:
-            file_class: File class object with modi_file_rel_path()
-        """
         file_path = file_class.display_path()
         
         # Split path into components
