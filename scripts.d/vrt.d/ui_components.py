@@ -421,7 +421,7 @@ class SyncedPlainTextEdit(QPlainTextEdit):
                 # Draw the collapse marker text with appropriate label
                 marker_text = f"[...{num_lines} {region_type} lines collapsed...]"
                 painter.setPen(QColor(100, 100, 150))
-                text_y = y_pos + font_metrics.ascent() + 2
+                text_y = int(y_pos + font_metrics.ascent() + 2)
                 painter.drawText(10, text_y, marker_text)
     
     # wheelEvent removed - wheel scroll syncing now handled by DiffViewer.eventFilter
