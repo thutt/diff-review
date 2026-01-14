@@ -61,6 +61,9 @@ class FileButtonBase(object):
             result = self.desc_.chg_line_count()
         return result
 
+    def is_url(self):
+        return self.options_.arg_dossier_url is not None
+
 
 class FileButton(FileButtonBase): # Committed & not-unstaged uncommited.
     def __init__(self, options, action,
@@ -121,20 +124,20 @@ class FileButton(FileButtonBase): # Committed & not-unstaged uncommited.
         return viewer
 
     def get_base_chg_id_path(self):
-        return posixpath.join(self.root_path_, self.sha_dir_rel_path_,
-                              self.base_chg_id_)
+        if self.is_url():
+            return posixpath.join(self.sha_dir_rel_path_, self.base_chg_id_)
+        else:
+            return posixpath.join(self.root_path_, self.sha_dir_rel_path_,
+                                  self.base_chg_id_)
 
     def get_modi_chg_id_path(self):
-        return posixpath.join(self.root_path_, self.sha_dir_rel_path_,
-                              self.modi_chg_id_)
+        if self.is_url():
+            return posixpath.join(self.sha_dir_rel_path_, self.modi_chg_id_)
+        else:
+            return posixpath.join(self.root_path_, self.sha_dir_rel_path_,
+                                  self.modi_chg_id_)
 
     def add_viewer(self, tab_widget):
-        url = self.options_.arg_dossier_url
-        if url is not None:
-            root_path = url
-        else:
-            root_path = self.root_path_
-
         # Using posixpath here because:
         #
         #  Internally, Windows can use '/'.
@@ -171,23 +174,30 @@ class FileButtonUnstaged(FileButtonBase):
         self.modi_path_          = modi_path
 
     def get_base_chg_id_path(self):
-        return posixpath.join(self.root_path_, self.sha_dir_rel_path_,
-                              self.base_chg_id_)
+        if self.is_url():
+            return posixpath.join(self.sha_dir_rel_path_, self.base_chg_id_)
+        else:
+            return posixpath.join(self.root_path_,
+                                  self.sha_dir_rel_path_, self.base_chg_id_)
 
     def get_stag_chg_id_path(self):
-        return posixpath.join(self.root_path_, self.sha_dir_rel_path_,
-                              self.stag_chg_id_)
+        if self.is_url():
+            return posixpath.join(self.sha_dir_rel_path_, self.stag_chg_id_)
+        else:
+            return posixpath.join(self.root_path_,
+                                  self.sha_dir_rel_path_, self.stag_chg_id_)
 
     def get_modi_path(self):
-        return posixpath.join(self.root_path_, self.modi_dir_rel_path_,
-                              self.modi_path_)
+        if self.is_url():
+            return posixpath.join(self.modi_rel_path_, self.modi_path_)
+        else:
+            return posixpath.join(self.root_path_,
+                                  self.modi_dir_rel_path_, self.modi_path_)
 
     def has_staged(self):
         return self.stag_chg_id_ is not None
 
-    def get_diff_paths(self, mode, root_path):
-        # Returns (base_path, modi_path) for the given diff mode.
-        # root_path is the resolved root (URL or local path).
+    def get_diff_paths(self, mode):
         if mode == DIFF_MODE_BASE_STAGE:
             base = self.get_base_chg_id_path()
             modi = self.get_modi_path()
@@ -199,7 +209,10 @@ class FileButtonUnstaged(FileButtonBase):
             base = self.get_base_chg_id_path()
             modi_dir = self.modi_dir_rel_path_
             modi_rel = self.modi_file_rel_path()
-            modi = posixpath.join(root_path, modi_dir, modi_rel)
+            if self.is_url():
+                modi = posixpath.join(modi_dir, modi_rel)
+            else:
+                modi = posixpath.join(self.root_path_, modi_dir, modi_rel)
 
         return (base, modi)
 
@@ -251,14 +264,8 @@ class FileButtonUnstaged(FileButtonBase):
         return viewer
 
     def add_viewer(self, tab_widget):
-        url = self.options_.arg_dossier_url
-        if url is not None:
-            root_path = url
-        else:
-            root_path = self.root_path_
-
         mode = tab_widget.get_staged_diff_mode()
-        (base, modi) = self.get_diff_paths(mode, root_path)
+        (base, modi) = self.get_diff_paths(mode)
         viewer = self.make_viewer(base, modi)
         tab_widget.add_viewer(viewer)
 
