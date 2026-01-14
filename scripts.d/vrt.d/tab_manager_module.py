@@ -1545,6 +1545,7 @@ class DiffViewerTabWidget(QMainWindow):
         viewer.modified_line_objects = []
 
         # Reload diff
+        # Not supported for URL-based diffs.
         try:
             desc = diffmgr.create_diff_descriptor(self.afr_,
                                                   False,
