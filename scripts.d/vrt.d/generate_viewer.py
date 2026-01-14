@@ -189,10 +189,10 @@ class FileButtonUnstaged(FileButtonBase):
 
     def get_modi_path(self):
         if self.is_url():
-            return posixpath.join(self.modi_rel_path_, self.modi_path_)
+            return posixpath.join(self.modi_dir_rel_path_, self.modi_rel_path_)
         else:
             return posixpath.join(self.root_path_,
-                                  self.modi_dir_rel_path_, self.modi_path_)
+                                  self.modi_dir_rel_path_, self.modi_rel_path_)
 
     def has_staged(self):
         return self.stag_chg_id_ is not None
@@ -200,28 +200,19 @@ class FileButtonUnstaged(FileButtonBase):
     def get_diff_paths(self, mode):
         if mode == DIFF_MODE_BASE_STAGE:
             base = self.get_base_chg_id_path()
-            modi = self.get_modi_path()
+            modi = self.get_stag_chg_id_path()
         elif mode == DIFF_MODE_STAGE_MODI:
             base = self.get_stag_chg_id_path()
             modi = self.get_modi_path()
         else:
             assert(mode == DIFF_MODE_BASE_MODI)
             base = self.get_base_chg_id_path()
-            modi_dir = self.modi_dir_rel_path_
-            modi_rel = self.modi_file_rel_path()
-            if self.is_url():
-                modi = posixpath.join(modi_dir, modi_rel)
-            else:
-                modi = posixpath.join(self.root_path_, modi_dir, modi_rel)
+            modi = self.get_modi_path()
 
         return (base, modi)
 
     def display_path(self):
         return self.display_path_
-
-    def modi_file_rel_path(self):
-        # Return source-tree relative path.
-        return self.modi_rel_path_
 
     def generate_label(self, enable_stats):
         if self.desc_ is not None and enable_stats:

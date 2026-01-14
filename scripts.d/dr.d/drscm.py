@@ -163,7 +163,7 @@ class ChangedFile(object):
         else:
             self.create_empty_file(dest_dir, file_info)
 
-    def copy_to_review_sha_directory(self, is_base_file, file_info):
+    def copy_to_review_sha_directory(self, file_info):
         assert(isinstance(file_info, FileInfo))
         assert(file_info.chg_id_ is not None) # Only uncommitted files have no chg_id_
 
@@ -178,7 +178,7 @@ class ChangedFile(object):
 
             with open(fname, "w") as fp:
                 fp.write(contents)
-        
+
     # This function copies both the base and modified files into the
     # review directory.
     #
@@ -186,10 +186,10 @@ class ChangedFile(object):
         self.copy_to_review_directory(self.scm_.review_base_dir_,
                                       self.base_file_info_) # XXX remove ultimately.
 
-        self.copy_to_review_sha_directory(True, self.base_file_info_)
+        self.copy_to_review_sha_directory(self.base_file_info_)
 
         if self.modi_file_info_.chg_id_ is not None:
-            self.copy_to_review_sha_directory(False, self.modi_file_info_)
+            self.copy_to_review_sha_directory(self.modi_file_info_)
         else:
             # No chg_id_ means no blob sha; copy physical file.
             self.copy_to_review_directory(self.scm_.review_modi_dir_,
@@ -356,6 +356,8 @@ class SCM(object):
             "user"         : getpass.getuser(),
             "name"         : self.review_name_,
             "root"         : self.review_dir_,
+            "rel_sha_dir"  : rel_sha_dir,
+            "rel_modi_dir" : rel_modi_dir,
             "revisions"    : [ ]
         }
 

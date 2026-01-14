@@ -312,7 +312,7 @@ class ChangedFileUnstaged(ChangedFile):
 
         if self.stag_file_info_ is not None:
             assert(self.stag_file_info_.chg_id_ is not None) # Must be blob SHA
-            self.copy_to_review_sha_directory(False, self.stag_file_info_)
+            self.copy_to_review_sha_directory(self.stag_file_info_)
 
     def get_dossier_representation(self):
         stag = None
@@ -342,11 +342,6 @@ class ChangedFileDelete(ChangedFile):
 class ChangedFileRename(ChangedFile):
     def __init__(self, scm, base_file, modi_file):
         super().__init__(scm, "rename", base_file, modi_file)
-
-
-class ChangedFileAdd(ChangedFile):
-    def __init__(self, scm, base_file, modi_file):
-        super().__init__(scm, "add", base_file, modi_file)
 
 
 class ChangedFileAdd(ChangedFile):
@@ -441,7 +436,11 @@ class GitStaged(Git):
                              (staged_sha != unstaged_sha))
             modi_file     = drscm.FileInfo(rel_path, None)
             blob_sha      = git_get_most_recent_commit_blob(self, modi_file)
-            base_file     = drscm.FileInfo(rel_path, blob_sha)
+            if head_sha is None:
+                # No base file, so make an empty one.
+                base_file = drscm.FileInfoEmpty(rel_path)
+            else:
+                base_file = drscm.FileInfo(rel_path, blob_sha)
             staged_file   = None
             if staged_chgs or both_chgs:
                 staged_file = drscm.FileInfo(rel_path, staged_sha)
