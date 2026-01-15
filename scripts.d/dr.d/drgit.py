@@ -285,20 +285,20 @@ class ChangedFile(drscm.ChangedFile):
                              "This template is used in its place.\n")
 
     def get_dossier_representation(self):
-        # display_path is the string used to display the pathname.
+        # The 'modi' of an added file is a special case; it will be a
+        # real file.
+        modi_d = os.path.basename(self.scm_.review_modi_dir_)
+        sha_d  = os.path.basename(self.scm_.review_sha_dir_)
 
-        modi_info = self.modi_file_info_.rel_path_
+        modi_info = (modi_d, self.modi_file_info_.rel_path_) # Pathname.
         if self.modi_file_info_.chg_id_ is not None:
-            modi_info = self.modi_file_info_.chg_id_
+            modi_info = (sha_d, self.modi_file_info_.chg_id_) # SHA.
 
         return {
-            "action"          : self.action(),
-            "display_path"    : self.modi_file_info_.rel_path_,
-            "base"            : self.base_file_info_.chg_id_,
-            "modi"            : modi_info,
-
-            "modi_rel_path"   : self.modi_file_info_.rel_path_,
-            "base_rel_path"   : self.base_file_info_.rel_path_,
+            "action"       : self.action(),
+            "display_path" : self.modi_file_info_.rel_path_,
+            "base"         : [ sha_d, self.base_file_info_.chg_id_ ],
+            "modi"         : modi_info,
         }
 
 
@@ -315,22 +315,19 @@ class ChangedFileUnstaged(ChangedFile):
             self.copy_to_review_sha_directory(self.stag_file_info_)
 
     def get_dossier_representation(self):
-        stag = None
         stag_name = None
         if self.stag_file_info_ is not None:
-            stag      = self.stag_file_info_.rel_path_
             stag_name = self.stag_file_info_.chg_id_
+
+        modi_d = os.path.basename(self.scm_.review_modi_dir_)
+        sha_d  = os.path.basename(self.scm_.review_sha_dir_)
 
         return {
             "action"        : self.action(),
             "display_path"  : self.modi_file_info_.rel_path_,
-            "base"          : self.base_file_info_.chg_id_,
-            "stag"          : stag_name,
-            "modi"          : self.modi_file_info_.rel_path_,
-
-            "modi_rel_path" : self.modi_file_info_.rel_path_,
-            "base_rel_path" : self.base_file_info_.rel_path_,
-            "stag_rel_path" : stag
+            "base"          : (sha_d, self.base_file_info_.chg_id_),
+            "stag"          : (sha_d, stag_name),
+            "modi"          : (modi_d, self.modi_file_info_.rel_path_), # Pathname.
         }
 
 

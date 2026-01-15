@@ -1,3 +1,4 @@
+
 # Copyright (c) 2026  Logic Magicians Software (Taylor Hutt).
 # All Rights Reserved.
 # Licensed under Gnu GPL V3.
@@ -68,16 +69,17 @@ class FileButtonBase(object):
 class FileButton(FileButtonBase): # Committed & not-unstaged uncommited.
     def __init__(self, options, action,
                  root_path,
-                 sha_dir_rel_path,
                  display_path,
-                 base_chg_id, modi_chg_id):
+                 base_chg_id,
+                 modi):
         super().__init__(options, action, root_path)
 
-        self.sha_dir_rel_path_   = sha_dir_rel_path
 
         self.display_path_       = display_path
-        self.base_chg_id_        = base_chg_id
-        self.modi_chg_id_        = modi_chg_id
+        self.sha_dir_rel_path_   = base_chg_id[0]
+        self.base_chg_id_        = base_chg_id[1]
+        self.modi_rel_dir_       = modi[0]
+        self.modi_chg_path_      = modi[1]
 
     def display_path(self):
         return self.display_path_
@@ -132,10 +134,10 @@ class FileButton(FileButtonBase): # Committed & not-unstaged uncommited.
 
     def get_modi_chg_id_path(self):
         if self.is_url():
-            return posixpath.join(self.sha_dir_rel_path_, self.modi_chg_id_)
+            return posixpath.join(self.modi_rel_dir_, self.modi_chg_path_)
         else:
-            return posixpath.join(self.root_path_, self.sha_dir_rel_path_,
-                                  self.modi_chg_id_)
+            return posixpath.join(self.root_path_,
+                                  self.modi_rel_dir_, self.modi_chg_path_)
 
     def add_viewer(self, tab_widget):
         # Using posixpath here because:
@@ -146,7 +148,7 @@ class FileButton(FileButtonBase): # Committed & not-unstaged uncommited.
         #
         #
         # XXX The diff view panel paths are set here, but they should
-        # be the display path for each panel.
+        # be the display_path() for each panel.
         base   = self.get_base_chg_id_path()
         modi   = self.get_modi_chg_id_path()
         viewer = self.make_viewer(base, modi)
@@ -154,24 +156,22 @@ class FileButton(FileButtonBase): # Committed & not-unstaged uncommited.
 
 
 class FileButtonUnstaged(FileButtonBase):
-    def __init__(self, options, action,
+    def __init__(self,
+                 options,
+                 action,
                  root_path,
-                 sha_dir_rel_path,
-                 modi_dir_rel_path, modi_file_rel_path,
                  display_path,
-                 base_chg_id,
-                 stag_chg_id,
-                 modi_path):
+                 base_chg_id,   # ("sha.d", relative-pathname)
+                 stag_chg_id,   # ("sha.d", relative-pathname)
+                 modi):         # (("sha.d" | "modi.d"), relative-pathname)
         super().__init__(options, action, root_path)
 
-        self.modi_dir_rel_path_  = modi_dir_rel_path
-        self.modi_rel_path_      = modi_file_rel_path
-
         self.display_path_       = display_path
-        self.sha_dir_rel_path_   = sha_dir_rel_path
-        self.base_chg_id_        = base_chg_id
-        self.stag_chg_id_        = stag_chg_id
-        self.modi_path_          = modi_path
+        self.sha_dir_rel_path_   = base_chg_id[0]
+        self.base_chg_id_        = base_chg_id[1]
+        self.stag_chg_id_        = stag_chg_id[1]
+        self.modi_rel_dir_       = modi[0]
+        self.modi_path_          = modi[1]
 
     def get_base_chg_id_path(self):
         if self.is_url():
@@ -189,10 +189,10 @@ class FileButtonUnstaged(FileButtonBase):
 
     def get_modi_path(self):
         if self.is_url():
-            return posixpath.join(self.modi_dir_rel_path_, self.modi_rel_path_)
+            return posixpath.join(self.modi_rel_dir_, self.modi_path_)
         else:
             return posixpath.join(self.root_path_,
-                                  self.modi_dir_rel_path_, self.modi_rel_path_)
+                                  self.modi_rel_dir_, self.modi_path_)
 
     def has_staged(self):
         return self.stag_chg_id_ is not None
@@ -317,7 +317,6 @@ def generate(options, mode, note):
             file_inst = FileButton(options,
                                    f["action"],
                                    options.dossier_["root"],
-                                   rev["rel_sha_dir"],
                                    f["display_path"],
                                    f["base"],
                                    f["modi"])
@@ -326,9 +325,6 @@ def generate(options, mode, note):
             file_inst = FileButtonUnstaged(options,
                                            f["action"],
                                            options.dossier_["root"],
-                                           rev["rel_sha_dir"],
-                                           rev["rel_modi_dir"],
-                                           f["modi_rel_path"],
                                            f["display_path"],
                                            f["base"],
                                            f["stag"],

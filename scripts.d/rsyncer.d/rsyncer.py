@@ -14,27 +14,6 @@ default_review_dir  = os.path.join(home, "review")
 default_review_name = "default"
 
 
-class FileButton (object):
-    def __init__(self, options, action,
-                 root_path, base_rel_path, modi_rel_path):
-        self.options_       = options
-        self.action_        = action
-        self.root_path_     = root_path
-        self.base_rel_path_ = base_rel_path
-        self.modi_rel_path_ = modi_rel_path
-
-    def button_label(self):
-        return self.modi_rel_path_
-
-    def add_viewer(self, tab_widget):
-        base = os.path.join(self.root_path_, "base.d", self.base_rel_path_)
-        modi = os.path.join(self.root_path_, "modi.d", self.modi_rel_path_)
-        viewer  = make_viewer(self.options_, base, modi,
-                              self.options_.arg_note,
-                              self.options_.dossier_["commit_msg"])
-        tab_widget.add_viewer(viewer)
-
-
 def fatal(msg):
     print("fatal: %s" % (msg))
     sys.exit(1)

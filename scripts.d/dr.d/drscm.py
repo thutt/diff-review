@@ -183,9 +183,6 @@ class ChangedFile(object):
     # review directory.
     #
     def update_review_directory(self):
-        self.copy_to_review_directory(self.scm_.review_base_dir_,
-                                      self.base_file_info_) # XXX remove ultimately.
-
         self.copy_to_review_sha_directory(self.base_file_info_)
 
         if self.modi_file_info_.chg_id_ is not None:
@@ -221,8 +218,6 @@ class SCM(object):
         self.change_id_        = options.arg_change_id
         self.review_dir_       = options.review_dir
         self.review_sha_dir_   = options.review_sha_dir
-        self.review_base_dir_  = options.review_base_dir
-        self.review_stag_dir_  = options.review_stag_dir
         self.review_modi_dir_  = options.review_modi_dir
         self.dossier_          = None # None -> no change to review.
         self.verbose_          = options.arg_verbose
@@ -306,16 +301,10 @@ class SCM(object):
         for p in processes:
             p.join()
 
-    def create_change_revision(self,
-                               rel_sha_dir, rel_base_dir, rel_stag_dir,
-                               rel_modi_dir, commit_msg_file):
+    def create_change_revision(self, commit_msg_file):
         now       = datetime.datetime.now()
         timestamp = datetime.datetime.strftime(now, "%Y.%m.%d.%H.%M.%S")
         revision  = {
-            "rel_sha_dir"  : rel_sha_dir,
-            "rel_base_dir" : rel_base_dir,
-            "rel_modi_dir" : rel_modi_dir,
-            "rel_stag_dir" : rel_stag_dir,
             "time"         : timestamp,
             "commit_msg"   : self.commit_msg_file_, # Can be None
             "files"        : [ ]
@@ -325,7 +314,7 @@ class SCM(object):
             assert(isinstance(f, ChangedFile))
             assert(f.modi_file_info_ is not None)
             assert(f.base_file_info_ is not None)
-            
+
             finfo = f.get_dossier_representation()
             revision["files"].append(finfo)
 
@@ -340,15 +329,6 @@ class SCM(object):
         # 'view-review' program to display the review file-selection
         # menu.
         #
-        assert(os.path.dirname(self.review_sha_dir_) == self.review_dir_)
-        assert(os.path.dirname(self.review_base_dir_) == self.review_dir_)
-        assert(os.path.dirname(self.review_stag_dir_) == self.review_dir_)
-        assert(os.path.dirname(self.review_modi_dir_) == self.review_dir_)
-        rel_sha_dir  = os.path.basename(self.review_sha_dir_)
-        rel_base_dir = os.path.basename(self.review_base_dir_)
-        rel_stag_dir = os.path.basename(self.review_stag_dir_)
-        rel_modi_dir = os.path.basename(self.review_modi_dir_)
-
         info = {
             "version"      : 2,
             "scm"          : self.scm_name_,
@@ -356,16 +336,10 @@ class SCM(object):
             "user"         : getpass.getuser(),
             "name"         : self.review_name_,
             "root"         : self.review_dir_,
-            "rel_sha_dir"  : rel_sha_dir,
-            "rel_modi_dir" : rel_modi_dir,
             "revisions"    : [ ]
         }
 
-        revision = self.create_change_revision(rel_sha_dir,
-                                               rel_base_dir,
-                                               rel_stag_dir,
-                                               rel_modi_dir,
-                                               self.commit_msg_file_)
+        revision = self.create_change_revision(self.commit_msg_file_)
 
         info["revisions"].append(revision)
         return info
