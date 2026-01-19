@@ -50,8 +50,15 @@ def report(options, changed_info, elapsed_time):
             action_width = max(action_width, len(f.action()))
 
         for f in options.scm.dossier_:
-            print("  %*s   %s" % (action_width, f.action(),
-                                  f.modi_file_info_.rel_path_))
+            action       = f.action()
+            display_path = f.modi_file_info_.display_path()
+            if action == "delete":
+                # Modified file info references the 'empty_file', and
+                # that's not the right name to print.
+                #
+                display_path = f.base_file_info_.display_path()
+
+            print("  %*s   %s" % (action_width, action, display_path))
 
         dossier = os.path.join(options.arg_review_dir,
                                options.arg_review_name,

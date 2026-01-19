@@ -12,7 +12,7 @@ import threading
 import drutil
 
 
-# FileInfo & FileInfoEmpty
+# FileInfoBase, FileInfo, FileInfoSha & FileInfoEmpty
 #
 #   These two classes provide references to files in the source
 #   client.  A FileInfo instance refers to a file on-disk, or in the
@@ -40,23 +40,72 @@ import drutil
 #   inv: FileInfo.empty()             -> File contents are empty file,
 #                                        with a special FileInfo.chg_id_
 #
-class FileInfo(object):
-    def __init__(self, rel_path, chg_id):
-        assert(rel_path is not None)
+class FileInfoBase(object):
+    def __init__(self, display_path, rel_dir, rel_path, chg_id):
         assert(chg_id is None or isinstance(chg_id, str))
-        self.rel_path_ = rel_path
-        self.chg_id_   = chg_id
+        self.rel_dir_      = rel_dir
+        self.rel_path_     = rel_path
+        self.chg_id_       = chg_id
+        self.display_path_ = display_path
 
     def empty(self):
         return False
 
+    def get_dossier_representation(self):
+        raise NotImplementedError("%s: not implemented" % (self.qualid_()))
 
-class FileInfoEmpty(FileInfo):
-    def __init__(self, rel_path):
-        # This change id is a sentinel used for emtpy files.  It will
-        # not conflict with a real change id, but can be shared by all
-        # files that are empty.
-        super().__init__(rel_path, '_______________EMPTY_FILE_______________')
+    def dossier_chg_id(self):
+        return (self.rel_dir_, self.chg_id_)
+
+    def display_path(self):
+        assert(self.display_path_ is not None)
+        return self.display_path_
+
+
+class FileInfo(FileInfoBase):
+    def __init__(self, display_path, rel_dir, rel_path):
+        super().__init__(display_path, rel_dir, rel_path, None)
+
+    def get_dossier_cache_key(self):
+        return self.rel_path_
+
+    def get_dossier_representation(self):
+        return (self.display_path_, self.rel_dir_, self.rel_path_)
+
+
+class FileInfoSha(FileInfoBase): # XXX Rename ChgId
+    def __init__(self, display_path, rel_dir, cache_key, chg_id):
+        super().__init__(display_path, rel_dir, None, chg_id)
+        self.cache_key_ = cache_key
+
+    def get_dossier_cache_key(self):
+        return self.cache_key_
+
+    def get_dossier_representation(self):
+        return (self.display_path_, self.rel_dir_, self.chg_id_)
+
+
+class FileInfoEmpty(FileInfoSha):
+    n_instances_     = 0
+    empty_file_name_ = '_______________EMPTY_FILE_______________'
+
+    def __init__(self, display_path, rel_dir):
+        # This empty_file_name_ is 'change id' used as a sentinel used
+        # for emtpy files.  It will not conflict with a real change
+        # id, but can be shared by all files that are empty.
+        self.instance_ = FileInfoEmpty.n_instances_
+        FileInfoEmpty.n_instances_ += 1
+
+        # The cache key must be used here so the index into "cache" is
+        # correct for the changed file that is referencing the empty
+        # file.
+        cache_key = "%s%s" % (FileInfoEmpty.empty_file_name_[:-5],
+                              "%5.5d" % self.instance_)
+        super().__init__(display_path, rel_dir,
+                         cache_key, FileInfoEmpty.empty_file_name_)
+
+    def get_dossier_representation(self):
+        return (self.display_path_, self.rel_dir_, self.chg_id_, self.cache_key_)
 
     def empty(self):
         return True
@@ -110,7 +159,7 @@ class ChangedFile(object):
         self.base_file_info_   = None
 
     def output_name(self, dest_dir, file_info):
-        assert(isinstance(file_info, FileInfo))
+        assert(isinstance(file_info, FileInfoBase))
         return os.path.join(dest_dir, file_info.rel_path_)
 
     def create_output_dir(self, out_name):
@@ -156,7 +205,7 @@ class ChangedFile(object):
     # If the file is empty, an empty file is created.
     #
     def copy_to_review_directory(self, dest_dir, file_info):
-        assert(isinstance(file_info, FileInfo))
+        assert(isinstance(file_info, FileInfoBase))
         if not file_info.empty():
             # Copy non-empty file.
             self.copy_to_review_directory_(dest_dir, file_info)
@@ -164,7 +213,7 @@ class ChangedFile(object):
             self.create_empty_file(dest_dir, file_info)
 
     def copy_to_review_sha_directory(self, file_info):
-        assert(isinstance(file_info, FileInfo))
+        assert(isinstance(file_info, FileInfoBase))
         assert(file_info.chg_id_ is not None) # Only uncommitted files have no chg_id_
 
         fname = os.path.join(self.scm_.review_sha_dir_, file_info.chg_id_)
@@ -192,10 +241,46 @@ class ChangedFile(object):
             self.copy_to_review_directory(self.scm_.review_modi_dir_,
                                           self.modi_file_info_)
 
-
+    def get_dossier_representation_(self):
+        raise NotImplementedError("%s: not implemented" % (self.qualid_()))
 
     def get_dossier_representation(self):
+        return self.get_dossier_representation_()
+
+    def get_file_gungla_(self):
         raise NotImplementedError("%s: not implemented" % (self.qualid_()))
+
+    def get_file_gungla(self):
+        return self.get_file_gungla_()
+
+    def add_dossier_files_(self, info, file_info):
+        finfo        = file_info.get_dossier_representation()
+        display_path = finfo[0]
+        rel_dir      = finfo[1]
+        pathname     = finfo[2]
+        key          = pathname
+        if len(finfo) > 3:
+            # Special case:
+            #
+            #  Files that are 'empty' are all represented by a single
+            #  on-disk file in the sha.d directory, but all have a
+            #  unique display_path.  To allow this the empty file adds
+            #  a fourth element to this value that will be a unique
+            #  key value, and that provides multiple display_path
+            #  values for a single on-disk file.
+            #
+            # This is a terrible interface, since a higher level
+            # abstraction (drgit) is affecting this lower-level
+            # abstraction.
+            #
+            key = finfo[3]
+
+        if key not in info["cache"]:
+            info["cache"][key] = {
+                "display_path": display_path,
+                "rel_dir"     : rel_dir,
+                "pathname"    : pathname
+            }
 
 # SCM
 #
@@ -301,7 +386,7 @@ class SCM(object):
         for p in processes:
             p.join()
 
-    def create_change_revision(self, commit_msg_file):
+    def create_change_revision(self, info, commit_msg_file):
         now       = datetime.datetime.now()
         timestamp = datetime.datetime.strftime(now, "%Y.%m.%d.%H.%M.%S")
         revision  = {
@@ -318,7 +403,11 @@ class SCM(object):
             finfo = f.get_dossier_representation()
             revision["files"].append(finfo)
 
-        return revision
+        info["revisions"].append(revision)
+
+    def create_dossier_files(self, info):
+        for f in self.dossier_:
+            f.create_dossier_files_(info)
 
     def get_dossier_pathname(self):
         return os.path.join(self.review_dir_, "dossier.json")
@@ -330,18 +419,18 @@ class SCM(object):
         # menu.
         #
         info = {
-            "version"      : 2,
-            "scm"          : self.scm_name_,
-            "mode"         : self.dossier_mode_,
-            "user"         : getpass.getuser(),
-            "name"         : self.review_name_,
-            "root"         : self.review_dir_,
-            "revisions"    : [ ]
+            "version"     : 2,
+            "scm"         : self.scm_name_,
+            "mode"        : self.dossier_mode_,
+            "user"        : getpass.getuser(),
+            "name"        : self.review_name_,
+            "root"        : self.review_dir_,
+            "revisions"   : [ ],
+            "cache"       : { },
         }
 
-        revision = self.create_change_revision(self.commit_msg_file_)
-
-        info["revisions"].append(revision)
+        self.create_change_revision(info, self.commit_msg_file_)
+        self.create_dossier_files(info)
         return info
 
     def generate(self, options):

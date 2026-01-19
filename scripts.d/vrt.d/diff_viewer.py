@@ -28,7 +28,8 @@ class DiffViewer(QWidget, TabContentBase):
     def __init__(self,
                  base_file: str,
                  modified_file: str,
-                 display_path: str,
+                 base_display_path: str,
+                 modi_display_path : str,
                  max_line_length: int,
                  show_diff_map: bool,
                  show_line_numbers: bool):
@@ -41,7 +42,8 @@ class DiffViewer(QWidget, TabContentBase):
 
         self.base_file = base_file
         self.modified_file = modified_file
-        self.display_path = display_path
+        self.base_display_path = base_display_path
+        self.modi_display_path = modi_display_path
         self.max_line_length = max_line_length
         self.show_diff_map = show_diff_map
         self.show_line_numbers = show_line_numbers
@@ -96,7 +98,7 @@ class DiffViewer(QWidget, TabContentBase):
         base_container = QHBoxLayout()
         self.base_type_label = QLabel("Base")
         self.base_type_label.setStyleSheet("font-weight: bold; color: blue; padding: 2px 5px;")
-        base_file_label = QLabel(self.display_path)
+        base_file_label = QLabel(self.base_display_path)
         base_file_label.setFrameStyle(QFrame.Shape.Panel | QFrame.Shadow.Sunken)
         base_container.addWidget(self.base_type_label)
         base_container.addWidget(base_file_label, 1)
@@ -106,7 +108,7 @@ class DiffViewer(QWidget, TabContentBase):
         modified_container = QHBoxLayout()
         self.modified_type_label = QLabel("Modified")
         self.modified_type_label.setStyleSheet("font-weight: bold; color: green; padding: 2px 5px;")
-        modified_file_label = QLabel(self.display_path)
+        modified_file_label = QLabel(self.modi_display_path)
         modified_file_label.setFrameStyle(QFrame.Shape.Panel | QFrame.Shadow.Sunken)
         modified_container.addWidget(self.modified_type_label)
         modified_container.addWidget(modified_file_label, 1)
