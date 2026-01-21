@@ -300,7 +300,6 @@ class SCM(object):
 
     def __init__(self, options):
         self.review_name_      = options.arg_review_name
-        self.change_id_        = options.arg_change_id
         self.review_dir_       = options.review_dir
         self.review_sha_dir_   = options.review_sha_dir
         self.review_modi_dir_  = options.review_modi_dir
@@ -344,11 +343,11 @@ class SCM(object):
     # It should be formatted to fit on one (1) line of no more than 80
     # columns.
     #
-    def get_changed_info_(self):
+    def get_changed_info_(self, change_id):
         raise NotImplementedError("%s: not implemented" % (self.qualid_()))
 
-    def get_changed_info(self):
-        result = self.get_changed_info_()
+    def get_changed_info(self, change_id):
+        result = self.get_changed_info_(change_id)
         assert(isinstance(result, str))
         return result
 
@@ -358,13 +357,19 @@ class SCM(object):
     # and a modified file that, together, can be compared to see the
     # differences make to a single file.
     #
-    def generate_dossier_(self):
+    def generate_dossier_(self, change_id):
         raise NotImplementedError("%s: not implemented" % (self.qualid_()))
 
-    def generate_dossier(self):
-        dossier = self.generate_dossier_()
+    def generate_dossier(self, change_id):
+        dossier = self.generate_dossier_(change_id)
         if len(dossier) > 0:
             self.dossier_ = dossier
+
+    def get_revision_key_(self, chg_id):
+        raise NotImplementedError("%s: not implemented" % (self.qualid_()))
+
+    def get_revision_key(self, chg_id):
+        return self.get_revision_key_(chg_id)
 
     def copy_file(self, dummy, changed_file, semaphore):
         changed_file.update_review_directory()
@@ -386,7 +391,7 @@ class SCM(object):
         for p in processes:
             p.join()
 
-    def create_change_revision(self, info, commit_msg_file):
+    def get_change_revision(self, info, commit_msg_file):
         now       = datetime.datetime.now()
         timestamp = datetime.datetime.strftime(now, "%Y.%m.%d.%H.%M.%S")
         revision  = {
@@ -403,7 +408,7 @@ class SCM(object):
             finfo = f.get_dossier_representation()
             revision["files"].append(finfo)
 
-        info["revisions"].append(revision)
+        return revision
 
     def create_dossier_files(self, info):
         for f in self.dossier_:
@@ -412,7 +417,7 @@ class SCM(object):
     def get_dossier_pathname(self):
         return os.path.join(self.review_dir_, "dossier.json")
 
-    def create_json_dictionary(self):
+    def create_json_dictionary(self, chg_id):
         # Create a JSON dictionary that contains information about the
         # files written to the review directory.  This is used by the
         # 'view-review' program to display the review file-selection
@@ -425,16 +430,70 @@ class SCM(object):
             "user"        : getpass.getuser(),
             "name"        : self.review_name_,
             "root"        : self.review_dir_,
-            "revisions"   : [ ],
+            "order"       : self.ordered_, # Ordered revisions in 'revisions'.
+            "revisions"   : { },
             "cache"       : { },
         }
 
-        self.create_change_revision(info, self.commit_msg_file_)
+        revision = self.get_change_revision(info, self.commit_msg_file_)
+        key      = self.get_revision_key(chg_id)
+
+        if key not in info["revisions"]:
+            info["revisions"][key] = revision
+        else:
+            drutil.fatal("What does this failure mean?  Change re-added?")
+
         self.create_dossier_files(info)
         return info
 
-    def generate(self, options):
-        self.generate_dossier()
+
+    def load_existing_dossier(self):
+        # If the dossier exists, and this is a revision extension,
+        # load it.
+        if self.dossier_mode_ != "committed":
+            return (None, None, None)
+
+        dossier_path = self.get_dossier_pathname()
+        dossier      = None
+        if os.path.exists(dossier_path):
+            with open(dossier_path, "r") as fp:
+                dossier = json.load(fp)
+
+        if dossier is not None:
+            if dossier["version"] != 2:
+                drutil.fatal("Existing dossier is not version 2.")
+                
+            if dossier["mode"] != "committed":
+                return (None, None, None) # No information.  Start new dossier.
+            return (dossier["order"], dossier["revisions"], dossier["cache"])
+        else:
+            return (None, None, None)
+
+    def write_dossier(self, chg_id):
+        (order,
+         revisions,
+         cache) = self.load_existing_dossier()
+        dossier = self.create_json_dictionary(chg_id)
+ 
+        if (order is not None and
+            revisions is not None and
+            cache is not None):
+            # Copy revision information from existing dossier.
+            for key in order:
+                if key not in dossier["revisions"]:
+                    dossier["revisions"][key] = revisions[key]
+
+            # Copy cache information from existing dossier.
+            for key in cache.keys():
+                if key not in dossier["cache"]:
+                    dossier["cache"][key] = cache[key]
+
+        dossier_name = self.get_dossier_pathname()
+        with open(dossier_name, "w") as fp:
+            json.dump(dossier, fp, indent = 2)
+
+    def generate(self, options, change_id):
+        self.generate_dossier(change_id)
         if self.dossier_ is not None:
             self.update_files_in_review_directory()
 
@@ -443,16 +502,10 @@ class SCM(object):
 
             if self.commit_msg_ is not None:
                 # Write commit message / change description file.
-                self.commit_msg_file_ = "commit_msg.text"
+                self.commit_msg_file_ = "commit_msg_%s.text" % (change_id)
                 with open(os.path.join(self.review_dir_,
                                        self.commit_msg_file_), "w") as fp:
                     for l in self.commit_msg_:
                         fp.write("%s\n" % (l))
             else:
                 self.commit_msg_file_ = None
-
-            json_dict = self.create_json_dictionary()
-
-            dossier_name = self.get_dossier_pathname()
-            with open(dossier_name, "w") as fp:
-                json.dump(json_dict, fp, indent = 2)

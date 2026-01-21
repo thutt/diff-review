@@ -391,6 +391,12 @@ class GitStaged(Git):
         super().__init__(options)
         self.rel_dir_sha_  = os.path.basename(options.review_sha_dir)
         self.rel_dir_modi_ = os.path.basename(options.review_modi_dir)
+        self.ordered_      = [ self.get_revision_key(None) ]
+
+    def get_revision_key_(self, chg_id):
+        # Uncommitted changes are always 'in the client'.  There are
+        # no revisions like in a committed review.
+        return "CLIENT"
 
     def get_dossier_mode_(self):
         return "uncommitted"    # Uncommitted changes in the client.
@@ -403,7 +409,8 @@ class GitStaged(Git):
         stdout = git_get_staged_numstat(self)
         return self.process_numstat_output(stdout)
 
-    def get_changed_info_(self):
+    def get_changed_info_(self, change_id):
+        assert(change_id is None)
         (files, added, deleted) = self.get_unstaged_change_info()
         staged = "unstaged [%s files, %s lines]  " % (files, added + deleted)
 
@@ -503,13 +510,14 @@ class GitStaged(Git):
 
         return action;
 
-    def generate_dossier_(self):
+    def generate_dossier_(self, change_id):
         # See the 'man git-status' for the meaning of the first two
         # characters for each line of output.
         #
         # The first character refers to the index (staged changes).
         # The second character refers to the working tree (unstaged changes).
         #
+        assert(change_id is None)
         result = [ ]
         stdout = git_get_status_short(self, self.git_untracked_)
         for l in stdout:
@@ -530,17 +538,25 @@ class GitCommitted(Git):
         super().__init__(options)
         self.rel_sha_dir_  = os.path.basename(self.review_sha_dir_)
         self.rel_modi_dir_ = os.path.basename(self.review_modi_dir_)
+        self.ordered_      = [ ]
 
     def get_dossier_mode_(self):
         return "committed"    # Uncommitted changes in the client.
 
+    def get_revision_key_(self, chg_id):
+        # Uncommitted changes are always 'in the client'.  There are
+        # no revisions like in a committed review.
+        if chg_id not in self.ordered_:
+            self.ordered_.append(chg_id)
+        return chg_id           # SHA of change being reviewed.
+
     # Returns a range that covers a single SHA, or a range of SHA values.
-    def get_change_range(self):
-        assert(isinstance(self.change_id_, str))
-        stdout = git_rev_parse(self, self.change_id_)
+    def get_change_range(self, change_id):
+        assert(isinstance(change_id, str))
+        stdout = git_rev_parse(self, change_id)
         if len(stdout) == 1:
             # Single SHA specified; double it to get a full range.
-            chg_id = "%s^..%s" % (self.change_id_, self.change_id_)
+            chg_id = "%s^..%s" % (change_id, change_id)
             stdout = git_rev_parse(self, chg_id)
 
         assert(len(stdout) == 2)
@@ -556,9 +572,9 @@ class GitCommitted(Git):
         if action == 'A':       # Add.
             assert(base_file_sha == "0000000000000000000000000000000000000000")
             modi_rel_path = tail[0]
-            modi_file     = drscm.FileInfoSha(rel_path, self.rel_sha_dir_,
+            modi_file     = drscm.FileInfoSha(modi_rel_path, self.rel_sha_dir_,
                                               modi_file_sha, modi_file_sha)
-            base_file     = drscm.FileInfoEmpty(rel_path, self.rel_sha_dir_)
+            base_file     = drscm.FileInfoEmpty(modi_rel_path, self.rel_sha_dir_)
             action        = ChangedFile(self, "add", base_file, modi_file)
 
         elif action == 'B':     # Pairing broken.
@@ -572,7 +588,7 @@ class GitCommitted(Git):
         elif action == 'D':     # Delete.
             assert(modi_file_sha == "0000000000000000000000000000000000000000")
             base_rel_path = tail[0]
-            modi_file     = drscm.FileInfoEmpty(rel_path, self.rel_sha_dir_)
+            modi_file     = drscm.FileInfoEmpty(base_rel_path, self.rel_sha_dir_)
             base_file     = drscm.FileInfoSha(base_rel_path, self.rel_sha_dir_,
                                               base_file_sha, base_file_sha)
             action        = ChangedFile(self, "delete", base_file, modi_file)
@@ -611,15 +627,16 @@ class GitCommitted(Git):
 
         return action;
 
-    def get_changed_info_(self):
-        (base_sha, modi_sha) = self.get_change_range()
+    def get_changed_info_(self, change_id):
+        assert(change_id is not None)
+        (base_sha, modi_sha) = self.get_change_range(change_id)
         stdout = git_get_numstat(self, base_sha, modi_sha)
         (files, added, deleted) = self.process_numstat_output(stdout)
         msg = ("committed [%s files, %s lines]  " % (files, added + deleted))
         return msg
 
-    def generate_dossier_(self):
-        (beg_sha, end_sha) = self.get_change_range()
+    def generate_dossier_(self, change_id):
+        (beg_sha, end_sha) = self.get_change_range(change_id)
 
         self.commit_msg_ = git_get_commit_msg(self, beg_sha, end_sha)
         diff = git_diff_tree(self, beg_sha, end_sha)

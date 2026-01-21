@@ -1,4 +1,4 @@
-# Copyright (c) 2025  Logic Magicians Software (Taylor Hutt).
+# Copyright (c) 2025, 2026  Logic Magicians Software (Taylor Hutt).
 # All Rights Reserved.
 # Licensed under Gnu GPL V3.
 #
@@ -71,8 +71,9 @@ Return Code:
                                         prog                  = "diff-review",
                                         fromfile_prefix_chars = '@')
 
-    o = parser.add_argument_group("SCM Control")
-    o.add_argument("-c",
+    o = parser.add_argument_group("Change Selection")
+    g = o.add_mutually_exclusive_group()
+    g.add_argument("-c", "--change",
                    help     = ("Select a change, using the SCM's change "
                                "identification system, that you want to "
                                "'diff'.  If no change is provided, changed "
@@ -84,6 +85,16 @@ Return Code:
                    required = False,
                    dest     = "arg_change_id")
 
+    g.add_argument("--ca", "--change-append",
+                   help     = ("Append this change to the dossier."),
+                   action   = "append",
+                   default  = [ ],
+                   metavar  = "<change id>",
+                   required = False,
+                   dest     = "arg_change_append_id")
+
+
+    o = parser.add_argument_group("SCM Control")
     o.add_argument("--scm",
                    help     = ("Choose the SCM that holds the data you want "
                                "to 'diff'.  "

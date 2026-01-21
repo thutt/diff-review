@@ -87,6 +87,10 @@ class FileButton(FileButtonBase): # Committed & not-unstaged uncommited.
         self.modi_rel_dir_       = modi_rel_dir
         self.modi_chg_path_      = modi_path
 
+        # For revision range mode: stores the original base key from the dossier
+        # to enable walking the revision chain. Set by _rebuild_file_list_for_revision_range.
+        self.original_base_key_  = None
+
     def display_path(self):
         return self.modi_disp_path_
 
@@ -153,10 +157,19 @@ class FileButton(FileButtonBase): # Committed & not-unstaged uncommited.
                                   self.modi_rel_dir_, self.modi_chg_path_)
 
     def add_viewer(self, tab_widget):
-        base      = self.get_base_chg_id_path()
         modi      = self.get_modi_chg_id_path()
-        base_disp = self.base_display_path()
         modi_disp = self.modi_display_path()
+
+        # Check if we're in revision range mode (original_base_key_ is set)
+        # and need to resolve the base across the range
+        if (tab_widget.review_mode_ == "committed"
+                and tab_widget.revision_base_idx_ is not None
+                and self.original_base_key_ is not None):
+            (base, base_disp) = tab_widget._resolve_base_for_range(self)
+        else:
+            base      = self.get_base_chg_id_path()
+            base_disp = self.base_display_path()
+
         viewer    = self.make_viewer(base_disp, base, modi_disp, modi)
         tab_widget.add_viewer(viewer)
 
@@ -324,6 +337,7 @@ def add_diff_to_viewer(desc, viewer):
 
 def generate(options, mode, note):
     tab_widget = tab_manager_module.DiffViewerTabWidget(options.afr_,
+                                                        options.dossier_,
                                                         options.arg_display_n_lines,
                                                         options.arg_display_n_chars,
                                                         show_diff_map(options),
@@ -343,62 +357,75 @@ def generate(options, mode, note):
                                                         note,
                                                         mode)
 
-    rev   = options.dossier_["revisions"][0]
     cache = options.dossier_["cache"]
     root  = options.dossier_["root"]
 
-    if rev["commit_msg"] is not None:
-        tab_widget.add_commit_msg(rev["commit_msg"])
+    # For committed mode with multiple revisions, the tab_widget handles
+    # file list building based on revision range selection.
+    # For single revision or uncommitted mode, build file list here.
+    order = options.dossier_["order"]
+    if mode == "committed" and len(order) > 1:
+        # Multiple revisions: tab_widget will build file list via _rebuild_file_list_for_revision_range
+        # which is called during _init_revision_range_state indirectly.
+        # We need to trigger the initial build here.
+        tab_widget._rebuild_file_list_for_revision_range()
+    else:
+        # Single revision or uncommitted mode: build file list as before
+        key = order[0]
+        rev = options.dossier_["revisions"][key]
 
-    for f in rev["files"]:
-        action         = f["action"]
-        base_key       = f["base"]
-        modi_key       = f["modi"]
+        if rev["commit_msg"] is not None:
+            tab_widget.add_commit_msg(rev["commit_msg"])
 
-        modi_rel_dir   = cache[modi_key]["rel_dir"]
-        modi_path      = cache[modi_key]["pathname"]
-        modi_disp_path = cache[modi_key]["display_path"]
+        for f in rev["files"]:
+            action         = f["action"]
+            base_key       = f["base"]
+            modi_key       = f["modi"]
 
-        base_rel_dir   = cache[base_key]["rel_dir"]
-        base_path      = cache[base_key]["pathname"]
-        base_disp_path = cache[base_key]["display_path"]
+            modi_rel_dir   = cache[modi_key]["rel_dir"]
+            modi_path      = cache[modi_key]["pathname"]
+            modi_disp_path = cache[modi_key]["display_path"]
+
+            base_rel_dir   = cache[base_key]["rel_dir"]
+            base_path      = cache[base_key]["pathname"]
+            base_disp_path = cache[base_key]["display_path"]
 
 
-        if mode == "committed" or f["action"] != "unstaged":
-            file_inst = FileButton(options,
-                                   action,
-                                   root,
-                                   base_disp_path,
-                                   base_rel_dir,
-                                   base_path,
-                                   modi_disp_path,
-                                   modi_rel_dir,
-                                   modi_path)
-        else:
-            assert(mode == "uncommitted" and f["action"] == "unstaged")
-            stag_key       = f["stag"] # Can be 'null'.
-            stag_path      = None
-            stag_disp_path = None
-            stag_rel_dir   = None
-            if stag_key is not None:
-                stag_path      = cache[stag_key]["pathname"]
-                stag_disp_path = cache[stag_key]["display_path"]
-                stag_rel_dir   = cache[stag_key]["rel_dir"]
+            if mode == "committed" or f["action"] != "unstaged":
+                file_inst = FileButton(options,
+                                       action,
+                                       root,
+                                       base_disp_path,
+                                       base_rel_dir,
+                                       base_path,
+                                       modi_disp_path,
+                                       modi_rel_dir,
+                                       modi_path)
+            else:
+                assert(mode == "uncommitted" and f["action"] == "unstaged")
+                stag_key       = f["stag"] # Can be 'null'.
+                stag_path      = None
+                stag_disp_path = None
+                stag_rel_dir   = None
+                if stag_key is not None:
+                    stag_path      = cache[stag_key]["pathname"]
+                    stag_disp_path = cache[stag_key]["display_path"]
+                    stag_rel_dir   = cache[stag_key]["rel_dir"]
 
-            file_inst = FileButtonUnstaged(options,
-                                           action,
-                                           root,
-                                           base_disp_path,
-                                           base_rel_dir,
-                                           base_path,
-                                           stag_disp_path,
-                                           stag_rel_dir,
-                                           stag_path,
-                                           modi_disp_path,
-                                           modi_rel_dir,
-                                           modi_path)
+                file_inst = FileButtonUnstaged(options,
+                                               action,
+                                               root,
+                                               base_disp_path,
+                                               base_rel_dir,
+                                               base_path,
+                                               stag_disp_path,
+                                               stag_rel_dir,
+                                               stag_path,
+                                               modi_disp_path,
+                                               modi_rel_dir,
+                                               modi_path)
 
-        tab_widget.add_file(file_inst)
+            tab_widget.add_file(file_inst)
 
     tab_widget.run()
 

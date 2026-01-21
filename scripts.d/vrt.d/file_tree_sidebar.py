@@ -87,21 +87,63 @@ class FileTreeSidebar(QWidget):
         
         # Store special buttons (commit msg, review notes) as list items
         self.special_items = []  # List of (item_type, widget) tuples
-    
+        self.commit_msg_folder = None  # Reference to commit messages folder item
+        self.commit_msg_items = {}  # SHA -> QTreeWidgetItem mapping
+
     def add_commit_msg_button(self, button):
-        """Add commit message button as tree item"""
+        """Legacy method - adds single commit message as tree item (for uncommitted mode)"""
         item = QTreeWidgetItem(self.tree)
         item.setText(0, "Commit Message")
         item.setData(0, Qt.ItemDataRole.UserRole, ('commit_msg', None))
-        
+
         # Style as special item
         font = QFont()
         font.setBold(True)
         item.setFont(0, font)
         item.setForeground(0, Qt.GlobalColor.darkRed)
-        
+
         self.special_items.append(('commit_msg', item))
         self.tree.insertTopLevelItem(0, item)
+
+    def add_commit_messages_folder(self, commit_msgs_by_sha):
+        """Add a folder containing commit messages for multiple revisions.
+
+        Args:
+            commit_msgs_by_sha: Dict mapping SHA -> commit_msg_rel_path
+                               Only includes revisions that have commit messages.
+        """
+        if not commit_msgs_by_sha:
+            return
+
+        # Create folder item
+        folder_item = QTreeWidgetItem(self.tree)
+        folder_item.setText(0, f"Commit Messages ({len(commit_msgs_by_sha)})")
+        folder_item.setData(0, Qt.ItemDataRole.UserRole, ('commit_msg_folder', None))
+
+        # Style as directory
+        font = QFont()
+        font.setBold(True)
+        folder_item.setFont(0, font)
+        folder_item.setForeground(0, Qt.GlobalColor.darkRed)
+
+        # Start collapsed
+        folder_item.setExpanded(False)
+
+        self.commit_msg_folder = folder_item
+        self.special_items.append(('commit_msg_folder', folder_item))
+        self.tree.insertTopLevelItem(0, folder_item)
+
+        # Add child items for each commit message, ordered by SHA
+        # (order will match dossier order since dict preserves insertion order in Python 3.7+)
+        for sha, rel_path in commit_msgs_by_sha.items():
+            child_item = QTreeWidgetItem(folder_item)
+            child_item.setText(0, sha[:7])
+            child_item.setData(0, Qt.ItemDataRole.UserRole, ('commit_msg', sha))
+
+            # Style child items
+            child_item.setForeground(0, Qt.GlobalColor.darkRed)
+
+            self.commit_msg_items[sha] = child_item
     
     def add_notes_button(self, button):
         """Add review notes button as tree item"""
@@ -212,19 +254,23 @@ class FileTreeSidebar(QWidget):
         data = item.data(0, Qt.ItemDataRole.UserRole)
         if not data:
             return
-        
+
         item_type, item_data = data
-        
+
         # Store current scroll position before handling the click
         # This prevents the uncontrolled scrolling issue on Mac when
         # an item is clicked that is mostly out of viewport
         scroll_bar = self.tree.verticalScrollBar()
         saved_scroll_pos = scroll_bar.value()
-        
+
         if item_type == 'commit_msg':
-            self.tab_widget.on_commit_msg_clicked()
+            # item_data is SHA (or None for legacy single commit message)
+            self.tab_widget.on_commit_msg_clicked(item_data)
             # Focus the text widget in the commit message tab
             self._focus_current_tab_widget()
+        elif item_type == 'commit_msg_folder':
+            # Toggle expand/collapse on folder click
+            item.setExpanded(not item.isExpanded())
         elif item_type == 'review_notes':
             self.tab_widget.note_mgr.on_notes_clicked()
             # Focus the text widget in the review notes tab
@@ -237,7 +283,7 @@ class FileTreeSidebar(QWidget):
         elif item_type == 'directory':
             # Toggle expand/collapse on directory click
             item.setExpanded(not item.isExpanded())
-        
+
         # Restore scroll position to prevent uncontrolled scrolling
         scroll_bar.setValue(saved_scroll_pos)
     

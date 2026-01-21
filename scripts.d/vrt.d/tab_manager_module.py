@@ -185,6 +185,7 @@ class DiffViewerTabWidget(QMainWindow):
 
     def __init__(self,
                  afr,           # Abstract file reader
+                 dossier,       # Full dossier dictionary
                  display_lines     : int,
                  display_chars     : int,
                  show_diff_map     : bool,
@@ -211,6 +212,7 @@ class DiffViewerTabWidget(QMainWindow):
         super().__init__()
 
         self.review_mode_ = review_mode
+        self.dossier_ = dossier
 
         self.afr_ = afr
         self.display_lines = display_lines
@@ -564,6 +566,15 @@ class DiffViewerTabWidget(QMainWindow):
         if self.review_mode_ == "committed":
             self.compare_menu.menuAction().setVisible(False)
 
+        # Revisions menu (only for committed reviews with multiple revisions)
+        self.revisions_menu = menubar.addMenu("Revisions")
+        self._init_revision_range_state()
+        self._create_revisions_menu()
+
+        # Hide Revisions menu for uncommitted reviews or single revision
+        if self.review_mode_ != "committed" or len(self.dossier_["order"]) < 2:
+            self.revisions_menu.menuAction().setVisible(False)
+
         # Help menu
         help_menu = menubar.addMenu("Help")
 
@@ -605,7 +616,7 @@ class DiffViewerTabWidget(QMainWindow):
         self.resize(total_width, total_height)
 
     def add_commit_msg(self, commit_msg_rel_path):
-        """Add commit message to the sidebar as the first item"""
+        """Add commit message to the sidebar as the first item (legacy, for uncommitted mode)"""
         self.commit_msg_mgr.add_commit_msg(commit_msg_rel_path)
         # Sync references
         self.commit_msg_rel_path_ = self.commit_msg_mgr.commit_msg_rel_path
@@ -614,12 +625,20 @@ class DiffViewerTabWidget(QMainWindow):
         # Update "Open All Files" count to include commit message
         self.update_open_all_button_text()
 
-    def on_commit_msg_clicked(self):
-        """Handle commit message button click"""
-        self.commit_msg_mgr.on_commit_msg_clicked()
+    def add_commit_messages_from_dossier(self):
+        """Add commit messages folder from dossier (for committed mode)"""
+        self.commit_msg_mgr.add_commit_messages_from_dossier(self.dossier_)
+
+    def on_commit_msg_clicked(self, sha=None):
+        """Handle commit message button click
+
+        Args:
+            sha: Commit SHA (None for legacy single commit message)
+        """
+        self.commit_msg_mgr.on_commit_msg_clicked(sha)
 
     def create_commit_msg_tab(self):
-        """Create a tab displaying the commit message"""
+        """Create a tab displaying the commit message (legacy)"""
         self.commit_msg_mgr.create_commit_msg_tab()
 
     def show_search_dialog(self):
@@ -732,7 +751,8 @@ class DiffViewerTabWidget(QMainWindow):
 
             # Load the file
             if item_type == 'commit_msg':
-                self.on_commit_msg_clicked()
+                # item_data is SHA (or None for legacy)
+                self.on_commit_msg_clicked(item_data)
             elif item_type == 'review_notes':
                 self.note_mgr.on_notes_clicked()
             else:
@@ -1147,6 +1167,293 @@ class DiffViewerTabWidget(QMainWindow):
                 and not has_staged_and_unstaged):
             self.compare_base_modi_action.setChecked(True)
             self.set_staged_diff_mode(generate_viewer.DIFF_MODE_BASE_MODI)
+
+    def _init_revision_range_state(self):
+        """Initialize revision range state for committed mode."""
+        if self.review_mode_ != "committed":
+            self.revision_base_idx_ = None
+            self.revision_modi_idx_ = None
+            return
+
+        order = self.dossier_["order"]
+        n = len(order)
+        if n < 2:
+            # Single revision: no range selection possible
+            self.revision_base_idx_ = None
+            self.revision_modi_idx_ = 0
+        else:
+            # Default: compare first revision (index 0) through last (index n-1)
+            # Base is index 0, modi is index n-1
+            self.revision_base_idx_ = 0
+            self.revision_modi_idx_ = n - 1
+
+    def _create_revisions_menu(self):
+        """Create the Revisions menu with range selection actions."""
+        if self.review_mode_ != "committed":
+            return
+
+        order = self.dossier_["order"]
+        n = len(order)
+        if n < 2:
+            return
+
+        # Add action to open revision range dialog
+        select_range_action = QAction("Select Range...", self)
+        select_range_action.triggered.connect(self._show_revision_range_dialog)
+        self.revisions_menu.addAction(select_range_action)
+
+        self.revisions_menu.addSeparator()
+
+        # Show current range as info (non-interactive)
+        self.revision_range_info_action = QAction("", self)
+        self.revision_range_info_action.setEnabled(False)
+        self.revisions_menu.addAction(self.revision_range_info_action)
+        self._update_revision_range_info()
+
+    def _update_revision_range_info(self):
+        """Update the revision range info display in the menu."""
+        if self.review_mode_ != "committed":
+            return
+
+        order = self.dossier_["order"]
+        if self.revision_base_idx_ is not None and self.revision_modi_idx_ is not None:
+            base_sha = order[self.revision_base_idx_][:7]
+            modi_sha = order[self.revision_modi_idx_][:7]
+            info = f"Range: {base_sha}..{modi_sha} ({self.revision_base_idx_}..{self.revision_modi_idx_})"
+        elif self.revision_modi_idx_ is not None:
+            modi_sha = order[self.revision_modi_idx_][:7]
+            info = f"Single: {modi_sha} ({self.revision_modi_idx_})"
+        else:
+            info = "No range selected"
+        self.revision_range_info_action.setText(info)
+
+    def _show_revision_range_dialog(self):
+        """Show dialog to select revision range."""
+        from PyQt6.QtWidgets import QDialog, QDialogButtonBox, QLabel, QComboBox, QFormLayout
+
+        order = self.dossier_["order"]
+        revisions = self.dossier_["revisions"]
+        n = len(order)
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Select Revision Range")
+        dialog.setMinimumWidth(400)
+
+        layout = QFormLayout(dialog)
+
+        # Build revision list with short SHA
+        rev_items = []
+        for idx, sha in enumerate(order):
+            short_sha = sha[:7]
+            rev_items.append(f"{idx}: {short_sha}")
+
+        # Base revision selector (x)
+        base_label = QLabel("Base revision (x):")
+        base_combo = QComboBox()
+        base_combo.addItems(rev_items[:-1])  # All except last (since x < y)
+        if self.revision_base_idx_ is not None:
+            base_combo.setCurrentIndex(self.revision_base_idx_)
+        layout.addRow(base_label, base_combo)
+
+        # Modi revision selector (y)
+        modi_label = QLabel("Modified revision (y):")
+        modi_combo = QComboBox()
+        modi_combo.addItems(rev_items[1:])  # All except first (since x < y)
+        if self.revision_modi_idx_ is not None:
+            # Adjust index since we removed first item
+            modi_combo.setCurrentIndex(self.revision_modi_idx_ - 1)
+        layout.addRow(modi_label, modi_combo)
+
+        # Update modi combo when base changes to enforce x < y
+        def on_base_changed(base_idx):
+            current_modi = modi_combo.currentIndex() + 1  # Actual index
+            modi_combo.clear()
+            # Only show revisions after base
+            for i in range(base_idx + 1, n):
+                modi_combo.addItem(rev_items[i])
+            # Try to preserve previous selection if still valid
+            if current_modi > base_idx:
+                modi_combo.setCurrentIndex(current_modi - base_idx - 1)
+            else:
+                modi_combo.setCurrentIndex(modi_combo.count() - 1)
+
+        base_combo.currentIndexChanged.connect(on_base_changed)
+
+        # Buttons
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+        layout.addRow(buttons)
+
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            new_base = base_combo.currentIndex()
+            # Modi index is relative to items shown (starting from base+1)
+            new_modi = new_base + 1 + modi_combo.currentIndex()
+            self._set_revision_range(new_base, new_modi)
+
+    def _set_revision_range(self, base_idx, modi_idx):
+        """Set the revision range and update the UI."""
+        if base_idx == self.revision_base_idx_ and modi_idx == self.revision_modi_idx_:
+            return
+
+        self.revision_base_idx_ = base_idx
+        self.revision_modi_idx_ = modi_idx
+
+        self._update_revision_range_info()
+        self._rebuild_file_list_for_revision_range()
+
+    def _rebuild_file_list_for_revision_range(self):
+        """Rebuild the file list in sidebar based on current revision range.
+
+        Collects all files modified in any revision from x through y (inclusive).
+        For each unique file, uses the modi from the latest revision that touched it.
+        """
+        if self.review_mode_ != "committed":
+            return
+
+        order = self.dossier_["order"]
+        revisions = self.dossier_["revisions"]
+        cache = self.dossier_["cache"]
+        root = self.dossier_["root"]
+
+        # Clear existing file classes (but keep tabs open)
+        self.file_classes.clear()
+        self.sidebar_widget.file_items.clear()
+        self.sidebar_widget.dir_items.clear()
+        self.sidebar_widget.dir_open_counts.clear()
+        self.sidebar_widget.commit_msg_folder = None
+        self.sidebar_widget.commit_msg_items.clear()
+        self.sidebar_widget.tree.clear()
+
+        # Re-add special items (commit messages folder, notes)
+        self.sidebar_widget.special_items.clear()
+
+        # Add commit messages folder (contains all commits in dossier, not just range)
+        self.add_commit_messages_from_dossier()
+
+        note_file = self.note_mgr.get_note_file()
+        if note_file is not None:
+            self.note_mgr.create_notes_button()
+
+        # Collect all files modified in range [x, y].
+        # For each file, track the latest revision's modi_key and base_key.
+        # Key by modi_key since that uniquely identifies the final state.
+        # We need to track: display_path -> (action, base_key, modi_key, revision_idx)
+        files_in_range = {}  # display_path -> file info dict
+
+        for idx in range(self.revision_base_idx_, self.revision_modi_idx_ + 1):
+            rev_sha = order[idx]
+            rev = revisions[rev_sha]
+
+            for f in rev["files"]:
+                modi_key = f["modi"]
+                modi_disp_path = cache[modi_key]["display_path"]
+
+                # Always use the latest revision's info for this file
+                files_in_range[modi_disp_path] = {
+                    "action": f["action"],
+                    "base_key": f["base"],
+                    "modi_key": modi_key,
+                    "revision_idx": idx
+                }
+
+        # Create FileButton for each unique file
+        for disp_path, file_info in files_in_range.items():
+            action = file_info["action"]
+            base_key = file_info["base_key"]
+            modi_key = file_info["modi_key"]
+
+            modi_rel_dir = cache[modi_key]["rel_dir"]
+            modi_path = cache[modi_key]["pathname"]
+            modi_disp_path = cache[modi_key]["display_path"]
+
+            base_rel_dir = cache[base_key]["rel_dir"]
+            base_path = cache[base_key]["pathname"]
+            base_disp_path = cache[base_key]["display_path"]
+
+            # Create FileButton with revision range context
+            file_inst = generate_viewer.FileButton(
+                self._create_file_button_options(),
+                action,
+                root,
+                base_disp_path,
+                base_rel_dir,
+                base_path,
+                modi_disp_path,
+                modi_rel_dir,
+                modi_path)
+
+            # Store the original base key for range resolution
+            file_inst.original_base_key_ = base_key
+
+            self.add_file(file_inst)
+
+        # Update Open All button count
+        self.sidebar_widget.update_open_all_text(len(self.file_classes))
+
+    def _create_file_button_options(self):
+        """Create an options-like object for FileButton construction."""
+        class Options:
+            pass
+        opts = Options()
+        opts.arg_tab_label_stats = self.tab_label_stats
+        opts.arg_file_label_stats = self.file_label_stats
+        opts.arg_dossier_url = None  # Local mode
+        opts.afr_ = self.afr_
+        opts.arg_verbose = False
+        opts.intraline_percent_ = self.intraline_percent
+        opts.arg_dump_ir = self.dump_ir
+        opts.arg_max_line_length = self.display_chars
+        opts.arg_diff_map = self.diff_map_visible
+        opts.arg_line_numbers = self.line_numbers_visible
+        return opts
+
+    def _resolve_base_for_range(self, file_class):
+        """Resolve the correct base blob for a file within the current revision range.
+
+        For a file in revision y, walk backwards through [x, y-1] matching by
+        base blob SHA to find the most recent modi that becomes our comparison base.
+
+        Returns:
+            Tuple of (base_path, base_display_path) for the resolved base.
+        """
+        if self.review_mode_ != "committed":
+            return (file_class.get_base_chg_id_path(), file_class.base_display_path())
+
+        order = self.dossier_["order"]
+        revisions = self.dossier_["revisions"]
+        cache = self.dossier_["cache"]
+        root = self.dossier_["root"]
+
+        # Get the original base key from the file in revision y
+        current_base_key = file_class.original_base_key_
+
+        # Walk backwards from y-1 to x looking for a matching modi
+        for idx in range(self.revision_modi_idx_ - 1, self.revision_base_idx_ - 1, -1):
+            rev_sha = order[idx]
+            rev = revisions[rev_sha]
+            for f in rev["files"]:
+                if f["modi"] == current_base_key:
+                    # Found a match - this revision's modi is our current base
+                    # Now continue searching with this revision's base
+                    current_base_key = f["base"]
+                    break
+
+        # current_base_key is now the resolved base
+        # Get the path information from the cache
+        base_rel_dir = cache[current_base_key]["rel_dir"]
+        base_path = cache[current_base_key]["pathname"]
+        base_disp_path = cache[current_base_key]["display_path"]
+
+        import posixpath
+        full_base_path = posixpath.join(root, base_rel_dir, base_path)
+
+        return (full_base_path, base_disp_path)
+
+    def get_revision_range(self):
+        """Return the current revision range as (base_idx, modi_idx)."""
+        return (self.revision_base_idx_, self.revision_modi_idx_)
 
     def get_all_viewers(self):
         """
