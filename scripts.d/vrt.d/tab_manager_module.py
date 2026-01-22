@@ -535,45 +535,8 @@ class DiffViewerTabWidget(QMainWindow):
             self.palette_action_group.addAction(action)
             palette_menu.addAction(action)
 
-        # Compare menu (only for uncommitted reviews)
-        self.compare_menu = menubar.addMenu("Compare")
-        self.compare_action_group = QActionGroup(self)
-        self.compare_action_group.setExclusive(True)
-
-        self.compare_base_modi_action = QAction("HEAD vs Working", self)
-        self.compare_base_modi_action.setCheckable(True)
-        self.compare_base_modi_action.setChecked(True)  # Default mode
-        self.compare_base_modi_action.triggered.connect(
-            lambda: self.set_staged_diff_mode(generate_viewer.DIFF_MODE_BASE_MODI))
-        self.compare_action_group.addAction(self.compare_base_modi_action)
-        self.compare_menu.addAction(self.compare_base_modi_action)
-
-        self.compare_base_stage_action = QAction("HEAD vs Staged", self)
-        self.compare_base_stage_action.setCheckable(True)
-        self.compare_base_stage_action.triggered.connect(
-            lambda: self.set_staged_diff_mode(generate_viewer.DIFF_MODE_BASE_STAGE))
-        self.compare_action_group.addAction(self.compare_base_stage_action)
-        self.compare_menu.addAction(self.compare_base_stage_action)
-
-        self.compare_stage_modi_action = QAction("Staged vs Working", self)
-        self.compare_stage_modi_action.setCheckable(True)
-        self.compare_stage_modi_action.triggered.connect(
-            lambda: self.set_staged_diff_mode(generate_viewer.DIFF_MODE_STAGE_MODI))
-        self.compare_action_group.addAction(self.compare_stage_modi_action)
-        self.compare_menu.addAction(self.compare_stage_modi_action)
-
-        # Hide Compare menu for committed reviews
-        if self.review_mode_ == "committed":
-            self.compare_menu.menuAction().setVisible(False)
-
-        # Revisions menu (only for committed reviews with multiple revisions)
-        self.revisions_menu = menubar.addMenu("Revisions")
+        # Initialize revision range state for committed mode
         self._init_revision_range_state()
-        self._create_revisions_menu()
-
-        # Hide Revisions menu for uncommitted reviews or single revision
-        if self.review_mode_ != "committed" or len(self.dossier_["order"]) < 2:
-            self.revisions_menu.menuAction().setVisible(False)
 
         # Help menu
         help_menu = menubar.addMenu("Help")
@@ -787,10 +750,15 @@ class DiffViewerTabWidget(QMainWindow):
 
         For FileButtonUnstaged, includes the current staged_diff_mode_ so that
         the same file can have multiple tabs open with different diff modes.
+        For FileButton in committed mode, uses (base_key, modi_key) so that
+        the same diff content reuses the same tab across revision range changes.
         For other file types, just returns file_class.
         """
         if isinstance(file_class, generate_viewer.FileButtonUnstaged):
             return (file_class, self.staged_diff_mode_)
+        if isinstance(file_class, generate_viewer.FileButton):
+            # Use content hashes as key so same diff reuses tab
+            return (file_class.base_chg_id_, file_class.modi_chg_path_)
         return file_class
 
     def on_file_clicked(self, file_class):
@@ -1066,7 +1034,7 @@ class DiffViewerTabWidget(QMainWindow):
 
             self.sidebar_widget.update_file_state(file_class, is_open, is_active)
 
-        # Update commit message item if it exists
+        # Update commit message item if it exists (legacy single commit mode)
         if self.commit_msg_button:
             is_open = 'commit_msg' in self.file_to_tab_index
             if is_open:
@@ -1081,6 +1049,23 @@ class DiffViewerTabWidget(QMainWindow):
 
             # Update commit message item style in tree
             self.sidebar_widget.update_commit_msg_state(is_open, is_active)
+
+        # Update multi-commit message items in commit list widget
+        if self.commit_msg_mgr.commit_msgs:
+            for sha in self.commit_msg_mgr.commit_msgs:
+                tab_key = f'commit_msg_{sha}'
+                is_open = tab_key in self.file_to_tab_index
+                if is_open:
+                    tab_index = self.file_to_tab_index[tab_key]
+                    if not (0 <= tab_index < self.tab_widget.count()):
+                        is_open = False
+
+                is_active = False
+                if is_open:
+                    tab_index = self.file_to_tab_index[tab_key]
+                    is_active = (tab_index == current_tab_index)
+
+                self.sidebar_widget.update_commit_msg_state(is_open, is_active, sha)
 
         # Update Review Notes item if it exists
         if self.note_mgr.notes_button:
@@ -1120,6 +1105,27 @@ class DiffViewerTabWidget(QMainWindow):
         self.sidebar_widget.update_file_visibility_for_mode(
             self.file_classes, mode)
 
+    def _set_compare_range(self, low_idx, high_idx):
+        """Set the compare range from slider indices and update diff mode.
+
+        Indices map to: 0=HEAD, 1=Staged, 2=Working
+        Valid ranges:
+          0-2 (HEAD to Working) -> DIFF_MODE_BASE_MODI
+          0-1 (HEAD to Staged)  -> DIFF_MODE_BASE_STAGE
+          1-2 (Staged to Working) -> DIFF_MODE_STAGE_MODI
+        """
+        if low_idx == 0 and high_idx == 2:
+            mode = generate_viewer.DIFF_MODE_BASE_MODI
+        elif low_idx == 0 and high_idx == 1:
+            mode = generate_viewer.DIFF_MODE_BASE_STAGE
+        elif low_idx == 1 and high_idx == 2:
+            mode = generate_viewer.DIFF_MODE_STAGE_MODI
+        else:
+            # Invalid range, default to HEAD vs Working
+            mode = generate_viewer.DIFF_MODE_BASE_MODI
+
+        self.set_staged_diff_mode(mode)
+
     def has_any_staged_content(self):
         """Return True if any file has staged content (for HEAD vs Staged mode).
 
@@ -1148,25 +1154,22 @@ class DiffViewerTabWidget(QMainWindow):
         return False
 
     def update_compare_menu_state(self):
-        """Enable/disable Compare menu items based on staged content availability."""
+        """Check staged content availability and reset mode if needed."""
         if self.review_mode_ == "committed":
             return
 
         has_staged_content = self.has_any_staged_content()
         has_staged_and_unstaged = self.has_any_staged_and_unstaged()
 
-        self.compare_base_stage_action.setEnabled(has_staged_content)
-        self.compare_stage_modi_action.setEnabled(has_staged_and_unstaged)
-
         # If current mode is not available, reset to default mode
         if (self.staged_diff_mode_ == generate_viewer.DIFF_MODE_BASE_STAGE
                 and not has_staged_content):
-            self.compare_base_modi_action.setChecked(True)
             self.set_staged_diff_mode(generate_viewer.DIFF_MODE_BASE_MODI)
+            self.sidebar_widget.compare_list_widget.set_range(0, 2)
         elif (self.staged_diff_mode_ == generate_viewer.DIFF_MODE_STAGE_MODI
                 and not has_staged_and_unstaged):
-            self.compare_base_modi_action.setChecked(True)
             self.set_staged_diff_mode(generate_viewer.DIFF_MODE_BASE_MODI)
+            self.sidebar_widget.compare_list_widget.set_range(0, 2)
 
     def _init_revision_range_state(self):
         """Initialize revision range state for committed mode."""
@@ -1187,111 +1190,6 @@ class DiffViewerTabWidget(QMainWindow):
             self.revision_base_idx_ = 0
             self.revision_modi_idx_ = n - 1
 
-    def _create_revisions_menu(self):
-        """Create the Revisions menu with range selection actions."""
-        if self.review_mode_ != "committed":
-            return
-
-        order = self.dossier_["order"]
-        n = len(order)
-        if n < 2:
-            return
-
-        # Add action to open revision range dialog
-        select_range_action = QAction("Select Range...", self)
-        select_range_action.triggered.connect(self._show_revision_range_dialog)
-        self.revisions_menu.addAction(select_range_action)
-
-        self.revisions_menu.addSeparator()
-
-        # Show current range as info (non-interactive)
-        self.revision_range_info_action = QAction("", self)
-        self.revision_range_info_action.setEnabled(False)
-        self.revisions_menu.addAction(self.revision_range_info_action)
-        self._update_revision_range_info()
-
-    def _update_revision_range_info(self):
-        """Update the revision range info display in the menu."""
-        if self.review_mode_ != "committed":
-            return
-
-        order = self.dossier_["order"]
-        if self.revision_base_idx_ is not None and self.revision_modi_idx_ is not None:
-            base_sha = order[self.revision_base_idx_][:7]
-            modi_sha = order[self.revision_modi_idx_][:7]
-            info = f"Range: {base_sha}..{modi_sha} ({self.revision_base_idx_}..{self.revision_modi_idx_})"
-        elif self.revision_modi_idx_ is not None:
-            modi_sha = order[self.revision_modi_idx_][:7]
-            info = f"Single: {modi_sha} ({self.revision_modi_idx_})"
-        else:
-            info = "No range selected"
-        self.revision_range_info_action.setText(info)
-
-    def _show_revision_range_dialog(self):
-        """Show dialog to select revision range."""
-        from PyQt6.QtWidgets import QDialog, QDialogButtonBox, QLabel, QComboBox, QFormLayout
-
-        order = self.dossier_["order"]
-        revisions = self.dossier_["revisions"]
-        n = len(order)
-
-        dialog = QDialog(self)
-        dialog.setWindowTitle("Select Revision Range")
-        dialog.setMinimumWidth(400)
-
-        layout = QFormLayout(dialog)
-
-        # Build revision list with short SHA
-        rev_items = []
-        for idx, sha in enumerate(order):
-            short_sha = sha[:7]
-            rev_items.append(f"{idx}: {short_sha}")
-
-        # Base revision selector (x)
-        base_label = QLabel("Base revision (x):")
-        base_combo = QComboBox()
-        base_combo.addItems(rev_items[:-1])  # All except last (since x < y)
-        if self.revision_base_idx_ is not None:
-            base_combo.setCurrentIndex(self.revision_base_idx_)
-        layout.addRow(base_label, base_combo)
-
-        # Modi revision selector (y)
-        modi_label = QLabel("Modified revision (y):")
-        modi_combo = QComboBox()
-        modi_combo.addItems(rev_items[1:])  # All except first (since x < y)
-        if self.revision_modi_idx_ is not None:
-            # Adjust index since we removed first item
-            modi_combo.setCurrentIndex(self.revision_modi_idx_ - 1)
-        layout.addRow(modi_label, modi_combo)
-
-        # Update modi combo when base changes to enforce x < y
-        def on_base_changed(base_idx):
-            current_modi = modi_combo.currentIndex() + 1  # Actual index
-            modi_combo.clear()
-            # Only show revisions after base
-            for i in range(base_idx + 1, n):
-                modi_combo.addItem(rev_items[i])
-            # Try to preserve previous selection if still valid
-            if current_modi > base_idx:
-                modi_combo.setCurrentIndex(current_modi - base_idx - 1)
-            else:
-                modi_combo.setCurrentIndex(modi_combo.count() - 1)
-
-        base_combo.currentIndexChanged.connect(on_base_changed)
-
-        # Buttons
-        buttons = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
-        buttons.accepted.connect(dialog.accept)
-        buttons.rejected.connect(dialog.reject)
-        layout.addRow(buttons)
-
-        if dialog.exec() == QDialog.DialogCode.Accepted:
-            new_base = base_combo.currentIndex()
-            # Modi index is relative to items shown (starting from base+1)
-            new_modi = new_base + 1 + modi_combo.currentIndex()
-            self._set_revision_range(new_base, new_modi)
-
     def _set_revision_range(self, base_idx, modi_idx):
         """Set the revision range and update the UI."""
         if base_idx == self.revision_base_idx_ and modi_idx == self.revision_modi_idx_:
@@ -1300,7 +1198,6 @@ class DiffViewerTabWidget(QMainWindow):
         self.revision_base_idx_ = base_idx
         self.revision_modi_idx_ = modi_idx
 
-        self._update_revision_range_info()
         self._rebuild_file_list_for_revision_range()
 
     def _rebuild_file_list_for_revision_range(self):
@@ -2539,6 +2436,11 @@ class DiffViewerTabWidget(QMainWindow):
         self.update_view_menu_states()
         # Set initial Compare menu states (enable/disable based on staged content)
         self.update_compare_menu_state()
+
+        # Show compare widget for uncommitted mode
+        if self.review_mode_ != "committed":
+            self.sidebar_widget.compare_list_widget.setVisible(True)
+
         # Apply initial focus tinting (sidebar focused, content dimmed)
         self.update_focus_tinting()
         self.show()

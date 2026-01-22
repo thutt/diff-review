@@ -639,6 +639,7 @@ class GitCommitted(Git):
         (beg_sha, end_sha) = self.get_change_range(change_id)
 
         self.commit_msg_ = git_get_commit_msg(self, beg_sha, end_sha)
+        self.commit_summary_ = self.commit_msg_[0]
         diff = git_diff_tree(self, beg_sha, end_sha)
         result = [ ]
         for l in diff:

@@ -331,17 +331,20 @@ class CommitMsgHandler:
 
         # Collect all revisions that have commit messages, preserving order
         commit_msgs_by_sha = {}
+        commit_summaries_by_sha = {}
         for sha in order:
             rev = revisions[sha]
             if rev["commit_msg"] is not None:
                 commit_msgs_by_sha[sha] = rev["commit_msg"]
+                commit_summaries_by_sha[sha] = rev.get("commit_summary", "")
                 if sha not in self.bookmarked_lines_by_sha:
                     self.bookmarked_lines_by_sha[sha] = set()
 
         self.commit_msgs = commit_msgs_by_sha
 
         if commit_msgs_by_sha:
-            self.tab_widget.sidebar_widget.add_commit_messages_folder(commit_msgs_by_sha)
+            self.tab_widget.sidebar_widget.add_commit_messages_folder(
+                commit_msgs_by_sha, commit_summaries_by_sha)
 
     def on_commit_msg_clicked(self, sha=None):
         """Handle commit message button/item click

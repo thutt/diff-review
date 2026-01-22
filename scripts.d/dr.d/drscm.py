@@ -309,6 +309,7 @@ class SCM(object):
         self.commit_msg_       = None # Change description /
                                       # commit message, if present.
         self.commit_msg_file_  = None # Pathname of file.
+        self.commit_summary_   = None # First line of commit message.
         self.dossier_mode_     = self.get_dossier_mode()
         self.scm_name_         = self.get_name()
 
@@ -395,9 +396,10 @@ class SCM(object):
         now       = datetime.datetime.now()
         timestamp = datetime.datetime.strftime(now, "%Y.%m.%d.%H.%M.%S")
         revision  = {
-            "time"         : timestamp,
-            "commit_msg"   : self.commit_msg_file_, # Can be None
-            "files"        : [ ]
+            "time"           : timestamp,
+            "commit_msg"     : self.commit_msg_file_, # Can be None
+            "commit_summary" : self.commit_summary_,
+            "files"          : [ ]
         }
 
         for f in self.dossier_:

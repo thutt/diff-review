@@ -9,10 +9,473 @@ This module provides a tree view for organizing files by directory structure
 in the sidebar, with collapsible directory nodes.
 """
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QTreeWidget, QTreeWidgetItem,
-                              QPushButton, QApplication)
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QFont, QColor
+                              QPushButton, QApplication, QSplitter,
+                              QLabel, QFrame, QHBoxLayout, QScrollArea, QLayout)
+from PyQt6.QtCore import Qt, pyqtSignal, QRect, QPoint
+from PyQt6.QtGui import QFont, QColor, QPainter, QBrush, QPen
 import color_palettes
+
+
+class VerticalRangeSlider(QWidget):
+    """A vertical slider with two handles for selecting a range."""
+
+    range_changed = pyqtSignal(int, int)  # Emits (low_idx, high_idx)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setMinimumWidth(24)
+        self.setMaximumWidth(24)
+
+        self._count = 0  # Number of items
+        self._low_idx = 0  # Lower bound index (top handle)
+        self._high_idx = 0  # Upper bound index (bottom handle)
+
+        self._dragging = None  # 'low', 'high', or None
+        self._handle_height = 12
+        self._track_margin = 6  # Margin at top/bottom for handles
+
+    def sizeHint(self):
+        from PyQt6.QtCore import QSize
+        # Width is fixed at 24, height based on count (or minimum 50)
+        height = max(50, self._count * 25 + 2 * self._track_margin)
+        return QSize(24, height)
+
+    def set_count(self, count):
+        """Set the number of items in the range."""
+        self._count = count
+        if count > 0:
+            self._low_idx = 0
+            self._high_idx = count - 1
+        else:
+            self._low_idx = 0
+            self._high_idx = 0
+        self.update()
+
+    def set_range(self, low_idx, high_idx):
+        """Set the current range selection. low_idx must be less than high_idx."""
+        if self._count == 0:
+            return
+        self._low_idx = max(0, min(low_idx, self._count - 2))
+        self._high_idx = max(self._low_idx + 1, min(high_idx, self._count - 1))
+        self.update()
+
+    def get_range(self):
+        """Return current (low_idx, high_idx)."""
+        return (self._low_idx, self._high_idx)
+
+    def _idx_to_y(self, idx):
+        """Convert item index to y coordinate."""
+        if self._count <= 1:
+            return self._track_margin
+        usable_height = self.height() - 2 * self._track_margin - self._handle_height
+        return self._track_margin + int(idx * usable_height / (self._count - 1))
+
+    def _y_to_idx(self, y):
+        """Convert y coordinate to nearest item index."""
+        if self._count <= 1:
+            return 0
+        usable_height = self.height() - 2 * self._track_margin - self._handle_height
+        if usable_height <= 0:
+            return 0
+        idx = round((y - self._track_margin) * (self._count - 1) / usable_height)
+        return max(0, min(idx, self._count - 1))
+
+    def paintEvent(self, event):
+        """Draw the slider track and handles."""
+        if self._count == 0:
+            return
+
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        width = self.width()
+        track_x = width // 2 - 2
+        track_width = 4
+
+        # Draw track background
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QBrush(QColor(200, 200, 200)))
+        painter.drawRect(track_x, self._track_margin,
+                        track_width, self.height() - 2 * self._track_margin)
+
+        # Draw selected range on track
+        low_y = self._idx_to_y(self._low_idx)
+        high_y = self._idx_to_y(self._high_idx)
+        painter.setBrush(QBrush(QColor(100, 150, 255)))
+        painter.drawRect(track_x, low_y + self._handle_height // 2,
+                        track_width, high_y - low_y)
+
+        # Draw handles
+        handle_width = 16
+        handle_x = (width - handle_width) // 2
+
+        # Low handle (top)
+        painter.setBrush(QBrush(QColor(70, 130, 220)))
+        painter.setPen(QPen(QColor(50, 100, 180), 1))
+        painter.drawRoundedRect(handle_x, low_y, handle_width, self._handle_height, 3, 3)
+
+        # High handle (bottom)
+        painter.drawRoundedRect(handle_x, high_y, handle_width, self._handle_height, 3, 3)
+
+        painter.end()
+
+    def mousePressEvent(self, event):
+        """Start dragging a handle."""
+        if self._count == 0:
+            return
+
+        y = event.position().y()
+        low_y = self._idx_to_y(self._low_idx)
+        high_y = self._idx_to_y(self._high_idx)
+
+        # Check if clicking on low handle
+        if abs(y - (low_y + self._handle_height // 2)) < self._handle_height:
+            self._dragging = 'low'
+        # Check if clicking on high handle
+        elif abs(y - (high_y + self._handle_height // 2)) < self._handle_height:
+            self._dragging = 'high'
+        else:
+            self._dragging = None
+
+    def mouseMoveEvent(self, event):
+        """Move the dragged handle."""
+        if self._dragging is None or self._count == 0:
+            return
+
+        new_idx = self._y_to_idx(event.position().y())
+
+        if self._dragging == 'low':
+            # Low handle must stay below high handle (cannot be equal)
+            new_idx = min(new_idx, self._high_idx - 1)
+            if new_idx != self._low_idx and new_idx >= 0:
+                self._low_idx = new_idx
+                self.update()
+                self.range_changed.emit(self._low_idx, self._high_idx)
+        elif self._dragging == 'high':
+            # High handle must stay above low handle (cannot be equal)
+            new_idx = max(new_idx, self._low_idx + 1)
+            if new_idx != self._high_idx and new_idx < self._count:
+                self._high_idx = new_idx
+                self.update()
+                self.range_changed.emit(self._low_idx, self._high_idx)
+
+    def mouseReleaseEvent(self, event):
+        """Stop dragging."""
+        self._dragging = None
+
+
+class ClickableCommitLabel(QLabel):
+    """A clickable label for commit items."""
+
+    clicked = pyqtSignal(str)  # Emits SHA
+
+    def __init__(self, text, sha, parent=None):
+        super().__init__(text, parent)
+        self.sha = sha
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setStyleSheet("""
+            QLabel {
+                padding: 4px 8px;
+                color: darkred;
+            }
+            QLabel:hover {
+                background-color: #e0e0e0;
+            }
+        """)
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.clicked.emit(self.sha)
+        super().mousePressEvent(event)
+
+    def set_in_range(self, in_range):
+        """Update background based on whether commit is in selected range."""
+        if in_range:
+            self.setStyleSheet("""
+                QLabel {
+                    padding: 4px 8px;
+                    color: darkred;
+                    background-color: #e6f0ff;
+                }
+                QLabel:hover {
+                    background-color: #d0e0f0;
+                }
+            """)
+        else:
+            self.setStyleSheet("""
+                QLabel {
+                    padding: 4px 8px;
+                    color: darkred;
+                }
+                QLabel:hover {
+                    background-color: #e0e0e0;
+                }
+            """)
+
+    def set_active(self, is_active):
+        """Set bold if this commit's tab is active."""
+        font = self.font()
+        font.setBold(is_active)
+        self.setFont(font)
+
+
+class CommitListWidget(QWidget):
+    """Widget displaying commit messages in a scrollable list for revision range selection."""
+
+    def __init__(self, tab_widget, parent=None):
+        super().__init__(parent)
+        self.tab_widget = tab_widget
+        self.commit_items = {}  # SHA -> QListWidgetItem mapping
+        self.sha_list = []  # Ordered list of SHAs
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+
+        # Header label
+        self.header_label = QLabel("Commits")
+        self.header_label.setStyleSheet("""
+            QLabel {
+                padding: 5px;
+                background-color: #f0f0f0;
+                font-weight: bold;
+                border-bottom: 1px solid #ccc;
+            }
+        """)
+        layout.addWidget(self.header_label)
+
+        # Horizontal layout for slider and list inside a scroll area
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(False)
+        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+
+        content_widget = QWidget()
+        content_layout = QHBoxLayout(content_widget)
+        content_layout.setContentsMargins(0, 0, 0, 0)
+        content_layout.setSpacing(0)
+        content_layout.setSizeConstraint(QLayout.SizeConstraint.SetMinAndMaxSize)
+
+        # Range slider on the left
+        self.range_slider = VerticalRangeSlider()
+        self.range_slider.range_changed.connect(self._on_range_changed)
+        content_layout.addWidget(self.range_slider)
+
+        # Use a simple widget with vertical layout for commit items
+        self.list_container = QWidget()
+        self.list_layout = QVBoxLayout(self.list_container)
+        self.list_layout.setContentsMargins(0, 0, 0, 0)
+        self.list_layout.setSpacing(0)
+        self.list_layout.setSizeConstraint(QLayout.SizeConstraint.SetMinAndMaxSize)
+        content_layout.addWidget(self.list_container)
+
+        scroll_area.setWidget(content_widget)
+        layout.addWidget(scroll_area)
+
+    def set_commits(self, commit_msgs_by_sha, commit_summaries_by_sha=None):
+        """Populate the list with commits.
+
+        Args:
+            commit_msgs_by_sha: Dict mapping SHA -> commit_msg_rel_path
+            commit_summaries_by_sha: Dict mapping SHA -> commit summary string (optional)
+        """
+        # Clear existing items
+        self.commit_items.clear()
+        self.sha_list = []
+
+        # Remove old labels from layout
+        while self.list_layout.count():
+            child = self.list_layout.takeAt(0)
+            if child.widget():
+                child.widget().deleteLater()
+
+        if not commit_msgs_by_sha:
+            self.header_label.setText("Commits (0)")
+            self.range_slider.set_count(0)
+            return
+
+        self.header_label.setText(f"Commits ({len(commit_msgs_by_sha)})")
+
+        if commit_summaries_by_sha is None:
+            commit_summaries_by_sha = {}
+
+        for sha, rel_path in commit_msgs_by_sha.items():
+            summary = commit_summaries_by_sha.get(sha, "")
+            if summary:
+                display_text = f"{sha[:7]}: {summary}"
+            else:
+                display_text = sha[:7]
+            label = ClickableCommitLabel(display_text, sha)
+            label.clicked.connect(self._on_label_clicked)
+            self.list_layout.addWidget(label)
+            self.commit_items[sha] = label
+            self.sha_list.append(sha)
+
+        # Initialize range slider
+        self.range_slider.set_count(len(self.sha_list))
+
+    def set_range(self, low_idx, high_idx):
+        """Set the range selection on the slider."""
+        self.range_slider.set_range(low_idx, high_idx)
+        self._update_range_highlighting()
+
+    def _on_label_clicked(self, sha):
+        """Handle click on a commit label."""
+        self.tab_widget.on_commit_msg_clicked(sha)
+
+    def _on_range_changed(self, low_idx, high_idx):
+        """Handle range slider change."""
+        self._update_range_highlighting()
+        # Notify tab_widget of range change
+        self.tab_widget._set_revision_range(low_idx, high_idx)
+
+    def _update_range_highlighting(self):
+        """Update visual highlighting of commits in the selected range."""
+        low_idx, high_idx = self.range_slider.get_range()
+
+        for i, sha in enumerate(self.sha_list):
+            label = self.commit_items[sha]
+            in_range = low_idx <= i <= high_idx
+            label.set_in_range(in_range)
+
+    def _on_item_clicked(self, item):
+        """Handle click on a commit item."""
+        sha = item.data(Qt.ItemDataRole.UserRole)
+        if sha:
+            self.tab_widget.on_commit_msg_clicked(sha)
+
+    def update_commit_state(self, sha, is_open, is_active):
+        """Update visual state of a commit item."""
+        if sha not in self.commit_items:
+            return
+
+        label = self.commit_items[sha]
+        label.set_active(is_active)
+
+    def clear(self):
+        """Clear all commits from the list."""
+        # Remove old labels from layout
+        while self.list_layout.count():
+            child = self.list_layout.takeAt(0)
+            if child.widget():
+                child.widget().deleteLater()
+
+        self.commit_items.clear()
+        self.sha_list = []
+        self.header_label.setText("Commits (0)")
+        self.range_slider.set_count(0)
+
+
+class CompareLabel(QLabel):
+    """A label for compare items (HEAD/Staged/Working)."""
+
+    def __init__(self, text, parent=None):
+        super().__init__(text, parent)
+        self.setStyleSheet("""
+            QLabel {
+                padding: 4px 8px;
+                color: #333;
+            }
+        """)
+
+    def set_in_range(self, in_range):
+        """Update background based on whether item is in selected range."""
+        if in_range:
+            self.setStyleSheet("""
+                QLabel {
+                    padding: 4px 8px;
+                    color: #333;
+                    background-color: #e6f0ff;
+                }
+            """)
+        else:
+            self.setStyleSheet("""
+                QLabel {
+                    padding: 4px 8px;
+                    color: #333;
+                }
+            """)
+
+
+class CompareListWidget(QWidget):
+    """Widget displaying HEAD/Staged/Working states for diff mode selection."""
+
+    def __init__(self, tab_widget, parent=None):
+        super().__init__(parent)
+        self.tab_widget = tab_widget
+        self.labels = []  # List of CompareLabel widgets
+
+        # Prevent this widget from expanding vertically
+        from PyQt6.QtWidgets import QSizePolicy
+        self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Maximum)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+
+        # Header label
+        self.header_label = QLabel("Compare")
+        self.header_label.setStyleSheet("""
+            QLabel {
+                padding: 5px;
+                background-color: #f0f0f0;
+                font-weight: bold;
+                border-bottom: 1px solid #ccc;
+            }
+        """)
+        layout.addWidget(self.header_label)
+
+        # Horizontal layout for slider and list
+        content_widget = QWidget()
+        content_layout = QHBoxLayout(content_widget)
+        content_layout.setContentsMargins(0, 0, 0, 0)
+        content_layout.setSpacing(0)
+        content_layout.setSizeConstraint(QLayout.SizeConstraint.SetMinAndMaxSize)
+
+        # Range slider on the left
+        self.range_slider = VerticalRangeSlider()
+        self.range_slider.range_changed.connect(self._on_range_changed)
+        content_layout.addWidget(self.range_slider)
+
+        # Labels for the three states
+        self.list_container = QWidget()
+        self.list_layout = QVBoxLayout(self.list_container)
+        self.list_layout.setContentsMargins(0, 0, 0, 0)
+        self.list_layout.setSpacing(0)
+        self.list_layout.setSizeConstraint(QLayout.SizeConstraint.SetMinAndMaxSize)
+
+        # Create the three state labels
+        for text in ["HEAD", "Staged", "Working"]:
+            label = CompareLabel(text)
+            self.list_layout.addWidget(label)
+            self.labels.append(label)
+
+        content_layout.addWidget(self.list_container)
+        layout.addWidget(content_widget)
+
+        # Initialize slider with 3 items
+        self.range_slider.set_count(3)
+        # Default: HEAD to Working (0 to 2)
+        self.range_slider.set_range(0, 2)
+        self._update_range_highlighting()
+
+    def set_range(self, low_idx, high_idx):
+        """Set the range selection on the slider."""
+        self.range_slider.set_range(low_idx, high_idx)
+        self._update_range_highlighting()
+
+    def _on_range_changed(self, low_idx, high_idx):
+        """Handle range slider change."""
+        self._update_range_highlighting()
+        # Convert range to diff mode and notify tab_widget
+        self.tab_widget._set_compare_range(low_idx, high_idx)
+
+    def _update_range_highlighting(self):
+        """Update visual highlighting of items in the selected range."""
+        low_idx, high_idx = self.range_slider.get_range()
+
+        for i, label in enumerate(self.labels):
+            in_range = low_idx <= i <= high_idx
+            label.set_in_range(in_range)
 
 
 class FileTreeWidget(QTreeWidget):
@@ -40,22 +503,22 @@ class FileTreeWidget(QTreeWidget):
 
 class FileTreeSidebar(QWidget):
     """Tree view sidebar that organizes files by directory"""
-    
+
     def __init__(self, tab_widget, parent=None):
         super().__init__(parent)
         self.tab_widget = tab_widget
         self.file_items = {}  # Maps file_class -> QTreeWidgetItem
         self.dir_items = {}   # Maps dir_path -> QTreeWidgetItem
         self.dir_open_counts = {}  # Maps dir_path -> count of open files
-        
+
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
-        
+
         # "Open All Files" button at top
         self.open_all_button = QPushButton("Open All Files")
         self.open_all_button.clicked.connect(self.tab_widget.open_all_files)
-        self.open_all_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)  # Prevent Tab navigation to button
+        self.open_all_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.open_all_button.setStyleSheet("""
             QPushButton {
                 text-align: left;
@@ -70,7 +533,26 @@ class FileTreeSidebar(QWidget):
             }
         """)
         layout.addWidget(self.open_all_button)
-        
+
+        # Vertical splitter for commit list/compare list and file tree
+        self.vsplitter = QSplitter(Qt.Orientation.Vertical)
+
+        # Commit list widget (for committed mode, initially hidden)
+        self.commit_list_widget = CommitListWidget(tab_widget)
+        self.commit_list_widget.setVisible(False)
+        self.vsplitter.addWidget(self.commit_list_widget)
+
+        # Compare list widget (for uncommitted mode, initially hidden)
+        self.compare_list_widget = CompareListWidget(tab_widget)
+        self.compare_list_widget.setVisible(False)
+        self.vsplitter.addWidget(self.compare_list_widget)
+
+        # Container for file tree
+        self.tree_container = QWidget()
+        tree_layout = QVBoxLayout(self.tree_container)
+        tree_layout.setContentsMargins(0, 0, 0, 0)
+        tree_layout.setSpacing(0)
+
         # Tree widget (custom class handles Space key)
         self.tree = FileTreeWidget()
         self.tree.setHeaderHidden(True)
@@ -78,17 +560,24 @@ class FileTreeSidebar(QWidget):
         self.tree.setAnimated(True)
         self.tree.itemClicked.connect(self.on_item_clicked)
         self.tree.itemActivated.connect(self.on_item_clicked)
-        
+
         # Set up context menu for right-click to focus tree
         self.tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.tree.customContextMenuRequested.connect(self.on_tree_right_click)
-        
-        layout.addWidget(self.tree)
-        
+
+        tree_layout.addWidget(self.tree)
+        self.vsplitter.addWidget(self.tree_container)
+
+        # Set initial splitter sizes (commit list, compare list, tree)
+        # The visible widget(s) will get appropriate sizes when shown
+        self.vsplitter.setSizes([150, 150, 400])
+
+        layout.addWidget(self.vsplitter)
+
         # Store special buttons (commit msg, review notes) as list items
         self.special_items = []  # List of (item_type, widget) tuples
-        self.commit_msg_folder = None  # Reference to commit messages folder item
-        self.commit_msg_items = {}  # SHA -> QTreeWidgetItem mapping
+        self.commit_msg_folder = None  # Reference to commit messages folder item (legacy)
+        self.commit_msg_items = {}  # SHA -> QTreeWidgetItem mapping (legacy)
 
     def add_commit_msg_button(self, button):
         """Legacy method - adds single commit message as tree item (for uncommitted mode)"""
@@ -105,45 +594,30 @@ class FileTreeSidebar(QWidget):
         self.special_items.append(('commit_msg', item))
         self.tree.insertTopLevelItem(0, item)
 
-    def add_commit_messages_folder(self, commit_msgs_by_sha):
-        """Add a folder containing commit messages for multiple revisions.
+    def add_commit_messages_folder(self, commit_msgs_by_sha, commit_summaries_by_sha=None):
+        """Add commits to the commit list widget (for committed mode with multiple revisions).
 
         Args:
             commit_msgs_by_sha: Dict mapping SHA -> commit_msg_rel_path
                                Only includes revisions that have commit messages.
+            commit_summaries_by_sha: Dict mapping SHA -> commit summary string (optional)
         """
         if not commit_msgs_by_sha:
+            self.commit_list_widget.setVisible(False)
             return
 
-        # Create folder item
-        folder_item = QTreeWidgetItem(self.tree)
-        folder_item.setText(0, f"Commit Messages ({len(commit_msgs_by_sha)})")
-        folder_item.setData(0, Qt.ItemDataRole.UserRole, ('commit_msg_folder', None))
+        # Populate the commit list widget and make it visible
+        self.commit_list_widget.set_commits(commit_msgs_by_sha, commit_summaries_by_sha)
+        self.commit_list_widget.setVisible(True)
 
-        # Style as directory
-        font = QFont()
-        font.setBold(True)
-        folder_item.setFont(0, font)
-        folder_item.setForeground(0, Qt.GlobalColor.darkRed)
+        # Store SHA -> item mapping for state updates
+        self.commit_msg_items = self.commit_list_widget.commit_items
 
-        # Start collapsed
-        folder_item.setExpanded(False)
-
-        self.commit_msg_folder = folder_item
-        self.special_items.append(('commit_msg_folder', folder_item))
-        self.tree.insertTopLevelItem(0, folder_item)
-
-        # Add child items for each commit message, ordered by SHA
-        # (order will match dossier order since dict preserves insertion order in Python 3.7+)
-        for sha, rel_path in commit_msgs_by_sha.items():
-            child_item = QTreeWidgetItem(folder_item)
-            child_item.setText(0, sha[:7])
-            child_item.setData(0, Qt.ItemDataRole.UserRole, ('commit_msg', sha))
-
-            # Style child items
-            child_item.setForeground(0, Qt.GlobalColor.darkRed)
-
-            self.commit_msg_items[sha] = child_item
+        # Sync slider with current revision range from tab_widget
+        base_idx = self.tab_widget.revision_base_idx_
+        modi_idx = self.tab_widget.revision_modi_idx_
+        if base_idx is not None and modi_idx is not None:
+            self.commit_list_widget.set_range(base_idx, modi_idx)
     
     def add_notes_button(self, button):
         """Add review notes button as tree item"""
@@ -376,14 +850,26 @@ class FileTreeSidebar(QWidget):
                 # Move up to parent
                 current = current.parent()
     
-    def update_commit_msg_state(self, is_open, is_active):
-        """Update visual state of commit message item"""
+    def update_commit_msg_state(self, is_open, is_active, sha=None):
+        """Update visual state of commit message item.
+
+        Args:
+            is_open: Whether the commit message tab is open
+            is_active: Whether it's the currently active tab
+            sha: Commit SHA (None for legacy single commit message)
+        """
+        if sha is not None:
+            # Multi-commit case - delegate to commit list widget
+            self.commit_list_widget.update_commit_state(sha, is_open, is_active)
+            return
+
+        # Legacy single commit message case
         for item_type, item in self.special_items:
             if item_type == 'commit_msg':
                 font = QFont()
                 font.setBold(True)
                 item.setFont(0, font)
-                
+
                 if is_active:
                     item.setForeground(0, Qt.GlobalColor.darkRed)
                 elif is_open:
