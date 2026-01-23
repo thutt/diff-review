@@ -1181,13 +1181,12 @@ class DiffViewerTabWidget(QMainWindow):
         order = self.dossier_["order"]
         n = len(order)
         if n < 2:
-            # Single revision: no range selection possible
-            self.revision_base_idx_ = None
+            # Single revision: base is -1 (Committed), modi is 0
+            self.revision_base_idx_ = -1
             self.revision_modi_idx_ = 0
         else:
-            # Default: compare first revision (index 0) through last (index n-1)
-            # Base is index 0, modi is index n-1
-            self.revision_base_idx_ = 0
+            # Default: Committed (-1) through last revision (n-1)
+            self.revision_base_idx_ = -1
             self.revision_modi_idx_ = n - 1
 
     def _set_revision_range(self, base_idx, modi_idx):
@@ -1205,6 +1204,9 @@ class DiffViewerTabWidget(QMainWindow):
 
         Collects all files modified in any revision from x through y (inclusive).
         For each unique file, uses the modi from the latest revision that touched it.
+
+        revision_base_idx_ can be -1, meaning "before the first commit" (Committed).
+        In that case, we start collecting from revision 0.
         """
         if self.review_mode_ != "committed":
             return
@@ -1239,7 +1241,13 @@ class DiffViewerTabWidget(QMainWindow):
         # We need to track: display_path -> (action, base_key, modi_key, revision_idx)
         files_in_range = {}  # display_path -> file info dict
 
-        for idx in range(self.revision_base_idx_, self.revision_modi_idx_ + 1):
+        # Handle base_idx of -1 (Committed = before first commit)
+        # Start collecting from revision 0 in that case
+        start_idx = max(0, self.revision_base_idx_ + 1) if self.revision_base_idx_ == -1 else self.revision_base_idx_
+        # Actually simpler: if base is -1, start from 0; otherwise start from base
+        start_idx = 0 if self.revision_base_idx_ < 0 else self.revision_base_idx_
+
+        for idx in range(start_idx, self.revision_modi_idx_ + 1):
             rev_sha = order[idx]
             rev = revisions[rev_sha]
 

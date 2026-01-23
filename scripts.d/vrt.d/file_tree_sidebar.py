@@ -277,6 +277,10 @@ class CommitListWidget(QWidget):
         Args:
             commit_msgs_by_sha: Dict mapping SHA -> commit_msg_rel_path
             commit_summaries_by_sha: Dict mapping SHA -> commit summary string (optional)
+
+        The list includes a "Committed" item at index 0 representing the state
+        before the first commit. Actual commits are at indices 1..N.
+        Slider indices map as: 0 = Committed, 1..N = commits.
         """
         # Clear existing items
         self.commit_items.clear()
@@ -298,6 +302,18 @@ class CommitListWidget(QWidget):
         if commit_summaries_by_sha is None:
             commit_summaries_by_sha = {}
 
+        # Add "Committed" label at index 0 (non-clickable)
+        committed_label = QLabel("Committed")
+        committed_label.setStyleSheet("""
+            QLabel {
+                padding: 4px 8px;
+                color: #666;
+                font-style: italic;
+            }
+        """)
+        self.list_layout.addWidget(committed_label)
+        self.committed_label = committed_label
+
         for sha, rel_path in commit_msgs_by_sha.items():
             summary = commit_summaries_by_sha.get(sha, "")
             if summary:
@@ -310,12 +326,23 @@ class CommitListWidget(QWidget):
             self.commit_items[sha] = label
             self.sha_list.append(sha)
 
-        # Initialize range slider
-        self.range_slider.set_count(len(self.sha_list))
+        # Initialize range slider: count includes Committed + all commits
+        self.range_slider.set_count(len(self.sha_list) + 1)
+        # Default range: Committed (0) to last commit (N)
+        self.range_slider.set_range(0, len(self.sha_list))
 
     def set_range(self, low_idx, high_idx):
-        """Set the range selection on the slider."""
-        self.range_slider.set_range(low_idx, high_idx)
+        """Set the range selection on the slider.
+
+        Args:
+            low_idx, high_idx: Revision indices (0-based on commits).
+                               These are converted to slider indices (+1 for Committed).
+        """
+        # Convert revision indices to slider indices (add 1 for Committed at index 0)
+        # But if low_idx is -1, it means "Committed" (slider index 0)
+        slider_low = low_idx + 1 if low_idx >= 0 else 0
+        slider_high = high_idx + 1
+        self.range_slider.set_range(slider_low, slider_high)
         self._update_range_highlighting()
 
     def _on_label_clicked(self, sha):
@@ -323,18 +350,47 @@ class CommitListWidget(QWidget):
         self.tab_widget.on_commit_msg_clicked(sha)
 
     def _on_range_changed(self, low_idx, high_idx):
-        """Handle range slider change."""
+        """Handle range slider change.
+
+        Slider indices: 0 = Committed, 1..N = commits.
+        Revision indices passed to tab_widget: -1 = before first commit, 0..N-1 = commits.
+        """
         self._update_range_highlighting()
-        # Notify tab_widget of range change
-        self.tab_widget._set_revision_range(low_idx, high_idx)
+        # Convert slider indices to revision indices
+        # Slider 0 (Committed) -> revision -1 (before first commit)
+        # Slider 1..N -> revision 0..N-1
+        rev_low = low_idx - 1
+        rev_high = high_idx - 1
+        self.tab_widget._set_revision_range(rev_low, rev_high)
 
     def _update_range_highlighting(self):
-        """Update visual highlighting of commits in the selected range."""
+        """Update visual highlighting of items in the selected range."""
         low_idx, high_idx = self.range_slider.get_range()
 
+        # Update Committed label highlighting (index 0)
+        if low_idx == 0:
+            self.committed_label.setStyleSheet("""
+                QLabel {
+                    padding: 4px 8px;
+                    color: #666;
+                    font-style: italic;
+                    background-color: #e6f0ff;
+                }
+            """)
+        else:
+            self.committed_label.setStyleSheet("""
+                QLabel {
+                    padding: 4px 8px;
+                    color: #666;
+                    font-style: italic;
+                }
+            """)
+
+        # Update commit labels (indices 1..N map to sha_list 0..N-1)
         for i, sha in enumerate(self.sha_list):
             label = self.commit_items[sha]
-            in_range = low_idx <= i <= high_idx
+            slider_idx = i + 1  # Offset by 1 for Committed
+            in_range = low_idx <= slider_idx <= high_idx
             label.set_in_range(in_range)
 
     def _on_item_clicked(self, item):
