@@ -811,17 +811,17 @@ class DiffViewer(QWidget, TabContentBase):
         line_number = line_nums[line_idx]
         line_text = display_lines[line_idx]
 
-        # Get SHA from file_class if available
+        # Get SHA from file_class if available (only FileButton has these, not FileButtonUnstaged)
         sha = None
         if hasattr(self, 'file_class') and self.file_class is not None:
             if side == 'base':
-                sha = self.file_class.base_commit_sha_
+                sha = getattr(self.file_class, 'base_commit_sha_', None)
             else:
-                sha = self.file_class.modi_commit_sha_
+                sha = getattr(self.file_class, 'modi_commit_sha_', None)
             if sha:
                 sha = sha[:7]
             else:
-                sha = 'committed'
+                sha = 'uncommitted'
 
         if note_mgr.take_note(filename, side, [line_number], [line_text], is_commit_msg=False, sha=sha):
             self.mark_noted_line(side, line_number)
@@ -870,17 +870,17 @@ class DiffViewer(QWidget, TabContentBase):
         if not selected_line_nums:
             return
 
-        # Get SHA from file_class if available
+        # Get SHA from file_class if available (only FileButton has these, not FileButtonUnstaged)
         sha = None
         if hasattr(self, 'file_class') and self.file_class is not None:
             if side == 'base':
-                sha = self.file_class.base_commit_sha_
+                sha = getattr(self.file_class, 'base_commit_sha_', None)
             else:
-                sha = self.file_class.modi_commit_sha_
+                sha = getattr(self.file_class, 'modi_commit_sha_', None)
             if sha:
                 sha = sha[:7]
             else:
-                sha = 'committed'
+                sha = 'uncommitted'
 
         # Take note using NoteManager
         if note_mgr.take_note(filename, side, selected_line_nums, selected_line_texts, is_commit_msg=False, sha=sha):

@@ -419,14 +419,35 @@ class SearchResultDialog(QDialog):
             if isinstance(tab_widget, CommitMessageTab):
                 # Commit message tab - include SHA if available
                 if tab_widget.sha:
-                    display_path = f"Commit Message ({tab_widget.sha[:7]})"
+                    display_path = f"({tab_widget.sha[:7]}, commit_msg): Commit Message"
                 else:
-                    display_path = "Commit Message"
+                    display_path = "(commit_msg): Commit Message"
             elif isinstance(tab_widget, ReviewNotesTab):
                 display_path = "Review Notes"
             else:
-                # Diff viewer - use the file_class display_path
-                display_path = tab_widget.file_class.display_path()
+                # Diff viewer - include SHA and side in format matching notes
+                file_path = tab_widget.file_class.display_path()
+                side_label = 'base' if source_type == 'base' else 'modi'
+
+                # Get SHA for this side (only FileButton has these, not FileButtonUnstaged)
+                sha = None
+                file_class = tab_widget.file_class
+                has_sha_attrs = hasattr(file_class, 'base_commit_sha_')
+
+                if has_sha_attrs:
+                    # Committed mode (FileButton)
+                    if source_type == 'base':
+                        sha = file_class.base_commit_sha_
+                    else:
+                        sha = file_class.modi_commit_sha_
+
+                    if sha:
+                        display_path = f"({sha[:7]}, {side_label}): {file_path}"
+                    else:
+                        display_path = f"(committed, {side_label}): {file_path}"
+                else:
+                    # Uncommitted mode (FileButtonUnstaged) - no SHA prefix
+                    display_path = f"({side_label}): {file_path}"
 
             # Determine color based on source type
             if source_type == 'base':
