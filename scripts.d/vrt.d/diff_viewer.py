@@ -792,72 +792,98 @@ class DiffViewer(QWidget, TabContentBase):
         # Use NoteManager to take note
         if not hasattr(self, 'tab_manager') or not self.tab_manager:
             return
-        
+
         note_mgr = self.tab_manager.note_mgr
-        
+
         text_widget = self.base_text if side == 'base' else self.modified_text
         line_nums = self.base_line_nums if side == 'base' else self.modified_line_nums
         display_lines = self.base_display if side == 'base' else self.modified_display
-        filename = self.base_file if side == 'base' else self.modified_file
-        
+        # Use display_path instead of raw file path for note recording
+        filename = self.base_display_path if side == 'base' else self.modi_display_path
+
         cursor = text_widget.cursorForPosition(event.pos())
         line_idx = cursor.blockNumber()
-        
+
         if line_idx >= len(line_nums) or line_nums[line_idx] is None:
             return
-        
+
         # Take note using NoteManager
         line_number = line_nums[line_idx]
         line_text = display_lines[line_idx]
-        
-        if note_mgr.take_note(filename, side, [line_number], [line_text], is_commit_msg=False):
+
+        # Get SHA from file_class if available
+        sha = None
+        if hasattr(self, 'file_class') and self.file_class is not None:
+            if side == 'base':
+                sha = self.file_class.base_commit_sha_
+            else:
+                sha = self.file_class.modi_commit_sha_
+            if sha:
+                sha = sha[:7]
+            else:
+                sha = 'committed'
+
+        if note_mgr.take_note(filename, side, [line_number], [line_text], is_commit_msg=False, sha=sha):
             self.mark_noted_line(side, line_number)
             self.note_count += 1
             self.update_status()
-    
+
     def take_note(self, side):
         # Use NoteManager to take note
         if not hasattr(self, 'tab_manager') or not self.tab_manager:
             return
-        
+
         note_mgr = self.tab_manager.note_mgr
-        
+
         text_widget = self.base_text if side == 'base' else self.modified_text
         line_nums = self.base_line_nums if side == 'base' else self.modified_line_nums
         display_lines = self.base_display if side == 'base' else self.modified_display
-        filename = self.base_file if side == 'base' else self.modified_file
-        
+        # Use display_path instead of raw file path for note recording
+        filename = self.base_display_path if side == 'base' else self.modi_display_path
+
         cursor = text_widget.textCursor()
         if not cursor.hasSelection():
             return
-        
+
         selection_start = cursor.selectionStart()
         selection_end = cursor.selectionEnd()
-        
+
         doc = text_widget.document()
         start_block = doc.findBlock(selection_start)
         end_block = doc.findBlock(selection_end)
-        
+
         start_block_num = start_block.blockNumber()
         end_block_num = end_block.blockNumber()
-        
+
         if selection_end == end_block.position():
             end_block_num -= 1
-        
+
         # Collect line numbers and texts
         selected_line_nums = []
         selected_line_texts = []
-        
+
         for i in range(start_block_num, end_block_num + 1):
             if i < len(line_nums) and line_nums[i] is not None:
                 selected_line_nums.append(line_nums[i])
                 selected_line_texts.append(display_lines[i])
-        
+
         if not selected_line_nums:
             return
-        
+
+        # Get SHA from file_class if available
+        sha = None
+        if hasattr(self, 'file_class') and self.file_class is not None:
+            if side == 'base':
+                sha = self.file_class.base_commit_sha_
+            else:
+                sha = self.file_class.modi_commit_sha_
+            if sha:
+                sha = sha[:7]
+            else:
+                sha = 'committed'
+
         # Take note using NoteManager
-        if note_mgr.take_note(filename, side, selected_line_nums, selected_line_texts, is_commit_msg=False):
+        if note_mgr.take_note(filename, side, selected_line_nums, selected_line_texts, is_commit_msg=False, sha=sha):
             for line_num in selected_line_nums:
                 self.mark_noted_line(side, line_num)
             self.note_count += 1

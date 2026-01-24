@@ -197,7 +197,11 @@ class CommitMessageTab(QWidget, TabContentBase):
 
         note_mgr = tab_widget.note_mgr
         line_range = (start_line, end_line + 1)
-        if note_mgr.take_note("Commit Message", "commit_msg", line_range, selected_texts, is_commit_msg=True):
+
+        # Get short SHA for note header
+        sha = self.sha[:7] if self.sha else None
+
+        if note_mgr.take_note(None, "commit_msg", line_range, selected_texts, is_commit_msg=True, sha=sha):
             pass
 
     def reload(self):
@@ -533,16 +537,11 @@ class CommitMsgHandler:
         # Split into lines for note taking
         line_texts = selected_text.split('\n')
 
-        # Determine the source label and key for the note
-        if sha:
-            source_label = f"Commit Message ({sha[:7]})"
-            source_key = f'commit_msg_{sha}'
-        else:
-            source_label = "Commit Message"
-            source_key = 'commit_msg'
+        # Get short SHA for note header
+        short_sha = sha[:7] if sha else None
 
         # Take note using NoteManager with line range
-        if note_mgr.take_note(source_label, source_key, (start_line, end_line), line_texts, is_commit_msg=True):
+        if note_mgr.take_note(None, "commit_msg", (start_line, end_line), line_texts, is_commit_msg=True, sha=short_sha):
             # Apply permanent yellow background to noted text
             # Create new cursor with saved selection
             highlight_cursor = text_widget.textCursor()

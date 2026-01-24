@@ -632,17 +632,18 @@ class NoteManager:
                     # File might not exist yet, watcher will pick it up later
                     pass
     
-    def take_note(self, file_path, side, line_numbers, line_texts, is_commit_msg=False):
+    def take_note(self, file_path, side, line_numbers, line_texts, is_commit_msg=False, sha=None):
         """
         Write a note to the note file with standardized format.
-        
+
         Args:
-            file_path: Source file path (or "Commit Message")
+            file_path: Source file path (display path for files, ignored for commit_msg)
             side: 'base', 'modified', or 'commit_msg'
             line_numbers: List of line numbers, or (start, end) tuple for commit message
             line_texts: List of line text content
             is_commit_msg: True if this is from commit message
-            
+            sha: Commit SHA (7 chars) for the header prefix, or None
+
         Returns:
             True if note was taken, False if cancelled
         """
@@ -652,35 +653,43 @@ class NoteManager:
             note_file = self.prompt_for_note_file()
             if not note_file:
                 return False
-        
+
         try:
             with open(note_file, 'a', encoding='utf-8') as f:
                 if is_commit_msg:
-                    # Commit message format with line range [start, end)
+                    # Commit message format: (SHA, commit_msg): Commit Message:[start,end)
                     start_line, end_line = line_numbers
-                    f.write(f"> (commit_msg): Commit Message:[{start_line},{end_line})\n")
+                    if sha:
+                        prefix = f"({sha}, commit_msg)"
+                    else:
+                        prefix = "(commit_msg)"
+                    f.write(f"> {prefix}: Commit Message:[{start_line},{end_line})\n")
                     for line_text in line_texts:
                         f.write(f">   {line_text}\n")
                 else:
-                    # Source file format with range
-                    prefix = '(base)' if side == 'base' else '(modi)'
+                    # Source file format: (SHA, base/modi): filename:[start,end)
+                    side_label = 'base' if side == 'base' else 'modi'
                     clean_filename = extract_display_path(file_path)
-                    
+
                     # Calculate range [start, end)
                     start_line = line_numbers[0]
                     end_line = line_numbers[-1] + 1
-                    
+
+                    if sha:
+                        prefix = f"({sha}, {side_label})"
+                    else:
+                        prefix = f"({side_label})"
                     f.write(f"> {prefix}: {clean_filename}:[{start_line},{end_line})\n")
                     for line_num, line_text in zip(line_numbers, line_texts):
                         f.write(f">   {line_num}: {line_text}\n")
-                
+
                 f.write('>\n\n\n')
-            
+
             # Switch to notes tab immediately after taking note
             self.on_notes_clicked()
 
             return True
-            
+
         except Exception as e:
             QMessageBox.warning(self.tab_widget, 'Error Taking Note',
                               f'Could not write to note file:\n{e}')
@@ -710,10 +719,12 @@ class NoteManager:
         line_num = line_nums[line_idx]
         if line_num is None or line_num not in noted_lines:
             return None
-        
+
         # This line has a note - return the action
-        return lambda: self.jump_to_note(viewer.base_file if side == 'base' else viewer.modified_file,
-                                         side, line_num, viewer)
+        # Use display_path to match what was stored in the note
+        return lambda: self.jump_to_note(
+            viewer.base_display_path if side == 'base' else viewer.modi_display_path,
+            side, line_num, viewer)
     
     def show_jump_to_note_menu_commit_msg(self, pos, text_widget):
         """

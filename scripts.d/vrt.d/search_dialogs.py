@@ -409,10 +409,25 @@ class SearchResultDialog(QDialog):
         
         # Populate results list
         for tab_index, tab_title, source_type, line_num, line_idx, line_text, char_pos in results:
-            # Get the tab widget and its file_class (FileButton)
+            # Get the tab widget
             tab_widget = self.parent_tab_widget.tab_widget.widget(tab_index)
-            display_path = tab_widget.file_class.tab_relpath()
-            
+
+            # Determine display_path based on tab type
+            from commit_msg_handler import CommitMessageTab
+            from note_manager import ReviewNotesTab
+
+            if isinstance(tab_widget, CommitMessageTab):
+                # Commit message tab - include SHA if available
+                if tab_widget.sha:
+                    display_path = f"Commit Message ({tab_widget.sha[:7]})"
+                else:
+                    display_path = "Commit Message"
+            elif isinstance(tab_widget, ReviewNotesTab):
+                display_path = "Review Notes"
+            else:
+                # Diff viewer - use the file_class display_path
+                display_path = tab_widget.file_class.display_path()
+
             # Determine color based on source type
             if source_type == 'base':
                 color = '#2a70c9'  # Darker blue
@@ -422,12 +437,9 @@ class SearchResultDialog(QDialog):
                 color = '#6a0dad'  # Purple for review notes
             else:  # commit_msg
                 color = '#8b4513'  # Saddle brown
-            
+
             # Format location prefix
-            if self.search_all_tabs:
-                location_prefix = f'<span style="color: {color};">[{display_path}:{line_num}]</span>'
-            else:
-                location_prefix = f'<span style="color: {color};">[{display_path}:{line_num}]</span>'
+            location_prefix = f'<span style="color: {color};">[{display_path}:{line_num}]</span>'
             
             item = QListWidgetItem()
             
