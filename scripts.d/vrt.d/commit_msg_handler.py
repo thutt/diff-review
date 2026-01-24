@@ -1,4 +1,4 @@
-# Copyright (c) 2025  Logic Magicians Software (Taylor Hutt).
+# Copyright (c) 2025, 2026  Logic Magicians Software (Taylor Hutt).
 # All Rights Reserved.
 # Licensed under Gnu GPL V3.
 #
@@ -37,6 +37,7 @@ class CommitMessageTab(QWidget, TabContentBase):
         super().__init__()
         self.commit_msg_handler = commit_msg_handler
         self.sha = sha
+        self.revision_index_ = None  # Set by tab_manager for multi-revision mode
         self.current_font_size = 12
 
         # Create main layout
@@ -109,10 +110,13 @@ class CommitMessageTab(QWidget, TabContentBase):
             }
         """)
 
-        # Create status bar with bookmark count
+        # Create status bar with revision range and bookmark count
         status_widget = QWidget()
         status_layout = QHBoxLayout(status_widget)
         status_layout.setContentsMargins(5, 2, 5, 2)
+
+        self.revision_range_label = QLabel("")
+        status_layout.addWidget(self.revision_range_label)
 
         self.bookmarks_label = QLabel("Bookmarks: 0")
         self.bookmarks_label.setStyleSheet("color: #5c4a3a; font-weight: bold;")
@@ -123,6 +127,15 @@ class CommitMessageTab(QWidget, TabContentBase):
         # Add widgets to layout
         layout.addWidget(self.text_widget)
         layout.addWidget(status_widget)
+
+    def set_revision_index(self, index):
+        """Set the revision index for this commit message and update the status bar.
+
+        Args:
+            index: The 1-based index of this commit in the revision list
+        """
+        self.revision_index_ = index
+        self.revision_range_label.setText(f"Range: [{index}]")
 
     def update_status(self):
         """Update status bar with current bookmark count"""
@@ -409,6 +422,19 @@ class CommitMsgHandler:
 
         # Store reference to tab for status updates
         self.commit_msg_tab = tab_widget
+
+        # Set revision index for multi-revision mode
+        if (sha is not None
+                and self.tab_widget.review_mode_ == "committed"
+                and self.tab_widget.dossier_ is not None
+                and len(self.tab_widget.dossier_["order"]) >= 2):
+            order = self.tab_widget.dossier_["order"]
+            try:
+                # Find index in order list, add 1 for 1-based display
+                idx = order.index(sha)
+                tab_widget.set_revision_index(idx + 1)
+            except ValueError:
+                pass  # SHA not in order list
 
         # Set up context menu
         tab_widget.text_widget.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)

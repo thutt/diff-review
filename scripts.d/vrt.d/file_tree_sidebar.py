@@ -227,6 +227,7 @@ class CommitListWidget(QWidget):
         self.tab_widget = tab_widget
         self.commit_items = {}  # SHA -> QListWidgetItem mapping
         self.sha_list = []  # Ordered list of SHAs
+        self.committed_label = None  # Created in set_commits()
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -303,7 +304,7 @@ class CommitListWidget(QWidget):
             commit_summaries_by_sha = {}
 
         # Add "Committed" label at index 0 (non-clickable)
-        committed_label = QLabel("Committed")
+        committed_label = QLabel("0: Committed")
         committed_label.setStyleSheet("""
             QLabel {
                 padding: 4px 8px;
@@ -314,12 +315,12 @@ class CommitListWidget(QWidget):
         self.list_layout.addWidget(committed_label)
         self.committed_label = committed_label
 
-        for sha, rel_path in commit_msgs_by_sha.items():
+        for idx, (sha, rel_path) in enumerate(commit_msgs_by_sha.items(), start=1):
             summary = commit_summaries_by_sha.get(sha, "")
             if summary:
-                display_text = f"{sha[:7]}: {summary}"
+                display_text = f"{idx}: {sha[:7]}: {summary}"
             else:
-                display_text = sha[:7]
+                display_text = f"{idx}: {sha[:7]}"
             label = ClickableCommitLabel(display_text, sha)
             label.clicked.connect(self._on_label_clicked)
             self.list_layout.addWidget(label)
@@ -406,6 +407,76 @@ class CommitListWidget(QWidget):
 
         label = self.commit_items[sha]
         label.set_active(is_active)
+
+    def highlight_revision_range(self, base_idx, modi_idx):
+        """Set bold on commits within the given revision range.
+
+        Args:
+            base_idx: Base revision index (-1 for Committed, 0+ for commits)
+            modi_idx: Modified revision index (0+ for commits)
+        """
+        if self.committed_label is None:
+            return
+
+        # Clear all bold first
+        self.clear_all_bold()
+
+        # Bold the Committed label if base_idx is -1 (index 0 in display)
+        if base_idx == -1:
+            font = self.committed_label.font()
+            font.setBold(True)
+            self.committed_label.setFont(font)
+
+        # Bold commits in range [max(0, base_idx), modi_idx]
+        # base_idx of -1 means start from 0, base_idx of 0+ means start from that commit
+        start = max(0, base_idx)
+        for i, sha in enumerate(self.sha_list):
+            if start <= i <= modi_idx:
+                label = self.commit_items[sha]
+                font = label.font()
+                font.setBold(True)
+                label.setFont(font)
+
+    def highlight_single_commit(self, commit_index):
+        """Set bold on a single commit by its 1-based index.
+
+        Args:
+            commit_index: 1-based index (0 = Committed, 1+ = commits)
+        """
+        if self.committed_label is None:
+            return
+
+        self.clear_all_bold()
+
+        if commit_index == 0:
+            # Bold Committed label
+            font = self.committed_label.font()
+            font.setBold(True)
+            self.committed_label.setFont(font)
+        elif 1 <= commit_index <= len(self.sha_list):
+            # Bold the specific commit (convert to 0-based index)
+            sha = self.sha_list[commit_index - 1]
+            label = self.commit_items[sha]
+            font = label.font()
+            font.setBold(True)
+            label.setFont(font)
+
+    def clear_all_bold(self):
+        """Clear bold from all commit labels."""
+        if self.committed_label is None:
+            return
+
+        # Clear Committed label
+        font = self.committed_label.font()
+        font.setBold(False)
+        self.committed_label.setFont(font)
+
+        # Clear all commit labels
+        for sha in self.sha_list:
+            label = self.commit_items[sha]
+            font = label.font()
+            font.setBold(False)
+            label.setFont(font)
 
     def clear(self):
         """Clear all commits from the list."""
@@ -949,7 +1020,28 @@ class FileTreeSidebar(QWidget):
                 else:
                     item.setForeground(0, Qt.GlobalColor.blue)
                 break
-    
+
+    def highlight_commits_for_range(self, base_idx, modi_idx):
+        """Highlight commits in the given revision range with bold font.
+
+        Args:
+            base_idx: Base revision index (-1 for Committed)
+            modi_idx: Modified revision index
+        """
+        self.commit_list_widget.highlight_revision_range(base_idx, modi_idx)
+
+    def highlight_single_commit(self, commit_index):
+        """Highlight a single commit by its 1-based index.
+
+        Args:
+            commit_index: 1-based index (0 = Committed, 1+ = commits)
+        """
+        self.commit_list_widget.highlight_single_commit(commit_index)
+
+    def clear_commit_highlighting(self):
+        """Clear all bold highlighting from commits."""
+        self.commit_list_widget.clear_all_bold()
+
     def update_file_label(self, file_class):
         """Update file label (e.g., after stats are loaded)"""
         if file_class not in self.file_items:

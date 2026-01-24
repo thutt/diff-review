@@ -91,6 +91,11 @@ class FileButton(FileButtonBase): # Committed & not-unstaged uncommited.
         # to enable walking the revision chain. Set by _rebuild_file_list_for_revision_range.
         self.original_base_key_  = None
 
+        # Commit SHAs for display. Set by _rebuild_file_list_for_revision_range.
+        self.base_commit_sha_    = None  # None means "Committed" (before first commit)
+        self.modi_commit_sha_    = None
+        self.modi_revision_idx_  = None  # 0-based index of revision that modified this file
+
     def display_path(self):
         return self.modi_disp_path_
 

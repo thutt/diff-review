@@ -76,6 +76,8 @@ class DiffViewer(QWidget, TabContentBase):
         self._needs_color_refresh = False  # Set by tab_manager for deferred color updates
         self._needs_staged_mode_reload = False  # Set when staged diff mode changes
         self.staged_diff_mode = None  # Diff mode for unstaged files (set by tab_manager)
+        self.revision_range_ = None  # (base_idx, modi_idx) for committed mode multi-revision
+        self.revision_index_ = None  # Single revision index that modified this file
 
         self.current_font_size = 12  # Default font size
         
@@ -174,6 +176,7 @@ class DiffViewer(QWidget, TabContentBase):
         main_layout.addWidget(self.h_scrollbar)
         
         status_layout = QHBoxLayout()
+        self.revision_range_label = QLabel("")
         self.region_label = QLabel("Region: 0 of 0")
         self.highlighting_label = QLabel("")
         self.highlighting_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -182,6 +185,7 @@ class DiffViewer(QWidget, TabContentBase):
         self.bookmarks_label = QLabel("Bookmarks: 0")
         self.notes_label = QLabel("Notes: 0")
         
+        status_layout.addWidget(self.revision_range_label)
         status_layout.addWidget(self.region_label)
         status_layout.addStretch()
         status_layout.addWidget(self.highlighting_label)
@@ -235,14 +239,51 @@ class DiffViewer(QWidget, TabContentBase):
         self.staged_diff_mode = mode
 
         if mode == generate_viewer.DIFF_MODE_BASE_MODI:
-            self.base_type_label.setText("Base (HEAD)")
+            self.base_type_label.setText("Base (Committed)")
             self.modified_type_label.setText("Modified (Working)")
+            self.revision_range_label.setText("Range: [Committed / Working]")
         elif mode == generate_viewer.DIFF_MODE_BASE_STAGE:
-            self.base_type_label.setText("Base (HEAD)")
+            self.base_type_label.setText("Base (Committed)")
             self.modified_type_label.setText("Modified (Staged)")
+            self.revision_range_label.setText("Range: [Committed / Staged]")
         elif mode == generate_viewer.DIFF_MODE_STAGE_MODI:
             self.base_type_label.setText("Base (Staged)")
             self.modified_type_label.setText("Modified (Working)")
+            self.revision_range_label.setText("Range: [Staged / Working]")
+
+    def set_revision_range(self, base_idx, modi_idx):
+        """Set the revision range for this viewer (used for commit highlighting).
+
+        Args:
+            base_idx: Base revision index (-1 for Committed)
+            modi_idx: Modified revision index
+        """
+        self.revision_range_ = (base_idx, modi_idx)
+
+    def set_revision_index(self, revision_idx):
+        """Set the single revision index that modified this file and update status bar.
+
+        Args:
+            revision_idx: 0-based revision index
+        """
+        self.revision_index_ = revision_idx
+        # Display uses 1-based indexing for user display
+        display_idx = revision_idx + 1
+        self.revision_range_label.setText(f"Revision: [{display_idx}]")
+
+    def set_commit_shas(self, base_sha, modi_sha):
+        """Set the commit SHAs for display in the top labels.
+
+        Args:
+            base_sha: SHA of the base commit (None for "Committed")
+            modi_sha: SHA of the modified commit
+        """
+        if base_sha is None:
+            self.base_type_label.setText("Base (Committed)")
+        else:
+            self.base_type_label.setText(f"Base ({base_sha[:7]})")
+        if modi_sha:
+            self.modified_type_label.setText(f"Modified ({modi_sha[:7]})")
 
     def add_line(self, base, modi):
         base_text = base.line_.rstrip('\n') if hasattr(base, 'line_') else ''

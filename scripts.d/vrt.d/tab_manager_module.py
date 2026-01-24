@@ -770,7 +770,7 @@ class DiffViewerTabWidget(QMainWindow):
             # Verify tab still exists (might have been closed)
             if 0 <= tab_index < self.tab_widget.count():
                 widget = self.tab_widget.widget(tab_index)
-                if isinstance(widget, DiffViewer) and widget.file_class == file_class:
+                if isinstance(widget, DiffViewer):
                     # Tab exists, switch to it
                     self.tab_widget.setCurrentIndex(tab_index)
                     return
@@ -842,6 +842,22 @@ class DiffViewerTabWidget(QMainWindow):
             if isinstance(file_class, generate_viewer.FileButtonUnstaged):
                 diff_viewer.set_staged_diff_mode(self.staged_diff_mode_)
 
+        # Set revision range for multi-revision committed mode
+        if (self.review_mode_ == "committed"
+                and self.dossier_ is not None
+                and len(self.dossier_["order"]) >= 2):
+            diff_viewer.set_revision_range(self.revision_base_idx_,
+                                           self.revision_modi_idx_)
+
+        # Set commit SHAs for committed mode (top labels)
+        if (self.review_mode_ == "committed"
+                and file_class is not None
+                and isinstance(file_class, generate_viewer.FileButton)):
+            diff_viewer.set_commit_shas(file_class.base_commit_sha_,
+                                        file_class.modi_commit_sha_)
+            if file_class.modi_revision_idx_ is not None:
+                diff_viewer.set_revision_index(file_class.modi_revision_idx_)
+
         # Switch to new tab (skip during bulk loading to avoid visual slowdown)
         if not self._bulk_loading:
             self.tab_widget.setCurrentIndex(index)
@@ -862,6 +878,7 @@ class DiffViewerTabWidget(QMainWindow):
 
         # Update button states immediately
         self.update_button_states()
+        self.update_commit_highlighting()
 
         # If this is the first tab, apply focus tinting now that we have content
         if self.tab_widget.count() == 1:
@@ -959,6 +976,7 @@ class DiffViewerTabWidget(QMainWindow):
 
         self.update_button_states()
         self.update_view_menu_states()
+        self.update_commit_highlighting()
 
         # Track last content tab if in content mode
         if self.focus_mode == 'content' and index >= 0:
@@ -999,6 +1017,36 @@ class DiffViewerTabWidget(QMainWindow):
 
         # Auto-reload is always enabled (applies globally)
         # Cycle Stats is always enabled (applies globally)
+
+    def update_commit_highlighting(self):
+        """Update commit highlighting in sidebar based on current tab's revision."""
+        if self.review_mode_ != "committed":
+            return
+        if self.dossier_ is None or len(self.dossier_["order"]) < 2:
+            return
+
+        current_widget = self.tab_widget.currentWidget()
+
+        # If ReviewNotesTab is selected, clear all highlighting
+        if isinstance(current_widget, ReviewNotesTabBase):
+            self.sidebar_widget.clear_commit_highlighting()
+            return
+
+        # If DiffViewer with revision_index_, highlight that single commit
+        if isinstance(current_widget, DiffViewer):
+            if current_widget.revision_index_ is not None:
+                # highlight_single_commit expects 1-based index
+                self.sidebar_widget.highlight_single_commit(current_widget.revision_index_ + 1)
+                return
+
+        # If CommitMessageTab with revision_index_, highlight that single commit
+        if isinstance(current_widget, CommitMessageTab):
+            if current_widget.revision_index_ is not None:
+                self.sidebar_widget.highlight_single_commit(current_widget.revision_index_)
+                return
+
+        # Default: clear highlighting
+        self.sidebar_widget.clear_commit_highlighting()
 
     def update_button_states(self):
         """Update all item states in tree view based on open tabs and currently selected tab"""
@@ -1292,6 +1340,23 @@ class DiffViewerTabWidget(QMainWindow):
             # Store the original base key for range resolution
             file_inst.original_base_key_ = base_key
 
+            # Store commit SHAs for display
+            # Modi SHA is the revision containing this file change
+            revision_idx = file_info["revision_idx"]
+            file_inst.modi_commit_sha_ = order[revision_idx]
+            file_inst.modi_revision_idx_ = revision_idx
+
+            # Base SHA: find which revision has base_key as its modi for this file
+            # If not found, it's from "Committed" (before first tracked revision)
+            file_inst.base_commit_sha_ = None
+            for rev_sha, rev in revisions.items():
+                for f in rev["files"]:
+                    if f["modi"] == base_key:
+                        file_inst.base_commit_sha_ = rev_sha
+                        break
+                if file_inst.base_commit_sha_ is not None:
+                    break
+
             self.add_file(file_inst)
 
         # Update Open All button count
@@ -1476,6 +1541,7 @@ class DiffViewerTabWidget(QMainWindow):
 
             # Update button states after closing
             self.update_button_states()
+            self.update_commit_highlighting()
 
             # Give focus to the new current tab (if any remain)
             if self.tab_widget.count() > 0:
