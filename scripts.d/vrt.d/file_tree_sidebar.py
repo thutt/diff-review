@@ -176,7 +176,6 @@ class ClickableCommitLabel(QLabel):
         self.setStyleSheet("""
             QLabel {
                 padding: 4px 8px;
-                color: darkred;
             }
             QLabel:hover {
                 background-color: #e0e0e0;
@@ -194,7 +193,6 @@ class ClickableCommitLabel(QLabel):
             self.setStyleSheet("""
                 QLabel {
                     padding: 4px 8px;
-                    color: darkred;
                     background-color: #e6f0ff;
                 }
                 QLabel:hover {
@@ -205,7 +203,6 @@ class ClickableCommitLabel(QLabel):
             self.setStyleSheet("""
                 QLabel {
                     padding: 4px 8px;
-                    color: darkred;
                 }
                 QLabel:hover {
                     background-color: #e0e0e0;
@@ -304,7 +301,7 @@ class CommitListWidget(QWidget):
             commit_summaries_by_sha = {}
 
         # Add "Committed" label at index 0 (non-clickable)
-        committed_label = QLabel("0: Committed")
+        committed_label = QLabel("  0: Committed")
         committed_label.setStyleSheet("""
             QLabel {
                 padding: 4px 8px;
@@ -312,16 +309,26 @@ class CommitListWidget(QWidget):
                 font-style: italic;
             }
         """)
+        font = committed_label.font()
+        font.setFamily("Courier")
+        committed_label.setFont(font)
         self.list_layout.addWidget(committed_label)
         self.committed_label = committed_label
 
         for idx, (sha, rel_path) in enumerate(commit_msgs_by_sha.items(), start=1):
             summary = commit_summaries_by_sha.get(sha, "")
+            # Format index as right-justified 3 characters
+            idx_str = f"{idx:3d}"
+            sha_str = sha[:7]
             if summary:
-                display_text = f"{idx}: {sha[:7]}: {summary}"
+                display_text = f"{idx_str}: {sha_str}: {summary}"
             else:
-                display_text = f"{idx}: {sha[:7]}"
+                display_text = f"{idx_str}: {sha_str}"
             label = ClickableCommitLabel(display_text, sha)
+            # Set monospace font for consistent alignment
+            font = label.font()
+            font.setFamily("Courier")
+            label.setFont(font)
             label.clicked.connect(self._on_label_clicked)
             self.list_layout.addWidget(label)
             self.commit_items[sha] = label

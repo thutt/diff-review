@@ -1362,6 +1362,9 @@ class DiffViewerTabWidget(QMainWindow):
         # Update Open All button count
         self.sidebar_widget.update_open_all_text(len(self.file_classes))
 
+        # Restore commit highlighting after rebuild (the current tab's commit should stay bold)
+        self.update_commit_highlighting()
+
     def _create_file_button_options(self):
         """Create an options-like object for FileButton construction."""
         class Options:
@@ -2236,6 +2239,7 @@ class DiffViewerTabWidget(QMainWindow):
                 self.focus_mode = 'content'
                 self.update_focus_tinting()
                 self.update_status_focus_indicator()
+                self.update_commit_highlighting()
 
         if event.type() == event.Type.KeyPress:
             # Only process events for widgets that are part of our application
@@ -2466,6 +2470,7 @@ class DiffViewerTabWidget(QMainWindow):
                 current_widget.focus_content()
             # Track which content tab is focused
             self.last_content_tab_index = self.tab_widget.currentIndex()
+            self.update_commit_highlighting()
         else:
             return
 
