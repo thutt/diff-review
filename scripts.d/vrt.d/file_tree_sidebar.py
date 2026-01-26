@@ -10,7 +10,8 @@ in the sidebar, with collapsible directory nodes.
 """
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QTreeWidget, QTreeWidgetItem,
                               QPushButton, QApplication, QSplitter,
-                              QLabel, QFrame, QHBoxLayout, QScrollArea, QLayout)
+                              QLabel, QFrame, QHBoxLayout, QLayout, QScrollArea,
+                              QSizePolicy)
 from PyQt6.QtCore import Qt, pyqtSignal, QRect, QPoint
 from PyQt6.QtGui import QFont, QColor, QPainter, QBrush, QPen
 import color_palettes
@@ -173,14 +174,9 @@ class ClickableCommitLabel(QLabel):
         super().__init__(text, parent)
         self.sha = sha
         self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.setStyleSheet("""
-            QLabel {
-                padding: 4px 8px;
-            }
-            QLabel:hover {
-                background-color: #e0e0e0;
-            }
-        """)
+        self._in_range = False
+        self._selected = False
+        self._update_style()
 
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
@@ -189,7 +185,25 @@ class ClickableCommitLabel(QLabel):
 
     def set_in_range(self, in_range):
         """Update background based on whether commit is in selected range."""
-        if in_range:
+        self._in_range = in_range
+        self._update_style()
+
+    def set_selected(self, selected):
+        """Update background based on whether commit is keyboard-selected."""
+        self._selected = selected
+        self._update_style()
+
+    def _update_style(self):
+        """Update stylesheet based on current state."""
+        if self._selected:
+            self.setStyleSheet("""
+                QLabel {
+                    padding: 4px 8px;
+                    background-color: #0078d4;
+                    color: white;
+                }
+            """)
+        elif self._in_range:
             self.setStyleSheet("""
                 QLabel {
                     padding: 4px 8px;
@@ -216,15 +230,218 @@ class ClickableCommitLabel(QLabel):
         self.setFont(font)
 
 
+class CommitListContainer(QWidget):
+    """Container widget for commit labels with keyboard navigation."""
+
+    item_activated = pyqtSignal(str)  # Emits SHA when Enter/Space pressed
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self._labels = []  # List of all labels (index 0 = Committed, 1+ = commits)
+        self._selected_index = -1  # Currently selected index for keyboard nav
+        self._scroll_area = None  # Set by CommitListWidget
+        self._sidebar = None  # Set by CommitListWidget
+
+        self._layout = QVBoxLayout(self)
+        self._layout.setContentsMargins(0, 0, 0, 0)
+        self._layout.setSpacing(0)
+        self._layout.setSizeConstraint(QLayout.SizeConstraint.SetMinAndMaxSize)
+
+    def set_scroll_area(self, scroll_area):
+        """Set the scroll area for auto-scrolling on selection."""
+        self._scroll_area = scroll_area
+
+    def set_sidebar(self, sidebar):
+        """Set reference to parent sidebar for Tab focus switching."""
+        self._sidebar = sidebar
+
+    def focusNextPrevChild(self, next):
+        """Override to handle Tab/Shift+Tab for switching to file tree."""
+        if self._sidebar:
+            self._sidebar.switch_focus_to_file_tree()
+        return True  # Indicate we handled the focus change
+
+    def add_label(self, label):
+        """Add a label to the container."""
+        self._labels.append(label)
+        self._layout.addWidget(label)
+
+    def clear_labels(self):
+        """Remove all labels."""
+        self._selected_index = -1
+        while self._layout.count():
+            child = self._layout.takeAt(0)
+            if child.widget():
+                child.widget().deleteLater()
+        self._labels = []
+
+    def select_index(self, index):
+        """Select a label by index."""
+        if not self._labels:
+            return
+        # Clamp index
+        index = max(0, min(index, len(self._labels) - 1))
+        # Deselect old
+        if 0 <= self._selected_index < len(self._labels):
+            old_label = self._labels[self._selected_index]
+            if hasattr(old_label, 'set_selected'):
+                old_label.set_selected(False)
+        # Select new
+        self._selected_index = index
+        new_label = self._labels[self._selected_index]
+        if hasattr(new_label, 'set_selected'):
+            new_label.set_selected(True)
+        # Scroll vertically only to make visible
+        if self._scroll_area:
+            # Get current horizontal scroll position
+            h_bar = self._scroll_area.horizontalScrollBar()
+            old_h_value = h_bar.value()
+            # Ensure widget visible (this may change both scrollbars)
+            self._scroll_area.ensureWidgetVisible(new_label)
+            # Restore horizontal scroll position
+            h_bar.setValue(old_h_value)
+
+    def clear_selection(self):
+        """Clear keyboard selection completely (index and visual)."""
+        self._clear_visual_selection()
+        self._selected_index = -1
+
+    def _clear_visual_selection(self):
+        """Clear visual selection highlight without resetting index."""
+        if 0 <= self._selected_index < len(self._labels):
+            old_label = self._labels[self._selected_index]
+            if hasattr(old_label, 'set_selected'):
+                old_label.set_selected(False)
+
+    def _restore_visual_selection(self):
+        """Restore visual selection highlight for current index."""
+        if 0 <= self._selected_index < len(self._labels):
+            label = self._labels[self._selected_index]
+            if hasattr(label, 'set_selected'):
+                label.set_selected(True)
+
+    def keyPressEvent(self, event):
+        """Handle keyboard navigation."""
+        key = event.key()
+
+        # Vertical arrow navigation
+        if key == Qt.Key.Key_Up:
+            if self._selected_index > 0:
+                self.select_index(self._selected_index - 1)
+            elif self._selected_index == -1 and self._labels:
+                self.select_index(len(self._labels) - 1)
+            event.accept()
+            return
+
+        if key == Qt.Key.Key_Down:
+            if self._selected_index < len(self._labels) - 1:
+                self.select_index(self._selected_index + 1)
+            elif self._selected_index == -1 and self._labels:
+                self.select_index(0)
+            event.accept()
+            return
+
+        # Horizontal scrolling with left/right arrows
+        if key == Qt.Key.Key_Left:
+            if self._scroll_area:
+                h_bar = self._scroll_area.horizontalScrollBar()
+                h_bar.setValue(h_bar.value() - 20)
+            event.accept()
+            return
+
+        if key == Qt.Key.Key_Right:
+            if self._scroll_area:
+                h_bar = self._scroll_area.horizontalScrollBar()
+                h_bar.setValue(h_bar.value() + 20)
+            event.accept()
+            return
+
+        # Activate on Enter/Space
+        if key in (Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Space):
+            if 0 <= self._selected_index < len(self._labels):
+                label = self._labels[self._selected_index]
+                if hasattr(label, 'sha') and label.sha:
+                    self.item_activated.emit(label.sha)
+            event.accept()
+            return
+
+        # Let other keys propagate
+        super().keyPressEvent(event)
+
+    def focusInEvent(self, event):
+        """Restore selection when gaining focus."""
+        super().focusInEvent(event)
+        if self._selected_index == -1 and self._labels:
+            # First time focus - select first item
+            self._selected_index = 0
+        self._restore_visual_selection()
+
+    def focusOutEvent(self, event):
+        """Clear visual selection when losing focus, but retain index."""
+        super().focusOutEvent(event)
+        self._clear_visual_selection()
+
+
+class CommittedLabel(QLabel):
+    """Label for the 'Committed' item (not clickable, but can be selected)."""
+
+    def __init__(self, text, parent=None):
+        super().__init__(text, parent)
+        self.sha = None  # No SHA for Committed
+        self._in_range = False
+        self._selected = False
+        self._update_style()
+        font = self.font()
+        font.setFamily("Courier")
+        self.setFont(font)
+
+    def set_in_range(self, in_range):
+        self._in_range = in_range
+        self._update_style()
+
+    def set_selected(self, selected):
+        self._selected = selected
+        self._update_style()
+
+    def _update_style(self):
+        if self._selected:
+            self.setStyleSheet("""
+                QLabel {
+                    padding: 4px 8px;
+                    background-color: #0078d4;
+                    color: white;
+                    font-style: italic;
+                }
+            """)
+        elif self._in_range:
+            self.setStyleSheet("""
+                QLabel {
+                    padding: 4px 8px;
+                    color: #666;
+                    font-style: italic;
+                    background-color: #e6f0ff;
+                }
+            """)
+        else:
+            self.setStyleSheet("""
+                QLabel {
+                    padding: 4px 8px;
+                    color: #666;
+                    font-style: italic;
+                }
+            """)
+
+
 class CommitListWidget(QWidget):
     """Widget displaying commit messages in a scrollable list for revision range selection."""
 
     def __init__(self, tab_widget, parent=None):
         super().__init__(parent)
         self.tab_widget = tab_widget
-        self.commit_items = {}  # SHA -> QListWidgetItem mapping
+        self.commit_items = {}  # SHA -> ClickableCommitLabel mapping
         self.sha_list = []  # Ordered list of SHAs
-        self.committed_label = None  # Created in set_commits()
+        self.committed_label = None  # CommittedLabel for "Committed"
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -256,14 +473,13 @@ class CommitListWidget(QWidget):
         # Range slider on the left
         self.range_slider = VerticalRangeSlider()
         self.range_slider.range_changed.connect(self._on_range_changed)
+        self.range_slider.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         content_layout.addWidget(self.range_slider)
 
-        # Use a simple widget with vertical layout for commit items
-        self.list_container = QWidget()
-        self.list_layout = QVBoxLayout(self.list_container)
-        self.list_layout.setContentsMargins(0, 0, 0, 0)
-        self.list_layout.setSpacing(0)
-        self.list_layout.setSizeConstraint(QLayout.SizeConstraint.SetMinAndMaxSize)
+        # Container for commit labels with keyboard navigation
+        self.list_container = CommitListContainer()
+        self.list_container.item_activated.connect(self._on_item_activated)
+        self.list_container.set_scroll_area(scroll_area)
         content_layout.addWidget(self.list_container)
 
         scroll_area.setWidget(content_widget)
@@ -283,12 +499,8 @@ class CommitListWidget(QWidget):
         # Clear existing items
         self.commit_items.clear()
         self.sha_list = []
-
-        # Remove old labels from layout
-        while self.list_layout.count():
-            child = self.list_layout.takeAt(0)
-            if child.widget():
-                child.widget().deleteLater()
+        self.list_container.clear_labels()
+        self.committed_label = None
 
         if not commit_msgs_by_sha:
             self.header_label.setText("Commits (0)")
@@ -300,24 +512,12 @@ class CommitListWidget(QWidget):
         if commit_summaries_by_sha is None:
             commit_summaries_by_sha = {}
 
-        # Add "Committed" label at index 0 (non-clickable)
-        committed_label = QLabel("  0: Committed")
-        committed_label.setStyleSheet("""
-            QLabel {
-                padding: 4px 8px;
-                color: #666;
-                font-style: italic;
-            }
-        """)
-        font = committed_label.font()
-        font.setFamily("Courier")
-        committed_label.setFont(font)
-        self.list_layout.addWidget(committed_label)
-        self.committed_label = committed_label
+        # Add "Committed" label at index 0
+        self.committed_label = CommittedLabel("  0: Committed")
+        self.list_container.add_label(self.committed_label)
 
         for idx, (sha, rel_path) in enumerate(commit_msgs_by_sha.items(), start=1):
             summary = commit_summaries_by_sha.get(sha, "")
-            # Format index as right-justified 3 characters
             idx_str = f"{idx:3d}"
             sha_str = sha[:7]
             if summary:
@@ -325,12 +525,11 @@ class CommitListWidget(QWidget):
             else:
                 display_text = f"{idx_str}: {sha_str}"
             label = ClickableCommitLabel(display_text, sha)
-            # Set monospace font for consistent alignment
             font = label.font()
             font.setFamily("Courier")
             label.setFont(font)
             label.clicked.connect(self._on_label_clicked)
-            self.list_layout.addWidget(label)
+            self.list_container.add_label(label)
             self.commit_items[sha] = label
             self.sha_list.append(sha)
 
@@ -338,16 +537,10 @@ class CommitListWidget(QWidget):
         self.range_slider.set_count(len(self.sha_list) + 1)
         # Default range: Committed (0) to last commit (N)
         self.range_slider.set_range(0, len(self.sha_list))
+        self._update_range_highlighting()
 
     def set_range(self, low_idx, high_idx):
-        """Set the range selection on the slider.
-
-        Args:
-            low_idx, high_idx: Revision indices (0-based on commits).
-                               These are converted to slider indices (+1 for Committed).
-        """
-        # Convert revision indices to slider indices (add 1 for Committed at index 0)
-        # But if low_idx is -1, it means "Committed" (slider index 0)
+        """Set the range selection on the slider."""
         slider_low = low_idx + 1 if low_idx >= 0 else 0
         slider_high = high_idx + 1
         self.range_slider.set_range(slider_low, slider_high)
@@ -357,16 +550,22 @@ class CommitListWidget(QWidget):
         """Handle click on a commit label."""
         self.tab_widget.on_commit_msg_clicked(sha)
 
-    def _on_range_changed(self, low_idx, high_idx):
-        """Handle range slider change.
+    def _on_item_activated(self, sha):
+        """Handle keyboard activation of a commit."""
+        self.tab_widget.on_commit_msg_clicked(sha)
+        # Focus the text widget in the commit message tab (same as file tree click)
+        current_widget = self.tab_widget.tab_widget.currentWidget()
+        if current_widget:
+            current_widget.focus_content()
+            if self.tab_widget.focus_mode != 'content':
+                self.tab_widget.focus_mode = 'content'
+                self.tab_widget.last_content_tab_index = self.tab_widget.tab_widget.currentIndex()
+                self.tab_widget.update_focus_tinting()
+                self.tab_widget.update_status_focus_indicator()
 
-        Slider indices: 0 = Committed, 1..N = commits.
-        Revision indices passed to tab_widget: -1 = before first commit, 0..N-1 = commits.
-        """
+    def _on_range_changed(self, low_idx, high_idx):
+        """Handle range slider change."""
         self._update_range_highlighting()
-        # Convert slider indices to revision indices
-        # Slider 0 (Committed) -> revision -1 (before first commit)
-        # Slider 1..N -> revision 0..N-1
         rev_low = low_idx - 1
         rev_high = high_idx - 1
         self.tab_widget._set_revision_range(rev_low, rev_high)
@@ -376,66 +575,35 @@ class CommitListWidget(QWidget):
         low_idx, high_idx = self.range_slider.get_range()
 
         # Update Committed label highlighting (index 0)
-        if low_idx == 0:
-            self.committed_label.setStyleSheet("""
-                QLabel {
-                    padding: 4px 8px;
-                    color: #666;
-                    font-style: italic;
-                    background-color: #e6f0ff;
-                }
-            """)
-        else:
-            self.committed_label.setStyleSheet("""
-                QLabel {
-                    padding: 4px 8px;
-                    color: #666;
-                    font-style: italic;
-                }
-            """)
+        if self.committed_label:
+            self.committed_label.set_in_range(low_idx == 0)
 
         # Update commit labels (indices 1..N map to sha_list 0..N-1)
         for i, sha in enumerate(self.sha_list):
             label = self.commit_items[sha]
-            slider_idx = i + 1  # Offset by 1 for Committed
+            slider_idx = i + 1
             in_range = low_idx <= slider_idx <= high_idx
             label.set_in_range(in_range)
-
-    def _on_item_clicked(self, item):
-        """Handle click on a commit item."""
-        sha = item.data(Qt.ItemDataRole.UserRole)
-        if sha:
-            self.tab_widget.on_commit_msg_clicked(sha)
 
     def update_commit_state(self, sha, is_open, is_active):
         """Update visual state of a commit item."""
         if sha not in self.commit_items:
             return
-
         label = self.commit_items[sha]
         label.set_active(is_active)
 
     def highlight_revision_range(self, base_idx, modi_idx):
-        """Set bold on commits within the given revision range.
-
-        Args:
-            base_idx: Base revision index (-1 for Committed, 0+ for commits)
-            modi_idx: Modified revision index (0+ for commits)
-        """
+        """Set bold on commits within the given revision range."""
         if self.committed_label is None:
             return
 
-        # Clear all bold first
         self.clear_all_bold()
 
-        # Bold the Committed label if base_idx is -1 (index 0 in display)
         if base_idx == -1:
             font = self.committed_label.font()
             font.setBold(True)
             self.committed_label.setFont(font)
 
-        # Bold commits in range [max(0, base_idx), modi_idx]
-        # base_idx of -1 means start from 0, base_idx of 0+ means start from that commit
         start = max(0, base_idx)
         for i, sha in enumerate(self.sha_list):
             if start <= i <= modi_idx:
@@ -445,23 +613,17 @@ class CommitListWidget(QWidget):
                 label.setFont(font)
 
     def highlight_single_commit(self, commit_index):
-        """Set bold on a single commit by its 1-based index.
-
-        Args:
-            commit_index: 1-based index (0 = Committed, 1+ = commits)
-        """
+        """Set bold on a single commit by its 1-based index."""
         if self.committed_label is None:
             return
 
         self.clear_all_bold()
 
         if commit_index == 0:
-            # Bold Committed label
             font = self.committed_label.font()
             font.setBold(True)
             self.committed_label.setFont(font)
         elif 1 <= commit_index <= len(self.sha_list):
-            # Bold the specific commit (convert to 0-based index)
             sha = self.sha_list[commit_index - 1]
             label = self.commit_items[sha]
             font = label.font()
@@ -473,12 +635,10 @@ class CommitListWidget(QWidget):
         if self.committed_label is None:
             return
 
-        # Clear Committed label
         font = self.committed_label.font()
         font.setBold(False)
         self.committed_label.setFont(font)
 
-        # Clear all commit labels
         for sha in self.sha_list:
             label = self.commit_items[sha]
             font = label.font()
@@ -487,14 +647,10 @@ class CommitListWidget(QWidget):
 
     def clear(self):
         """Clear all commits from the list."""
-        # Remove old labels from layout
-        while self.list_layout.count():
-            child = self.list_layout.takeAt(0)
-            if child.widget():
-                child.widget().deleteLater()
-
+        self.list_container.clear_labels()
         self.commit_items.clear()
         self.sha_list = []
+        self.committed_label = None
         self.header_label.setText("Commits (0)")
         self.range_slider.set_count(0)
 
@@ -539,7 +695,6 @@ class CompareListWidget(QWidget):
         self.labels = []  # List of CompareLabel widgets
 
         # Prevent this widget from expanding vertically
-        from PyQt6.QtWidgets import QSizePolicy
         self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Maximum)
 
         layout = QVBoxLayout(self)
@@ -615,13 +770,22 @@ class CompareListWidget(QWidget):
 class FileTreeWidget(QTreeWidget):
     """Custom tree widget that handles Space key like Enter"""
 
-    def keyPressEvent(self, event):
-        """Handle Space and Enter keys to activate current item, block Tab navigation"""
-        # Block Tab and Shift+Tab to prevent focus navigation
-        if event.key() == Qt.Key.Key_Tab:
-            event.accept()
-            return
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._sidebar = None  # Set by FileTreeSidebar
 
+    def set_sidebar(self, sidebar):
+        """Set reference to parent sidebar for Tab focus switching."""
+        self._sidebar = sidebar
+
+    def focusNextPrevChild(self, next):
+        """Override to handle Tab/Shift+Tab for switching to commit list."""
+        if self._sidebar:
+            self._sidebar.switch_focus_to_commit_list()
+        return True  # Indicate we handled the focus change
+
+    def keyPressEvent(self, event):
+        """Handle Space and Enter keys to activate current item"""
         # Handle both Enter and Space to activate items (needed for macOS compatibility)
         if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Space):
             current_item = self.currentItem()
@@ -649,7 +813,31 @@ class FileTreeSidebar(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
-        # "Open All Files" button at top
+        # Vertical splitter for commit list/compare list and file tree
+        self.vsplitter = QSplitter(Qt.Orientation.Vertical)
+
+        # Create only the appropriate widget based on review mode
+        self.commit_list_widget = None
+        self.compare_list_widget = None
+
+        if tab_widget.review_mode_ == "committed":
+            # Commit list widget (for committed mode)
+            self.commit_list_widget = CommitListWidget(tab_widget)
+            self.commit_list_widget.setVisible(False)
+            self.vsplitter.addWidget(self.commit_list_widget)
+        else:
+            # Compare list widget (for uncommitted mode)
+            self.compare_list_widget = CompareListWidget(tab_widget)
+            self.compare_list_widget.setVisible(False)
+            self.vsplitter.addWidget(self.compare_list_widget)
+
+        # Container for file tree
+        self.tree_container = QWidget()
+        tree_layout = QVBoxLayout(self.tree_container)
+        tree_layout.setContentsMargins(0, 0, 0, 0)
+        tree_layout.setSpacing(0)
+
+        # "Open All Files" button above tree
         self.open_all_button = QPushButton("Open All Files")
         self.open_all_button.clicked.connect(self.tab_widget.open_all_files)
         self.open_all_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
@@ -666,29 +854,11 @@ class FileTreeSidebar(QWidget):
                 background-color: #d0e8f0;
             }
         """)
-        layout.addWidget(self.open_all_button)
-
-        # Vertical splitter for commit list/compare list and file tree
-        self.vsplitter = QSplitter(Qt.Orientation.Vertical)
-
-        # Commit list widget (for committed mode, initially hidden)
-        self.commit_list_widget = CommitListWidget(tab_widget)
-        self.commit_list_widget.setVisible(False)
-        self.vsplitter.addWidget(self.commit_list_widget)
-
-        # Compare list widget (for uncommitted mode, initially hidden)
-        self.compare_list_widget = CompareListWidget(tab_widget)
-        self.compare_list_widget.setVisible(False)
-        self.vsplitter.addWidget(self.compare_list_widget)
-
-        # Container for file tree
-        self.tree_container = QWidget()
-        tree_layout = QVBoxLayout(self.tree_container)
-        tree_layout.setContentsMargins(0, 0, 0, 0)
-        tree_layout.setSpacing(0)
+        tree_layout.addWidget(self.open_all_button)
 
         # Tree widget (custom class handles Space key)
         self.tree = FileTreeWidget()
+        self.tree.set_sidebar(self)
         self.tree.setHeaderHidden(True)
         self.tree.setIndentation(20)
         self.tree.setAnimated(True)
@@ -702,16 +872,28 @@ class FileTreeSidebar(QWidget):
         tree_layout.addWidget(self.tree)
         self.vsplitter.addWidget(self.tree_container)
 
-        # Set initial splitter sizes (commit list, compare list, tree)
-        # The visible widget(s) will get appropriate sizes when shown
-        self.vsplitter.setSizes([150, 150, 400])
+        # Set initial splitter sizes (list widget, tree)
+        self.vsplitter.setSizes([150, 400])
 
         layout.addWidget(self.vsplitter)
+
+        # Set sidebar reference on commit list container if it exists
+        if self.commit_list_widget:
+            self.commit_list_widget.list_container.set_sidebar(self)
 
         # Store special buttons (commit msg, review notes) as list items
         self.special_items = []  # List of (item_type, widget) tuples
         self.commit_msg_folder = None  # Reference to commit messages folder item (legacy)
         self.commit_msg_items = {}  # SHA -> QTreeWidgetItem mapping (legacy)
+
+    def switch_focus_to_commit_list(self):
+        """Switch keyboard focus from file tree to commit list."""
+        if self.commit_list_widget and self.commit_list_widget.isVisible():
+            self.commit_list_widget.list_container.setFocus()
+
+    def switch_focus_to_file_tree(self):
+        """Switch keyboard focus from commit list to file tree."""
+        self.tree.setFocus()
 
     def add_commit_msg_button(self, button):
         """Legacy method - adds single commit message as tree item (for uncommitted mode)"""
@@ -736,6 +918,9 @@ class FileTreeSidebar(QWidget):
                                Only includes revisions that have commit messages.
             commit_summaries_by_sha: Dict mapping SHA -> commit summary string (optional)
         """
+        if self.commit_list_widget is None:
+            return
+
         if not commit_msgs_by_sha:
             self.commit_list_widget.setVisible(False)
             return
@@ -994,7 +1179,8 @@ class FileTreeSidebar(QWidget):
         """
         if sha is not None:
             # Multi-commit case - delegate to commit list widget
-            self.commit_list_widget.update_commit_state(sha, is_open, is_active)
+            if self.commit_list_widget is not None:
+                self.commit_list_widget.update_commit_state(sha, is_open, is_active)
             return
 
         # Legacy single commit message case
@@ -1035,7 +1221,8 @@ class FileTreeSidebar(QWidget):
             base_idx: Base revision index (-1 for Committed)
             modi_idx: Modified revision index
         """
-        self.commit_list_widget.highlight_revision_range(base_idx, modi_idx)
+        if self.commit_list_widget is not None:
+            self.commit_list_widget.highlight_revision_range(base_idx, modi_idx)
 
     def highlight_single_commit(self, commit_index):
         """Highlight a single commit by its 1-based index.
@@ -1043,11 +1230,13 @@ class FileTreeSidebar(QWidget):
         Args:
             commit_index: 1-based index (0 = Committed, 1+ = commits)
         """
-        self.commit_list_widget.highlight_single_commit(commit_index)
+        if self.commit_list_widget is not None:
+            self.commit_list_widget.highlight_single_commit(commit_index)
 
     def clear_commit_highlighting(self):
         """Clear all bold highlighting from commits."""
-        self.commit_list_widget.clear_all_bold()
+        if self.commit_list_widget is not None:
+            self.commit_list_widget.clear_all_bold()
 
     def update_file_label(self, file_class):
         """Update file label (e.g., after stats are loaded)"""

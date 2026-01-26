@@ -2362,10 +2362,6 @@ class DiffViewerTabWidget(QMainWindow):
                     break
                 widget = widget.parent()
 
-            # Block Tab/Shift+Tab when in sidebar mode to prevent any focus navigation
-            if self.focus_mode == 'sidebar' and key == Qt.Key.Key_Tab:
-                return True
-
             # Block keyboard events based on focus mode
             if self.focus_mode == 'sidebar' and in_content:
                 # Sidebar has focus, block content area keyboard events
@@ -2522,5 +2518,14 @@ class DiffViewerTabWidget(QMainWindow):
 
         # Apply initial focus tinting (sidebar focused, content dimmed)
         self.update_focus_tinting()
+
+        # Set initial Qt focus to appropriate sidebar widget
+        if (self.review_mode_ == "committed" and 
+            self.sidebar_widget.commit_list_widget and 
+            self.sidebar_widget.commit_list_widget.isVisible()):
+            self.sidebar_widget.commit_list_widget.list_container.setFocus()
+        else:
+            self.sidebar_widget.tree.setFocus()
+
         self.show()
         return sys.exit(self._app.exec())
