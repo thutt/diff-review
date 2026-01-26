@@ -18,7 +18,12 @@ from PyQt6.QtCore import Qt, QFileSystemWatcher, QTimer
 from PyQt6.QtGui import (QAction, QFont, QKeySequence, QActionGroup, QFontMetrics,
                          QColor, QTextDocument, QShortcut)
 
-from help_dialog import HelpDialog
+from help_dialog import (HelpDialog, HELP_SECTION_OVERVIEW, HELP_SECTION_TABS,
+                         HELP_SECTION_TERMINAL, HELP_SECTION_SIDEBAR,
+                         HELP_SECTION_NAVIGATION, HELP_SECTION_COLORS,
+                         HELP_SECTION_SEARCH, HELP_SECTION_NOTES,
+                         HELP_SECTION_BOOKMARKS, HELP_SECTION_DIFFMAP,
+                         HELP_SECTION_ALL)
 from shortcuts_dialog import ShortcutsDialog
 from search_dialogs import SearchDialog, SearchResultDialog
 import color_palettes
@@ -277,7 +282,6 @@ class DiffViewerTabWidget(QMainWindow):
         self.bookmark_mgr = bookmark_manager.BookmarkManager(self)
 
         # Dialog instance tracking to prevent multiple instances
-        self.help_dialog = None
         self.shortcuts_dialog = None
 
         # Create file watcher manager
@@ -549,9 +553,47 @@ class DiffViewerTabWidget(QMainWindow):
         shortcuts_action.triggered.connect(self.show_shortcuts)
         help_menu.addAction(shortcuts_action)
 
-        help_action = QAction("How to Use", self)
-        help_action.triggered.connect(self.show_help)
-        help_menu.addAction(help_action)
+        help_menu.addSeparator()
+
+        overview_action = QAction("Overview and Basic Usage", self)
+        overview_action.triggered.connect(lambda: self.show_help(HELP_SECTION_OVERVIEW))
+        help_menu.addAction(overview_action)
+
+        tabs_action = QAction("Tab Types and Management", self)
+        tabs_action.triggered.connect(lambda: self.show_help(HELP_SECTION_TABS))
+        help_menu.addAction(tabs_action)
+
+        terminal_action = QAction("Terminal Editors", self)
+        terminal_action.triggered.connect(lambda: self.show_help(HELP_SECTION_TERMINAL))
+        help_menu.addAction(terminal_action)
+
+        sidebar_action = QAction("Sidebar", self)
+        sidebar_action.triggered.connect(lambda: self.show_help(HELP_SECTION_SIDEBAR))
+        help_menu.addAction(sidebar_action)
+
+        navigation_action = QAction("Navigation", self)
+        navigation_action.triggered.connect(lambda: self.show_help(HELP_SECTION_NAVIGATION))
+        help_menu.addAction(navigation_action)
+
+        colors_action = QAction("Color Coding", self)
+        colors_action.triggered.connect(lambda: self.show_help(HELP_SECTION_COLORS))
+        help_menu.addAction(colors_action)
+
+        search_action = QAction("Search Functionality", self)
+        search_action.triggered.connect(lambda: self.show_help(HELP_SECTION_SEARCH))
+        help_menu.addAction(search_action)
+
+        notes_action = QAction("Note Taking", self)
+        notes_action.triggered.connect(lambda: self.show_help(HELP_SECTION_NOTES))
+        help_menu.addAction(notes_action)
+
+        bookmarks_action = QAction("Bookmarks", self)
+        bookmarks_action.triggered.connect(lambda: self.show_help(HELP_SECTION_BOOKMARKS))
+        help_menu.addAction(bookmarks_action)
+
+        diffmap_action = QAction("Diff Map", self)
+        diffmap_action.triggered.connect(lambda: self.show_help(HELP_SECTION_DIFFMAP))
+        help_menu.addAction(diffmap_action)
 
         # Calculate window size based on display parameters
         # Use Courier 12 Bold to match the text widget font
@@ -1870,14 +1912,16 @@ class DiffViewerTabWidget(QMainWindow):
         """Clean up file watcher for a viewer being closed"""
         self.file_watcher_mgr.cleanup_file_watcher(viewer)
 
-    def show_help(self):
-        """Show help dialog - reuses existing instance if open"""
-        if self.help_dialog is None or not self.help_dialog.isVisible():
-            self.help_dialog = HelpDialog(self)
-            self.help_dialog.show()
-        else:
-            self.help_dialog.raise_()
-            self.help_dialog.activateWindow()
+    def show_help(self, section=HELP_SECTION_ALL):
+        """Show help dialog for a specific section.
+
+        Args:
+            section: Which help section to display (use HELP_SECTION_* constants)
+        """
+        # Always create a new dialog for the requested section
+        # (sections may differ, so we can't reuse a dialog showing different content)
+        dialog = HelpDialog(self, section=section)
+        dialog.show()
 
     def show_shortcuts(self):
         """Show keyboard shortcuts reference - reuses existing instance if open"""
