@@ -126,7 +126,8 @@ def main():
         if uncommitted_review(options):
             beg = datetime.datetime.now()
             scm.generate(options, None)
-            scm.write_dossier(None)
+            if scm.dossier_ is not None:
+                scm.write_dossier(None)
             end          = datetime.datetime.now()
             changed_info = scm.get_changed_info(None)
             elapsed      = end - beg
