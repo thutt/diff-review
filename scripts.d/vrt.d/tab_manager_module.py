@@ -1,4 +1,4 @@
-# Copyright (c) 2025  Logic Magicians Software (Taylor Hutt).
+# Copyright (c) 2025, 2026  Logic Magicians Software (Taylor Hutt).
 # All Rights Reserved.
 # Licensed under Gnu GPL V3.
 #
@@ -18,7 +18,13 @@ from PyQt6.QtCore import Qt, QFileSystemWatcher, QTimer
 from PyQt6.QtGui import (QAction, QFont, QKeySequence, QActionGroup, QFontMetrics,
                          QColor, QTextDocument, QShortcut)
 
-from help_dialog import HelpDialog
+from help_dialog import (HelpDialog, HELP_SECTION_OVERVIEW, HELP_SECTION_TABS,
+                         HELP_SECTION_TERMINAL, HELP_SECTION_SIDEBAR,
+                         HELP_SECTION_NAVIGATION, HELP_SECTION_COLORS,
+                         HELP_SECTION_SEARCH, HELP_SECTION_NOTES,
+                         HELP_SECTION_BOOKMARKS, HELP_SECTION_DIFFMAP,
+                         HELP_SECTION_FILE_TREE, HELP_SECTION_UNCOMMITTED,
+                         HELP_SECTION_COMMIT_LIST, HELP_SECTION_ALL)
 from shortcuts_dialog import ShortcutsDialog
 from search_dialogs import SearchDialog, SearchResultDialog
 import color_palettes
@@ -29,6 +35,7 @@ import commit_msg_handler
 import search_manager
 import file_tree_sidebar
 import keybindings
+import generate_viewer
 from commit_msg_handler import CommitMessageTab
 from note_manager import ReviewNotesTab, ReviewNotesTabBase
 from tab_content_base import TabContentBase
@@ -184,6 +191,7 @@ class DiffViewerTabWidget(QMainWindow):
 
     def __init__(self,
                  afr,           # Abstract file reader
+                 dossier,       # Full dossier dictionary
                  display_lines     : int,
                  display_chars     : int,
                  show_diff_map     : bool,
@@ -200,13 +208,17 @@ class DiffViewerTabWidget(QMainWindow):
                  editor_class,
                  editor_theme,
                  keybindings_file,
-                 note_file):
+                 note_file,
+                 review_mode       : str):  # "committed" or "uncommitted"
         if QApplication.instance() is None:
             self._app = QApplication(sys.argv)
         else:
             self._app = QApplication.instance()
 
         super().__init__()
+
+        self.review_mode_ = review_mode
+        self.dossier_ = dossier
 
         self.afr_ = afr
         self.display_lines = display_lines
@@ -242,7 +254,7 @@ class DiffViewerTabWidget(QMainWindow):
         # Storage for file classes and their buttons
         self.file_classes = []
         self.file_buttons = []
-        self.file_to_tab_index = {}  # Maps file_class to tab index
+        self.file_to_tab_index = {}  # Maps tab key to tab index (see _make_tab_key)
         self.current_file_class = None  # Track which file is being added
         self.sidebar_visible = True
         self.saved_splitter_sizes = None  # Stores splitter sizes when sidebar is hidden
@@ -250,6 +262,9 @@ class DiffViewerTabWidget(QMainWindow):
         # Global view state for all tabs
         self.diff_map_visible = show_diff_map  # Initial state for diff map
         self.line_numbers_visible = show_line_numbers  # Initial state for line numbers
+
+        # Staged diff mode: controls which file pair to compare for staged files
+        self.staged_diff_mode_ = generate_viewer.DIFF_MODE_BASE_MODI
 
         # Create view state manager
         self.view_state_mgr = view_state_manager.ViewStateManager(
@@ -268,7 +283,6 @@ class DiffViewerTabWidget(QMainWindow):
         self.bookmark_mgr = bookmark_manager.BookmarkManager(self)
 
         # Dialog instance tracking to prevent multiple instances
-        self.help_dialog = None
         self.shortcuts_dialog = None
 
         # Create file watcher manager
@@ -300,6 +314,8 @@ class DiffViewerTabWidget(QMainWindow):
         # Focus mode: 'sidebar' or 'content'
         self.focus_mode = 'sidebar'  # Start with sidebar focused (files must be selected first)
         self.last_content_tab_index = None  # Track last focused content tab for restoring focus
+        self.last_sidebar_focus = 'file_tree'  # Track last focused sidebar widget: 'commit_list' or 'file_tree'
+        self.last_commit_list_index = -1  # Track last selected index in commit list
         self.sidebar_base_stylesheet = ""  # Will be set after sidebar is created
         self.tab_widget_base_stylesheet = ""  # Will be set after tab_widget is created
         self.focus_mode_label = None  # Label for showing focus mode in status bar
@@ -526,6 +542,9 @@ class DiffViewerTabWidget(QMainWindow):
             self.palette_action_group.addAction(action)
             palette_menu.addAction(action)
 
+        # Initialize revision range state for committed mode
+        self._init_revision_range_state()
+
         # Help menu
         help_menu = menubar.addMenu("Help")
 
@@ -537,9 +556,59 @@ class DiffViewerTabWidget(QMainWindow):
         shortcuts_action.triggered.connect(self.show_shortcuts)
         help_menu.addAction(shortcuts_action)
 
-        help_action = QAction("How to Use", self)
-        help_action.triggered.connect(self.show_help)
-        help_menu.addAction(help_action)
+        help_menu.addSeparator()
+
+        overview_action = QAction("Overview and Basic Usage", self)
+        overview_action.triggered.connect(lambda: self.show_help(HELP_SECTION_OVERVIEW))
+        help_menu.addAction(overview_action)
+
+        tabs_action = QAction("Tab Types and Management", self)
+        tabs_action.triggered.connect(lambda: self.show_help(HELP_SECTION_TABS))
+        help_menu.addAction(tabs_action)
+
+        terminal_action = QAction("Terminal Editors", self)
+        terminal_action.triggered.connect(lambda: self.show_help(HELP_SECTION_TERMINAL))
+        help_menu.addAction(terminal_action)
+
+        sidebar_action = QAction("Sidebar", self)
+        sidebar_action.triggered.connect(lambda: self.show_help(HELP_SECTION_SIDEBAR))
+        help_menu.addAction(sidebar_action)
+
+        navigation_action = QAction("Navigation", self)
+        navigation_action.triggered.connect(lambda: self.show_help(HELP_SECTION_NAVIGATION))
+        help_menu.addAction(navigation_action)
+
+        colors_action = QAction("Color Coding", self)
+        colors_action.triggered.connect(lambda: self.show_help(HELP_SECTION_COLORS))
+        help_menu.addAction(colors_action)
+
+        search_action = QAction("Search Functionality", self)
+        search_action.triggered.connect(lambda: self.show_help(HELP_SECTION_SEARCH))
+        help_menu.addAction(search_action)
+
+        notes_action = QAction("Note Taking", self)
+        notes_action.triggered.connect(lambda: self.show_help(HELP_SECTION_NOTES))
+        help_menu.addAction(notes_action)
+
+        bookmarks_action = QAction("Bookmarks", self)
+        bookmarks_action.triggered.connect(lambda: self.show_help(HELP_SECTION_BOOKMARKS))
+        help_menu.addAction(bookmarks_action)
+
+        diffmap_action = QAction("Diff Map", self)
+        diffmap_action.triggered.connect(lambda: self.show_help(HELP_SECTION_DIFFMAP))
+        help_menu.addAction(diffmap_action)
+
+        file_tree_action = QAction("File Tree Selection", self)
+        file_tree_action.triggered.connect(lambda: self.show_help(HELP_SECTION_FILE_TREE))
+        help_menu.addAction(file_tree_action)
+
+        uncommitted_action = QAction("Uncommitted Comparison", self)
+        uncommitted_action.triggered.connect(lambda: self.show_help(HELP_SECTION_UNCOMMITTED))
+        help_menu.addAction(uncommitted_action)
+
+        commit_list_action = QAction("Commit List", self)
+        commit_list_action.triggered.connect(lambda: self.show_help(HELP_SECTION_COMMIT_LIST))
+        help_menu.addAction(commit_list_action)
 
         # Calculate window size based on display parameters
         # Use Courier 12 Bold to match the text widget font
@@ -567,7 +636,7 @@ class DiffViewerTabWidget(QMainWindow):
         self.resize(total_width, total_height)
 
     def add_commit_msg(self, commit_msg_rel_path):
-        """Add commit message to the sidebar as the first item"""
+        """Add commit message to the sidebar as the first item (legacy, for uncommitted mode)"""
         self.commit_msg_mgr.add_commit_msg(commit_msg_rel_path)
         # Sync references
         self.commit_msg_rel_path_ = self.commit_msg_mgr.commit_msg_rel_path
@@ -576,12 +645,20 @@ class DiffViewerTabWidget(QMainWindow):
         # Update "Open All Files" count to include commit message
         self.update_open_all_button_text()
 
-    def on_commit_msg_clicked(self):
-        """Handle commit message button click"""
-        self.commit_msg_mgr.on_commit_msg_clicked()
+    def add_commit_messages_from_dossier(self):
+        """Add commit messages folder from dossier (for committed mode)"""
+        self.commit_msg_mgr.add_commit_messages_from_dossier(self.dossier_)
+
+    def on_commit_msg_clicked(self, sha=None):
+        """Handle commit message button click
+
+        Args:
+            sha: Commit SHA (None for legacy single commit message)
+        """
+        self.commit_msg_mgr.on_commit_msg_clicked(sha)
 
     def create_commit_msg_tab(self):
-        """Create a tab displaying the commit message"""
+        """Create a tab displaying the commit message (legacy)"""
         self.commit_msg_mgr.create_commit_msg_tab()
 
     def show_search_dialog(self):
@@ -655,7 +732,8 @@ class DiffViewerTabWidget(QMainWindow):
 
         # Check which files aren't open yet
         for file_class in self.file_classes:
-            if file_class not in self.file_to_tab_index:
+            tab_key = self._make_tab_key(file_class)
+            if tab_key not in self.file_to_tab_index:
                 files_to_open.append(('file', file_class))
 
         if len(files_to_open) == 0:
@@ -693,7 +771,8 @@ class DiffViewerTabWidget(QMainWindow):
 
             # Load the file
             if item_type == 'commit_msg':
-                self.on_commit_msg_clicked()
+                # item_data is SHA (or None for legacy)
+                self.on_commit_msg_clicked(item_data)
             elif item_type == 'review_notes':
                 self.note_mgr.on_notes_clicked()
             else:
@@ -721,22 +800,38 @@ class DiffViewerTabWidget(QMainWindow):
             if current_widget:
                 current_widget.focus_content()
             self.update_focus_tinting()
-            self.update_status_focus_indicator()
+
+    def _make_tab_key(self, file_class):
+        """Create a key for file_to_tab_index.
+
+        For FileButtonUnstaged, includes the current staged_diff_mode_ so that
+        the same file can have multiple tabs open with different diff modes.
+        For FileButton in committed mode, uses (base_key, modi_key) so that
+        the same diff content reuses the same tab across revision range changes.
+        For other file types, just returns file_class.
+        """
+        if isinstance(file_class, generate_viewer.FileButtonUnstaged):
+            return (file_class, self.staged_diff_mode_)
+        if isinstance(file_class, generate_viewer.FileButton):
+            # Use content hashes as key so same diff reuses tab
+            return (file_class.base_chg_id_, file_class.modi_chg_path_)
+        return file_class
 
     def on_file_clicked(self, file_class):
         """Handle file button click"""
-        # Check if tab already exists for this file
-        if file_class in self.file_to_tab_index:
-            tab_index = self.file_to_tab_index[file_class]
+        # Check if tab already exists for this file (and mode, for unstaged files)
+        tab_key = self._make_tab_key(file_class)
+        if tab_key in self.file_to_tab_index:
+            tab_index = self.file_to_tab_index[tab_key]
             # Verify tab still exists (might have been closed)
             if 0 <= tab_index < self.tab_widget.count():
                 widget = self.tab_widget.widget(tab_index)
-                if isinstance(widget, DiffViewer) and widget.file_class == file_class:
+                if isinstance(widget, DiffViewer):
                     # Tab exists, switch to it
                     self.tab_widget.setCurrentIndex(tab_index)
                     return
             # Tab was closed, remove from mapping
-            del self.file_to_tab_index[file_class]
+            del self.file_to_tab_index[tab_key]
 
         # No existing tab, create new one
         self.current_file_class = file_class  # Store for add_viewer to use
@@ -796,9 +891,28 @@ class DiffViewerTabWidget(QMainWindow):
         diff_viewer.modified_text.customContextMenuRequested.connect(
             lambda pos: self.show_diff_context_menu(pos, diff_viewer.modified_text, 'modified'))
 
-        # Track file to tab mapping
+        # Track file to tab mapping and store mode on viewer
         if file_class:
-            self.file_to_tab_index[file_class] = index
+            tab_key = self._make_tab_key(file_class)
+            self.file_to_tab_index[tab_key] = index
+            if isinstance(file_class, generate_viewer.FileButtonUnstaged):
+                diff_viewer.set_staged_diff_mode(self.staged_diff_mode_)
+
+        # Set revision range for multi-revision committed mode
+        if (self.review_mode_ == "committed"
+                and self.dossier_ is not None
+                and len(self.dossier_["order"]) >= 2):
+            diff_viewer.set_revision_range(self.revision_base_idx_,
+                                           self.revision_modi_idx_)
+
+        # Set commit SHAs for committed mode (top labels)
+        if (self.review_mode_ == "committed"
+                and file_class is not None
+                and isinstance(file_class, generate_viewer.FileButton)):
+            diff_viewer.set_commit_shas(file_class.base_commit_sha_,
+                                        file_class.modi_commit_sha_)
+            if file_class.modi_revision_idx_ is not None:
+                diff_viewer.set_revision_index(file_class.modi_revision_idx_)
 
         # Switch to new tab (skip during bulk loading to avoid visual slowdown)
         if not self._bulk_loading:
@@ -820,6 +934,7 @@ class DiffViewerTabWidget(QMainWindow):
 
         # Update button states immediately
         self.update_button_states()
+        self.update_commit_highlighting()
 
         # If this is the first tab, apply focus tinting now that we have content
         if self.tab_widget.count() == 1:
@@ -917,6 +1032,7 @@ class DiffViewerTabWidget(QMainWindow):
 
         self.update_button_states()
         self.update_view_menu_states()
+        self.update_commit_highlighting()
 
         # Track last content tab if in content mode
         if self.focus_mode == 'content' and index >= 0:
@@ -958,28 +1074,71 @@ class DiffViewerTabWidget(QMainWindow):
         # Auto-reload is always enabled (applies globally)
         # Cycle Stats is always enabled (applies globally)
 
+    def update_commit_highlighting(self):
+        """Update commit highlighting in sidebar based on current tab's revision."""
+        if self.review_mode_ != "committed":
+            return
+        if self.dossier_ is None or len(self.dossier_["order"]) < 2:
+            return
+
+        current_widget = self.tab_widget.currentWidget()
+
+        # If ReviewNotesTab is selected, clear all highlighting
+        if isinstance(current_widget, ReviewNotesTabBase):
+            self.sidebar_widget.clear_commit_highlighting()
+            return
+
+        # If DiffViewer with revision_index_, highlight that single commit
+        if isinstance(current_widget, DiffViewer):
+            if current_widget.revision_index_ is not None:
+                # highlight_single_commit expects 1-based index
+                self.sidebar_widget.highlight_single_commit(current_widget.revision_index_ + 1)
+                return
+
+        # If CommitMessageTab with revision_index_, highlight that single commit
+        if isinstance(current_widget, CommitMessageTab):
+            if current_widget.revision_index_ is not None:
+                self.sidebar_widget.highlight_single_commit(current_widget.revision_index_)
+                return
+
+        # Default: clear highlighting
+        self.sidebar_widget.clear_commit_highlighting()
+
     def update_button_states(self):
         """Update all item states in tree view based on open tabs and currently selected tab"""
         current_tab_index = self.tab_widget.currentIndex()
+        current_widget = self.tab_widget.widget(current_tab_index) if current_tab_index >= 0 else None
 
         # Update file items in tree view
         for file_class in self.file_classes:
-            # Check if tab is open
-            is_open = file_class in self.file_to_tab_index
-            if is_open:
-                tab_index = self.file_to_tab_index[file_class]
-                if not (0 <= tab_index < self.tab_widget.count()):
-                    is_open = False
-
-            # Check if this tab is currently selected
+            # Check if any tab is open for this file (any mode)
+            is_open = False
             is_active = False
-            if is_open:
-                tab_index = self.file_to_tab_index[file_class]
-                is_active = (tab_index == current_tab_index)
+
+            if isinstance(file_class, generate_viewer.FileButtonUnstaged):
+                # Check all possible modes for unstaged files
+                for mode in [generate_viewer.DIFF_MODE_BASE_MODI,
+                             generate_viewer.DIFF_MODE_BASE_STAGE,
+                             generate_viewer.DIFF_MODE_STAGE_MODI]:
+                    tab_key = (file_class, mode)
+                    if tab_key in self.file_to_tab_index:
+                        tab_index = self.file_to_tab_index[tab_key]
+                        if 0 <= tab_index < self.tab_widget.count():
+                            is_open = True
+                            if tab_index == current_tab_index:
+                                is_active = True
+                            break
+            else:
+                # Regular file - simple key
+                if file_class in self.file_to_tab_index:
+                    tab_index = self.file_to_tab_index[file_class]
+                    if 0 <= tab_index < self.tab_widget.count():
+                        is_open = True
+                        is_active = (tab_index == current_tab_index)
 
             self.sidebar_widget.update_file_state(file_class, is_open, is_active)
 
-        # Update commit message item if it exists
+        # Update commit message item if it exists (legacy single commit mode)
         if self.commit_msg_button:
             is_open = 'commit_msg' in self.file_to_tab_index
             if is_open:
@@ -994,6 +1153,23 @@ class DiffViewerTabWidget(QMainWindow):
 
             # Update commit message item style in tree
             self.sidebar_widget.update_commit_msg_state(is_open, is_active)
+
+        # Update multi-commit message items in commit list widget
+        if self.commit_msg_mgr.commit_msgs:
+            for sha in self.commit_msg_mgr.commit_msgs:
+                tab_key = f'commit_msg_{sha}'
+                is_open = tab_key in self.file_to_tab_index
+                if is_open:
+                    tab_index = self.file_to_tab_index[tab_key]
+                    if not (0 <= tab_index < self.tab_widget.count()):
+                        is_open = False
+
+                is_active = False
+                if is_open:
+                    tab_index = self.file_to_tab_index[tab_key]
+                    is_active = (tab_index == current_tab_index)
+
+                self.sidebar_widget.update_commit_msg_state(is_open, is_active, sha)
 
         # Update Review Notes item if it exists
         if self.note_mgr.notes_button:
@@ -1010,6 +1186,303 @@ class DiffViewerTabWidget(QMainWindow):
 
             # Update Review Notes item style in tree
             self.sidebar_widget.update_notes_state(is_open, is_active)
+
+    def get_staged_diff_mode(self):
+        """Return the current staged diff mode."""
+        return self.staged_diff_mode_
+
+    def set_staged_diff_mode(self, mode):
+        """Set the staged diff mode and update affected viewers.
+
+        The current tab (if it's a staged file) is reloaded immediately.
+        Other staged file tabs are marked dirty and reloaded when selected.
+        """
+        if mode == self.staged_diff_mode_:
+            return
+
+        self.staged_diff_mode_ = mode
+
+        # Update sidebar visibility based on mode.
+        # Existing tabs are left unchanged - they retain their original mode.
+        # Clicking a file in the sidebar will open a new tab with the new mode
+        # (or switch to an existing tab if one exists for that file+mode).
+        self.sidebar_widget.update_file_visibility_for_mode(
+            self.file_classes, mode)
+
+    def _set_compare_range(self, low_idx, high_idx):
+        """Set the compare range from slider indices and update diff mode.
+
+        Indices map to: 0=HEAD, 1=Staged, 2=Working
+        Valid ranges:
+          0-2 (HEAD to Working) -> DIFF_MODE_BASE_MODI
+          0-1 (HEAD to Staged)  -> DIFF_MODE_BASE_STAGE
+          1-2 (Staged to Working) -> DIFF_MODE_STAGE_MODI
+        """
+        if low_idx == 0 and high_idx == 2:
+            mode = generate_viewer.DIFF_MODE_BASE_MODI
+        elif low_idx == 0 and high_idx == 1:
+            mode = generate_viewer.DIFF_MODE_BASE_STAGE
+        elif low_idx == 1 and high_idx == 2:
+            mode = generate_viewer.DIFF_MODE_STAGE_MODI
+        else:
+            # Invalid range, default to HEAD vs Working
+            mode = generate_viewer.DIFF_MODE_BASE_MODI
+
+        self.set_staged_diff_mode(mode)
+
+    def has_any_staged_content(self):
+        """Return True if any file has staged content (for HEAD vs Staged mode).
+
+        This includes:
+        - FileButton instances (staged-only files, always show HEAD vs Staged)
+        - FileButtonUnstaged instances where has_staged() is True
+        """
+        for file_class in self.file_classes:
+            if isinstance(file_class, generate_viewer.FileButtonUnstaged):
+                if file_class.has_staged():
+                    return True
+            elif isinstance(file_class, generate_viewer.FileButton):
+                # FileButton is used for staged-only files in uncommitted mode
+                return True
+        return False
+
+    def has_any_staged_and_unstaged(self):
+        """Return True if any file has both staged and unstaged changes.
+
+        Only FileButtonUnstaged instances with has_staged() True qualify.
+        """
+        for file_class in self.file_classes:
+            if isinstance(file_class, generate_viewer.FileButtonUnstaged):
+                if file_class.has_staged():
+                    return True
+        return False
+
+    def update_compare_menu_state(self):
+        """Check staged content availability and reset mode if needed."""
+        if self.review_mode_ == "committed":
+            return
+
+        has_staged_content = self.has_any_staged_content()
+        has_staged_and_unstaged = self.has_any_staged_and_unstaged()
+
+        # If current mode is not available, reset to default mode
+        if (self.staged_diff_mode_ == generate_viewer.DIFF_MODE_BASE_STAGE
+                and not has_staged_content):
+            self.set_staged_diff_mode(generate_viewer.DIFF_MODE_BASE_MODI)
+            self.sidebar_widget.compare_list_widget.set_range(0, 2)
+        elif (self.staged_diff_mode_ == generate_viewer.DIFF_MODE_STAGE_MODI
+                and not has_staged_and_unstaged):
+            self.set_staged_diff_mode(generate_viewer.DIFF_MODE_BASE_MODI)
+            self.sidebar_widget.compare_list_widget.set_range(0, 2)
+
+    def _init_revision_range_state(self):
+        """Initialize revision range state for committed mode."""
+        if self.review_mode_ != "committed":
+            self.revision_base_idx_ = None
+            self.revision_modi_idx_ = None
+            return
+
+        order = self.dossier_["order"]
+        n = len(order)
+        if n < 2:
+            # Single revision: base is -1 (Committed), modi is 0
+            self.revision_base_idx_ = -1
+            self.revision_modi_idx_ = 0
+        else:
+            # Default: Committed (-1) through last revision (n-1)
+            self.revision_base_idx_ = -1
+            self.revision_modi_idx_ = n - 1
+
+    def _set_revision_range(self, base_idx, modi_idx):
+        """Set the revision range and update the UI."""
+        if base_idx == self.revision_base_idx_ and modi_idx == self.revision_modi_idx_:
+            return
+
+        self.revision_base_idx_ = base_idx
+        self.revision_modi_idx_ = modi_idx
+
+        self._rebuild_file_list_for_revision_range()
+
+    def _rebuild_file_list_for_revision_range(self):
+        """Rebuild the file list in sidebar based on current revision range.
+
+        Collects all files modified in any revision from x through y (inclusive).
+        For each unique file, uses the modi from the latest revision that touched it.
+
+        revision_base_idx_ can be -1, meaning "before the first commit" (Committed).
+        In that case, we start collecting from revision 0.
+        """
+        if self.review_mode_ != "committed":
+            return
+
+        order = self.dossier_["order"]
+        revisions = self.dossier_["revisions"]
+        cache = self.dossier_["cache"]
+        root = self.dossier_["root"]
+
+        # Clear existing file classes (but keep tabs open)
+        self.file_classes.clear()
+        self.sidebar_widget.file_items.clear()
+        self.sidebar_widget.dir_items.clear()
+        self.sidebar_widget.dir_open_counts.clear()
+        self.sidebar_widget.commit_msg_folder = None
+        self.sidebar_widget.commit_msg_items.clear()
+        self.sidebar_widget.tree.clear()
+
+        # Re-add special items (commit messages folder, notes)
+        self.sidebar_widget.special_items.clear()
+
+        # Add commit messages folder (contains all commits in dossier, not just range)
+        self.add_commit_messages_from_dossier()
+
+        note_file = self.note_mgr.get_note_file()
+        if note_file is not None:
+            self.note_mgr.create_notes_button()
+
+        # Collect all files modified in range [x, y].
+        # For each file, track the latest revision's modi_key and base_key.
+        # Key by modi_key since that uniquely identifies the final state.
+        # We need to track: display_path -> (action, base_key, modi_key, revision_idx)
+        files_in_range = {}  # display_path -> file info dict
+
+        # Handle base_idx of -1 (Committed = before first commit)
+        # Start collecting from revision 0 in that case
+        start_idx = max(0, self.revision_base_idx_ + 1) if self.revision_base_idx_ == -1 else self.revision_base_idx_
+        # Actually simpler: if base is -1, start from 0; otherwise start from base
+        start_idx = 0 if self.revision_base_idx_ < 0 else self.revision_base_idx_
+
+        for idx in range(start_idx, self.revision_modi_idx_ + 1):
+            rev_sha = order[idx]
+            rev = revisions[rev_sha]
+
+            for f in rev["files"]:
+                modi_key = f["modi"]
+                modi_disp_path = cache[modi_key]["display_path"]
+
+                # Always use the latest revision's info for this file
+                files_in_range[modi_disp_path] = {
+                    "action": f["action"],
+                    "base_key": f["base"],
+                    "modi_key": modi_key,
+                    "revision_idx": idx
+                }
+
+        # Create FileButton for each unique file
+        for disp_path, file_info in files_in_range.items():
+            action = file_info["action"]
+            base_key = file_info["base_key"]
+            modi_key = file_info["modi_key"]
+
+            modi_rel_dir = cache[modi_key]["rel_dir"]
+            modi_path = cache[modi_key]["pathname"]
+            modi_disp_path = cache[modi_key]["display_path"]
+
+            base_rel_dir = cache[base_key]["rel_dir"]
+            base_path = cache[base_key]["pathname"]
+            base_disp_path = cache[base_key]["display_path"]
+
+            # Create FileButton with revision range context
+            file_inst = generate_viewer.FileButton(
+                self._create_file_button_options(),
+                action,
+                root,
+                base_disp_path,
+                base_rel_dir,
+                base_path,
+                modi_disp_path,
+                modi_rel_dir,
+                modi_path)
+
+            # Store the original base key for range resolution
+            file_inst.original_base_key_ = base_key
+
+            # Store commit SHAs for display
+            # Modi SHA is the revision containing this file change
+            revision_idx = file_info["revision_idx"]
+            file_inst.modi_commit_sha_ = order[revision_idx]
+            file_inst.modi_revision_idx_ = revision_idx
+
+            # Base SHA: find which revision has base_key as its modi for this file
+            # If not found, it's from "Committed" (before first tracked revision)
+            file_inst.base_commit_sha_ = None
+            for rev_sha, rev in revisions.items():
+                for f in rev["files"]:
+                    if f["modi"] == base_key:
+                        file_inst.base_commit_sha_ = rev_sha
+                        break
+                if file_inst.base_commit_sha_ is not None:
+                    break
+
+            self.add_file(file_inst)
+
+        # Update Open All button count
+        self.sidebar_widget.update_open_all_text(len(self.file_classes))
+
+        # Restore commit highlighting after rebuild (the current tab's commit should stay bold)
+        self.update_commit_highlighting()
+
+    def _create_file_button_options(self):
+        """Create an options-like object for FileButton construction."""
+        class Options:
+            pass
+        opts = Options()
+        opts.arg_tab_label_stats = self.tab_label_stats
+        opts.arg_file_label_stats = self.file_label_stats
+        opts.arg_dossier_url = None  # Local mode
+        opts.afr_ = self.afr_
+        opts.arg_verbose = False
+        opts.intraline_percent_ = self.intraline_percent
+        opts.arg_dump_ir = self.dump_ir
+        opts.arg_max_line_length = self.display_chars
+        opts.arg_diff_map = self.diff_map_visible
+        opts.arg_line_numbers = self.line_numbers_visible
+        return opts
+
+    def _resolve_base_for_range(self, file_class):
+        """Resolve the correct base blob for a file within the current revision range.
+
+        For a file in revision y, walk backwards through [x, y-1] matching by
+        base blob SHA to find the most recent modi that becomes our comparison base.
+
+        Returns:
+            Tuple of (base_path, base_display_path) for the resolved base.
+        """
+        if self.review_mode_ != "committed":
+            return (file_class.get_base_chg_id_path(), file_class.base_display_path())
+
+        order = self.dossier_["order"]
+        revisions = self.dossier_["revisions"]
+        cache = self.dossier_["cache"]
+        root = self.dossier_["root"]
+
+        # Get the original base key from the file in revision y
+        current_base_key = file_class.original_base_key_
+
+        # Walk backwards from y-1 to x looking for a matching modi
+        for idx in range(self.revision_modi_idx_ - 1, self.revision_base_idx_ - 1, -1):
+            rev_sha = order[idx]
+            rev = revisions[rev_sha]
+            for f in rev["files"]:
+                if f["modi"] == current_base_key:
+                    # Found a match - this revision's modi is our current base
+                    # Now continue searching with this revision's base
+                    current_base_key = f["base"]
+                    break
+
+        # current_base_key is now the resolved base
+        # Get the path information from the cache
+        base_rel_dir = cache[current_base_key]["rel_dir"]
+        base_path = cache[current_base_key]["pathname"]
+        base_disp_path = cache[current_base_key]["display_path"]
+
+        import posixpath
+        full_base_path = posixpath.join(root, base_rel_dir, base_path)
+
+        return (full_base_path, base_disp_path)
+
+    def get_revision_range(self):
+        """Return the current revision range as (base_idx, modi_idx)."""
+        return (self.revision_base_idx_, self.revision_modi_idx_)
 
     def get_all_viewers(self):
         """
@@ -1092,8 +1565,13 @@ class DiffViewerTabWidget(QMainWindow):
             # Regular file tab
             elif hasattr(widget, 'file_class'):
                 file_class = widget.file_class
-                if file_class in self.file_to_tab_index:
-                    del self.file_to_tab_index[file_class]
+                # For unstaged files, key includes the mode stored on the viewer
+                if isinstance(file_class, generate_viewer.FileButtonUnstaged):
+                    tab_key = (file_class, widget.staged_diff_mode)
+                else:
+                    tab_key = file_class
+                if tab_key in self.file_to_tab_index:
+                    del self.file_to_tab_index[tab_key]
 
             # Update indices in mapping for tabs after this one
             for key, tab_idx in list(self.file_to_tab_index.items()):
@@ -1122,6 +1600,7 @@ class DiffViewerTabWidget(QMainWindow):
 
             # Update button states after closing
             self.update_button_states()
+            self.update_commit_highlighting()
 
             # Give focus to the new current tab (if any remain)
             if self.tab_widget.count() > 0:
@@ -1133,7 +1612,6 @@ class DiffViewerTabWidget(QMainWindow):
                 self.focus_mode = 'sidebar'
                 self.sidebar_widget.tree.setFocus()
                 self.update_focus_tinting()
-                self.update_status_focus_indicator()
 
             # If no tabs remain, ensure sidebar is visible
             if self.tab_widget.count() == 0 and not self.sidebar_visible:
@@ -1216,7 +1694,6 @@ class DiffViewerTabWidget(QMainWindow):
                 if current_widget:
                     current_widget.focus_content()
                 self.update_focus_tinting()
-                self.update_status_focus_indicator()
 
             # Save current splitter sizes before hiding
             self.saved_splitter_sizes = self.splitter.sizes()
@@ -1292,10 +1769,16 @@ class DiffViewerTabWidget(QMainWindow):
 
 
         # Re-render all tab labels
-        for file_class, tab_index in self.file_to_tab_index.items():
+        for key, tab_index in self.file_to_tab_index.items():
             # Skip commit_msg and review_notes - they don't have file_class
-            if isinstance(file_class, str):
+            if isinstance(key, str):
                 continue
+
+            # Key is either file_class or (file_class, mode) tuple
+            if isinstance(key, tuple):
+                file_class = key[0]
+            else:
+                file_class = key
 
             if 0 <= tab_index < self.tab_widget.count():
                 new_label = file_class.tab_label()
@@ -1397,6 +1880,7 @@ class DiffViewerTabWidget(QMainWindow):
         viewer.modified_line_objects = []
 
         # Reload diff
+        # Not supported for URL-based diffs.
         try:
             desc = diffmgr.create_diff_descriptor(self.afr_,
                                                   False,
@@ -1440,14 +1924,16 @@ class DiffViewerTabWidget(QMainWindow):
         """Clean up file watcher for a viewer being closed"""
         self.file_watcher_mgr.cleanup_file_watcher(viewer)
 
-    def show_help(self):
-        """Show help dialog - reuses existing instance if open"""
-        if self.help_dialog is None or not self.help_dialog.isVisible():
-            self.help_dialog = HelpDialog(self)
-            self.help_dialog.show()
-        else:
-            self.help_dialog.raise_()
-            self.help_dialog.activateWindow()
+    def show_help(self, section=HELP_SECTION_ALL):
+        """Show help dialog for a specific section.
+
+        Args:
+            section: Which help section to display (use HELP_SECTION_* constants)
+        """
+        # Always create a new dialog for the requested section
+        # (sections may differ, so we can't reuse a dialog showing different content)
+        dialog = HelpDialog(self, section=section)
+        dialog.show()
 
     def show_shortcuts(self):
         """Show keyboard shortcuts reference - reuses existing instance if open"""
@@ -1788,9 +2274,14 @@ class DiffViewerTabWidget(QMainWindow):
             widget = obj
             in_sidebar = False
             in_content = False
-            is_tree_widget = (obj == self.sidebar_widget.tree)
+            in_tree_widget = False
+            in_commit_list = False
 
             while widget is not None:
+                if widget == self.sidebar_widget.tree:
+                    in_tree_widget = True
+                if isinstance(widget, file_tree_sidebar.CommitListWidget):
+                    in_commit_list = True
                 if widget == self.sidebar_widget:
                     in_sidebar = True
                     break
@@ -1800,15 +2291,23 @@ class DiffViewerTabWidget(QMainWindow):
                 widget = widget.parent()
 
             # Switch focus based on which area was clicked
-            # Don't update focus_mode for tree clicks - let on_item_clicked handle it
-            if in_sidebar and self.focus_mode != 'sidebar' and not is_tree_widget:
-                self.focus_mode = 'sidebar'
-                self.update_focus_tinting()
-                self.update_status_focus_indicator()
+            # Don't update focus_mode for tree/commit list clicks - let their handlers manage focus
+            if (in_sidebar and
+                self.focus_mode != 'sidebar' and
+                not in_tree_widget and
+                not in_commit_list):
+                # Defer focus switch until after all mouse events are processed
+                # This allows child widget handlers (like CommitListWidget) to
+                # set focus_mode first, and we only switch to sidebar if they didn't
+                def deferred_sidebar_focus():
+                    if self.focus_mode != 'content':
+                        self.focus_mode = 'sidebar'
+                        self.update_focus_tinting()
+                QTimer.singleShot(0, deferred_sidebar_focus)
             elif in_content and self.focus_mode != 'content' and self.tab_widget.count() > 0:
                 self.focus_mode = 'content'
                 self.update_focus_tinting()
-                self.update_status_focus_indicator()
+                self.update_commit_highlighting()
 
         if event.type() == event.Type.KeyPress:
             # Only process events for widgets that are part of our application
@@ -1825,8 +2324,8 @@ class DiffViewerTabWidget(QMainWindow):
                 if isinstance(widget.parent() if widget.parent() else None, CommitMessageTab):
                     is_our_widget = True
                     break
-                # Check if this is a sidebar widget
-                if widget == self.sidebar_widget or (widget.parent() and widget.parent() == self.sidebar_widget):
+                # Check if this is a sidebar widget (or any descendant)
+                if widget == self.sidebar_widget:
                     is_our_widget = True
                     break
                 # Check if this is a terminal widget
@@ -1931,10 +2430,6 @@ class DiffViewerTabWidget(QMainWindow):
                     break
                 widget = widget.parent()
 
-            # Block Tab/Shift+Tab when in sidebar mode to prevent any focus navigation
-            if self.focus_mode == 'sidebar' and key == Qt.Key.Key_Tab:
-                return True
-
             # Block keyboard events based on focus mode
             if self.focus_mode == 'sidebar' and in_content:
                 # Sidebar has focus, block content area keyboard events
@@ -2029,9 +2524,11 @@ class DiffViewerTabWidget(QMainWindow):
             # Ensure sidebar is visible when switching to sidebar context
             if not self.sidebar_visible:
                 self.toggle_sidebar()
-            # Give Qt focus to the tree widget
-            self.sidebar_widget.tree.setFocus()
+            # Restore focus to last focused sidebar widget
+            self._restore_sidebar_focus()
         elif self.tab_widget.count() > 0: # Only switch if there are tabs open.
+            # Save current sidebar focus state before switching away
+            self._save_sidebar_focus()
             self.focus_mode = 'content'
             # Give Qt focus to the current content widget
             current_widget = self.tab_widget.currentWidget()
@@ -2039,11 +2536,37 @@ class DiffViewerTabWidget(QMainWindow):
                 current_widget.focus_content()
             # Track which content tab is focused
             self.last_content_tab_index = self.tab_widget.currentIndex()
+            self.update_commit_highlighting()
         else:
             return
 
         self.update_focus_tinting()
-        self.update_status_focus_indicator()
+
+    def _save_sidebar_focus(self):
+        """Save which sidebar widget has focus and its state."""
+        commit_list = self.sidebar_widget.commit_list_widget
+        if commit_list and commit_list.isVisible():
+            container = commit_list.list_container
+            if container.hasFocus():
+                self.last_sidebar_focus = 'commit_list'
+                self.last_commit_list_index = container._selected_index
+                return
+        # Default to file tree
+        self.last_sidebar_focus = 'file_tree'
+
+    def _restore_sidebar_focus(self):
+        """Restore focus to the last focused sidebar widget."""
+        if self.last_sidebar_focus == 'commit_list':
+            commit_list = self.sidebar_widget.commit_list_widget
+            if commit_list and commit_list.isVisible():
+                container = commit_list.list_container
+                container.setFocus()
+                # Restore the selected index if valid
+                if self.last_commit_list_index >= 0:
+                    container.select_index(self.last_commit_list_index)
+                return
+        # Default to file tree
+        self.sidebar_widget.tree.setFocus()
 
     def update_focus_tinting(self):
         """Apply background tinting based on current focus mode"""
@@ -2058,18 +2581,6 @@ class DiffViewerTabWidget(QMainWindow):
             self.sidebar_overlay.raise_()
             self.sidebar_overlay.show()
 
-    def update_status_focus_indicator(self):
-        """Update status bar in current tab to show focus mode"""
-        current_widget = self.tab_widget.currentWidget()
-        if not current_widget:
-            return
-
-        # Check if it's a DiffViewer with a region_label
-        if isinstance(current_widget, DiffViewer):
-            focus_text = f"Focus: {'Sidebar' if self.focus_mode == 'sidebar' else 'Content'}"
-            # The region_label is directly accessible on the DiffViewer
-            # We'll update it to include focus mode, or add a separate label
-
     def run(self):
         """Show the window and start the application event loop"""
 
@@ -2081,7 +2592,25 @@ class DiffViewerTabWidget(QMainWindow):
 
         # Set initial View menu states
         self.update_view_menu_states()
+        # Set initial Compare menu states (enable/disable based on staged content)
+        self.update_compare_menu_state()
+
+        # Show compare widget for uncommitted mode
+        if self.review_mode_ != "committed":
+            self.sidebar_widget.compare_list_widget.setVisible(True)
+
         # Apply initial focus tinting (sidebar focused, content dimmed)
         self.update_focus_tinting()
+
+        # Set initial Qt focus to appropriate sidebar widget
+        if (self.review_mode_ == "committed" and
+            self.sidebar_widget.commit_list_widget and
+            self.sidebar_widget.commit_list_widget.isVisible()):
+            self.sidebar_widget.commit_list_widget.list_container.setFocus()
+            self.last_sidebar_focus = 'commit_list'
+        else:
+            self.sidebar_widget.tree.setFocus()
+            self.last_sidebar_focus = 'file_tree'
+
         self.show()
         return sys.exit(self._app.exec())

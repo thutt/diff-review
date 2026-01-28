@@ -17,10 +17,10 @@ from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import (QColor, QFont, QTextCursor, QAction, QFontMetrics,
                          QTextCharFormat, QTextBlockFormat, QPainter, QPen)
 
-from utils import extract_display_path
 from search_dialogs import SearchDialog, SearchResultDialog
 from ui_components import LineNumberArea, DiffMapWidget, SyncedPlainTextEdit
 import color_palettes
+import generate_viewer
 from tab_content_base import TabContentBase
 
 
@@ -28,6 +28,8 @@ class DiffViewer(QWidget, TabContentBase):
     def __init__(self,
                  base_file: str,
                  modified_file: str,
+                 base_display_path: str,
+                 modi_display_path : str,
                  max_line_length: int,
                  show_diff_map: bool,
                  show_line_numbers: bool):
@@ -35,11 +37,13 @@ class DiffViewer(QWidget, TabContentBase):
             self._app = QApplication(sys.argv)
         else:
             self._app = QApplication.instance()
-        
+
         super().__init__()
-        
+
         self.base_file = base_file
         self.modified_file = modified_file
+        self.base_display_path = base_display_path
+        self.modi_display_path = modi_display_path
         self.max_line_length = max_line_length
         self.show_diff_map = show_diff_map
         self.show_line_numbers = show_line_numbers
@@ -70,7 +74,11 @@ class DiffViewer(QWidget, TabContentBase):
         self.highlighting_next_line = 0  # Next line to highlight
         self._needs_highlighting_update = False  # Set by tab_manager for deferred updates
         self._needs_color_refresh = False  # Set by tab_manager for deferred color updates
-        
+        self._needs_staged_mode_reload = False  # Set when staged diff mode changes
+        self.staged_diff_mode = None  # Diff mode for unstaged files (set by tab_manager)
+        self.revision_range_ = None  # (base_idx, modi_idx) for committed mode multi-revision
+        self.revision_index_ = None  # Single revision index that modified this file
+
         self.current_font_size = 12  # Default font size
         
         self.collapsed_regions = []  # List of (start_line, end_line, region_type) tuples for collapsed change regions
@@ -82,31 +90,31 @@ class DiffViewer(QWidget, TabContentBase):
     
     def setup_gui(self):
         # Note: No window title needed when used in tabs
-        
+
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
-        
+
         label_layout = QHBoxLayout()
-        
+
         base_container = QHBoxLayout()
-        base_type_label = QLabel("Base")
-        base_type_label.setStyleSheet("font-weight: bold; color: blue; padding: 2px 5px;")
-        base_file_label = QLabel(extract_display_path(self.base_file))
+        self.base_type_label = QLabel("Base")
+        self.base_type_label.setStyleSheet("font-weight: bold; color: blue; padding: 2px 5px;")
+        base_file_label = QLabel(self.base_display_path)
         base_file_label.setFrameStyle(QFrame.Shape.Panel | QFrame.Shadow.Sunken)
-        base_container.addWidget(base_type_label)
+        base_container.addWidget(self.base_type_label)
         base_container.addWidget(base_file_label, 1)
-        
+
         spacer = QLabel("")
-        
+
         modified_container = QHBoxLayout()
-        modified_type_label = QLabel("Modified")
-        modified_type_label.setStyleSheet("font-weight: bold; color: green; padding: 2px 5px;")
-        modified_file_label = QLabel(extract_display_path(self.modified_file))
+        self.modified_type_label = QLabel("Modified")
+        self.modified_type_label.setStyleSheet("font-weight: bold; color: green; padding: 2px 5px;")
+        modified_file_label = QLabel(self.modi_display_path)
         modified_file_label.setFrameStyle(QFrame.Shape.Panel | QFrame.Shadow.Sunken)
-        modified_container.addWidget(modified_type_label)
+        modified_container.addWidget(self.modified_type_label)
         modified_container.addWidget(modified_file_label, 1)
-        
+
         label_layout.addLayout(base_container, 1)
         label_layout.addWidget(spacer, 0)
         label_layout.addLayout(modified_container, 1)
@@ -168,6 +176,7 @@ class DiffViewer(QWidget, TabContentBase):
         main_layout.addWidget(self.h_scrollbar)
         
         status_layout = QHBoxLayout()
+        self.revision_range_label = QLabel("")
         self.region_label = QLabel("Region: 0 of 0")
         self.highlighting_label = QLabel("")
         self.highlighting_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -176,6 +185,7 @@ class DiffViewer(QWidget, TabContentBase):
         self.bookmarks_label = QLabel("Bookmarks: 0")
         self.notes_label = QLabel("Notes: 0")
         
+        status_layout.addWidget(self.revision_range_label)
         status_layout.addWidget(self.region_label)
         status_layout.addStretch()
         status_layout.addWidget(self.highlighting_label)
@@ -217,7 +227,64 @@ class DiffViewer(QWidget, TabContentBase):
     def set_changed_region_count(self, count):
         """Set the number of changed regions from the diff descriptor"""
         self.n_changed_regions = count
-    
+
+    def set_staged_diff_mode(self, mode):
+        """Set the staged diff mode and update panel labels accordingly.
+
+        For unstaged files, this shows which versions are being compared:
+        - DIFF_MODE_BASE_MODI: Base (HEAD) vs Modified (Working)
+        - DIFF_MODE_BASE_STAGE: Base (HEAD) vs Modified (Staged)
+        - DIFF_MODE_STAGE_MODI: Base (Staged) vs Modified (Working)
+        """
+        self.staged_diff_mode = mode
+
+        if mode == generate_viewer.DIFF_MODE_BASE_MODI:
+            self.base_type_label.setText("Base (Committed)")
+            self.modified_type_label.setText("Modified (Working)")
+            self.revision_range_label.setText("Range: [Committed / Working]")
+        elif mode == generate_viewer.DIFF_MODE_BASE_STAGE:
+            self.base_type_label.setText("Base (Committed)")
+            self.modified_type_label.setText("Modified (Staged)")
+            self.revision_range_label.setText("Range: [Committed / Staged]")
+        elif mode == generate_viewer.DIFF_MODE_STAGE_MODI:
+            self.base_type_label.setText("Base (Staged)")
+            self.modified_type_label.setText("Modified (Working)")
+            self.revision_range_label.setText("Range: [Staged / Working]")
+
+    def set_revision_range(self, base_idx, modi_idx):
+        """Set the revision range for this viewer (used for commit highlighting).
+
+        Args:
+            base_idx: Base revision index (-1 for Committed)
+            modi_idx: Modified revision index
+        """
+        self.revision_range_ = (base_idx, modi_idx)
+
+    def set_revision_index(self, revision_idx):
+        """Set the single revision index that modified this file and update status bar.
+
+        Args:
+            revision_idx: 0-based revision index
+        """
+        self.revision_index_ = revision_idx
+        # Display uses 1-based indexing for user display
+        display_idx = revision_idx + 1
+        self.revision_range_label.setText(f"Revision: [{display_idx}]")
+
+    def set_commit_shas(self, base_sha, modi_sha):
+        """Set the commit SHAs for display in the top labels.
+
+        Args:
+            base_sha: SHA of the base commit (None for "Committed")
+            modi_sha: SHA of the modified commit
+        """
+        if base_sha is None:
+            self.base_type_label.setText("Base (Committed)")
+        else:
+            self.base_type_label.setText(f"Base ({base_sha[:7]})")
+        if modi_sha:
+            self.modified_type_label.setText(f"Modified ({modi_sha[:7]})")
+
     def add_line(self, base, modi):
         base_text = base.line_.rstrip('\n') if hasattr(base, 'line_') else ''
         modi_text = modi.line_.rstrip('\n') if hasattr(modi, 'line_') else ''
@@ -725,72 +792,98 @@ class DiffViewer(QWidget, TabContentBase):
         # Use NoteManager to take note
         if not hasattr(self, 'tab_manager') or not self.tab_manager:
             return
-        
+
         note_mgr = self.tab_manager.note_mgr
-        
+
         text_widget = self.base_text if side == 'base' else self.modified_text
         line_nums = self.base_line_nums if side == 'base' else self.modified_line_nums
         display_lines = self.base_display if side == 'base' else self.modified_display
-        filename = self.base_file if side == 'base' else self.modified_file
-        
+        # Use display_path instead of raw file path for note recording
+        filename = self.base_display_path if side == 'base' else self.modi_display_path
+
         cursor = text_widget.cursorForPosition(event.pos())
         line_idx = cursor.blockNumber()
-        
+
         if line_idx >= len(line_nums) or line_nums[line_idx] is None:
             return
-        
+
         # Take note using NoteManager
         line_number = line_nums[line_idx]
         line_text = display_lines[line_idx]
-        
-        if note_mgr.take_note(filename, side, [line_number], [line_text], is_commit_msg=False):
+
+        # Get SHA from file_class if available (only FileButton has these, not FileButtonUnstaged)
+        sha = None
+        if hasattr(self, 'file_class') and self.file_class is not None:
+            if side == 'base':
+                sha = getattr(self.file_class, 'base_commit_sha_', None)
+            else:
+                sha = getattr(self.file_class, 'modi_commit_sha_', None)
+            if sha:
+                sha = sha[:7]
+            else:
+                sha = 'uncommitted'
+
+        if note_mgr.take_note(filename, side, [line_number], [line_text], is_commit_msg=False, sha=sha):
             self.mark_noted_line(side, line_number)
             self.note_count += 1
             self.update_status()
-    
+
     def take_note(self, side):
         # Use NoteManager to take note
         if not hasattr(self, 'tab_manager') or not self.tab_manager:
             return
-        
+
         note_mgr = self.tab_manager.note_mgr
-        
+
         text_widget = self.base_text if side == 'base' else self.modified_text
         line_nums = self.base_line_nums if side == 'base' else self.modified_line_nums
         display_lines = self.base_display if side == 'base' else self.modified_display
-        filename = self.base_file if side == 'base' else self.modified_file
-        
+        # Use display_path instead of raw file path for note recording
+        filename = self.base_display_path if side == 'base' else self.modi_display_path
+
         cursor = text_widget.textCursor()
         if not cursor.hasSelection():
             return
-        
+
         selection_start = cursor.selectionStart()
         selection_end = cursor.selectionEnd()
-        
+
         doc = text_widget.document()
         start_block = doc.findBlock(selection_start)
         end_block = doc.findBlock(selection_end)
-        
+
         start_block_num = start_block.blockNumber()
         end_block_num = end_block.blockNumber()
-        
+
         if selection_end == end_block.position():
             end_block_num -= 1
-        
+
         # Collect line numbers and texts
         selected_line_nums = []
         selected_line_texts = []
-        
+
         for i in range(start_block_num, end_block_num + 1):
             if i < len(line_nums) and line_nums[i] is not None:
                 selected_line_nums.append(line_nums[i])
                 selected_line_texts.append(display_lines[i])
-        
+
         if not selected_line_nums:
             return
-        
+
+        # Get SHA from file_class if available (only FileButton has these, not FileButtonUnstaged)
+        sha = None
+        if hasattr(self, 'file_class') and self.file_class is not None:
+            if side == 'base':
+                sha = getattr(self.file_class, 'base_commit_sha_', None)
+            else:
+                sha = getattr(self.file_class, 'modi_commit_sha_', None)
+            if sha:
+                sha = sha[:7]
+            else:
+                sha = 'uncommitted'
+
         # Take note using NoteManager
-        if note_mgr.take_note(filename, side, selected_line_nums, selected_line_texts, is_commit_msg=False):
+        if note_mgr.take_note(filename, side, selected_line_nums, selected_line_texts, is_commit_msg=False, sha=sha):
             for line_num in selected_line_nums:
                 self.mark_noted_line(side, line_num)
             self.note_count += 1

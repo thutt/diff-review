@@ -461,6 +461,7 @@ def process_command_line():
                 # terminated strings.
                 #
                 options.dossier_ = json.loads('\n'.join(dossier))
+
             except Exception as exc:
                 options.dossier_ = None
 
@@ -483,6 +484,21 @@ def process_command_line():
                 print("")
                 utils.fatal("Unable to load dossier from:\n  '%s'" %
                             (options.arg_dossier_path))
+
+        if "version" not in options.dossier_:
+            print("Dossier is obsolete; it does not have a version field.")
+            utils.fatal("dr / vrt mismatch; regenerate diffs.")
+        else:
+            expected_dossier_version = 2 # Must match
+                                         # 'version' field in
+                                         # drscm.py.
+            version = options.dossier_["version"]
+            if version != expected_dossier_version:
+                print("Dossier version : '%s'\n"
+                      "Required version: '%s'\n" %
+                      (version, expected_dossier_version))
+
+                utils.fatal("dr / vrt mismatch; regenerate diffs.")
 
     if options.arg_note_editor == "emacs":
         try:

@@ -1,4 +1,4 @@
-# Copyright (c) 2025  Logic Magicians Software (Taylor Hutt).
+# Copyright (c) 2025, 2026  Logic Magicians Software (Taylor Hutt).
 # All Rights Reserved.
 # Licensed under Gnu GPL V3.
 #
@@ -63,14 +63,6 @@ class TextRunNotPresent(TextRun):
 
     def color(self):
         return "NOTPRESENT"
-
-
-class TextRunUnknown(TextRun):  # XXX Remove with diffmgr.
-    def __init__(self, start, n_chars):
-        super().__init__(7, start, n_chars)
-
-    def color(self):
-        return "UNKNOWN"        # Unknown meta marker on '? ' command.
 
 
 class Line(object):

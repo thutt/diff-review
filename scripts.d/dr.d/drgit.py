@@ -1,4 +1,4 @@
-# Copyright (c) 2025  Logic Magicians Software (Taylor Hutt).
+# Copyright (c) 2025, 2026  Logic Magicians Software (Taylor Hutt).
 # All Rights Reserved.
 # Licensed under Gnu GPL V3.
 #
@@ -7,6 +7,22 @@ import shutil
 
 import drscm
 import drutil
+
+# git cat-file -t <sha>
+#
+# Will tell the 'kind' of the SHA:
+#
+#    blob   - file content
+#    tree   - directory listing
+#    commit - commit object
+#    tag    - annotated tag
+#
+#
+# A SHA of all '0' is for a non-present entity:
+#
+#    (added file (base)
+#    deleted file (modi))
+
 
 def git_is_blob(scm, file_info):
     # Check that the SHA for this file references a blob (file
@@ -51,8 +67,54 @@ def git_get_commit_blob_from_commit_sha(scm, file_info, sha):
                      (drutil.qualid_(), ' '.join(cmd)))
 
 
+def git_get_staged_file_blob_sha(scm, rel_path):
+    cmd = [ scm.scm_path_, "ls-files", "--stage", rel_path ]
+
+    (stdout, stderr, rc) = drutil.execute(scm.verbose_, cmd)
+
+    if rc == 0:
+        # 100644 95adebe4a45e9ef66ca92194b58161a417c34b11 0       scripts.d/dr.d/drgit.py
+        line   = ' '.join(stdout[0].split()) # Compress internal whitespace
+        fields = line.split()
+        return fields[1]
+    else:
+        drutil.fatal("%s: Unable to execute '%s'." %
+                     (drutil.qualid_(), ' '.join(cmd)))
+
+
+def git_get_unstaged_file_blob_sha(scm, rel_path):
+    cmd = [ scm.scm_path_, "hash-object", rel_path ]
+
+    (stdout, stderr, rc) = drutil.execute(scm.verbose_, cmd)
+
+    if rc == 0:
+        # 28dc515b9954e7fb34f47de895e21de3f104d749
+        line   = ' '.join(stdout[0].split()) # Compress internal whitespace
+        fields = line.split()
+        return fields[0]
+    else:
+        drutil.fatal("%s: Unable to execute '%s'." %
+                     (drutil.qualid_(), ' '.join(cmd)))
+
+
+def git_get_head_file_blob_sha(scm, rel_path):
+    # Gets SHA of HEAD revision.
+    cmd = [ scm.scm_path_, "rev-parse", "HEAD:%s" % (rel_path) ]
+
+    (stdout, stderr, rc) = drutil.execute(scm.verbose_, cmd)
+
+    if rc == 0:
+        # 756d8d50165a3bdbe5996b3e91b00664cc93a4ed
+        line   = ' '.join(stdout[0].split()) # Compress internal whitespace
+        fields = line.split()
+        return fields[0]
+    else:
+        drutil.fatal("%s: Unable to execute '%s'." %
+                     (drutil.qualid_(), ' '.join(cmd)))
+
+
 def git_get_most_recent_commit_blob(scm, file_info):
-    assert(isinstance(file_info, drscm.FileInfo))
+    assert(isinstance(file_info, drscm.FileInfoBase))
     assert(file_info.chg_id_ is None) # A known SHA should already be blob.
 
     sha = [ ]
@@ -176,10 +238,10 @@ class ChangedFile(drscm.ChangedFile):
     def __init__(self, scm, action, base_file, modi_file):
         super().__init__(scm)
         self.action_ = action
-        assert(isinstance(modi_file, drscm.FileInfo))
+        assert(isinstance(modi_file, drscm.FileInfoBase))
         self.modi_file_info_ = modi_file
 
-        assert(isinstance(base_file, drscm.FileInfo))
+        assert(isinstance(base_file, drscm.FileInfoSha))
         self.base_file_info_ = base_file
 
     def action(self):
@@ -191,8 +253,11 @@ class ChangedFile(drscm.ChangedFile):
             for l in contents:
                 fp.write("%s\n" % (l))
 
+    def get_change_contents_(self, scm, file_info):
+        return git_get_file_contents(scm, file_info)
+
     def copy_to_review_directory_(self, dest_dir, file_info):
-        assert(isinstance(file_info, drscm.FileInfo))
+        assert(isinstance(file_info, drscm.FileInfoBase))
         assert(not file_info.empty()) # Empty handled by caller.
         assert(git_is_blob(self.scm_, file_info))
 
@@ -202,6 +267,7 @@ class ChangedFile(drscm.ChangedFile):
             self.create_output_dir(out_name)
             self.write_file(out_name, contents)
         else:
+            # Uncommitted change.
             out_name = self.output_name(dest_dir, file_info)
             self.create_output_dir(out_name)
             try:
@@ -217,6 +283,82 @@ class ChangedFile(drscm.ChangedFile):
                              "the review directory.\n"
                              "\n"
                              "This template is used in its place.\n")
+
+    def get_dossier_representation_(self):
+        # The 'modi' of an added file is a special case; it will be a
+        # real file.
+        modi_d = os.path.basename(self.scm_.review_modi_dir_)
+        sha_d  = os.path.basename(self.scm_.review_sha_dir_)
+
+        return {
+            "action"       : self.action(),
+            "base"         : self.base_file_info_.get_dossier_cache_key(),
+            "modi"         : self.modi_file_info_.get_dossier_cache_key(),
+        }
+
+    def create_dossier_files_(self, info):
+        self.add_dossier_files_(info, self.modi_file_info_)
+        self.add_dossier_files_(info, self.base_file_info_)
+
+
+
+class ChangedFileUnstaged(ChangedFile):
+    def __init__(self, scm, base_file, stag_file, modi_file):
+        super().__init__(scm, "unstaged", base_file, modi_file)
+        self.stag_file_info_ = stag_file
+
+    def update_review_directory(self):
+        super().update_review_directory()
+
+        if self.stag_file_info_ is not None:
+            assert(self.stag_file_info_.chg_id_ is not None) # Must be blob SHA
+            self.copy_to_review_sha_directory(self.stag_file_info_)
+
+    def get_dossier_representation_(self):
+        stag = None
+        if self.stag_file_info_ is not None:
+            stag = self.stag_file_info_.get_dossier_cache_key()
+            
+        return {
+            "action"        : self.action(),
+            "base"          : self.base_file_info_.get_dossier_cache_key(),
+            "stag"          : stag,
+            "modi"          : self.modi_file_info_.get_dossier_cache_key()
+        }
+
+
+    def create_dossier_files_(self, info):
+        self.add_dossier_files_(info, self.modi_file_info_)
+        self.add_dossier_files_(info, self.base_file_info_)
+        if self.stag_file_info_ is not None:
+            self.add_dossier_files_(info, self.stag_file_info_)
+
+
+class ChangedFileDelete(ChangedFile):
+    def __init__(self, scm, base_file, modi_file):
+        super().__init__(scm, "delete", base_file, modi_file)
+
+
+class ChangedFileRename(ChangedFile):
+    def __init__(self, scm, base_file, modi_file):
+        super().__init__(scm, "rename", base_file, modi_file)
+
+
+class ChangedFileAdd(ChangedFile):
+    def __init__(self, scm, base_file, modi_file):
+        super().__init__(scm, "add", base_file, modi_file)
+
+
+class ChangedFileStaged(ChangedFile):
+    # An uncommitted, changed, file that is staged, and has nothing
+    # unstaged.
+    def __init__(self, scm, base_file, modi_file):
+        super().__init__(scm, "staged", base_file, modi_file)
+
+
+class ChangedFileUntracked(ChangedFile):
+    def __init__(self, scm, base_file, modi_file):
+        super().__init__(scm, "untracked", base_file, modi_file)
 
 
 class Git(drscm.SCM):
@@ -236,6 +378,9 @@ class Git(drscm.SCM):
                 deleted += int(info[1])
         return (files, added, deleted)
 
+    def get_name_(self):
+        return "git"
+
 
 # GitStaged:
 #
@@ -244,6 +389,17 @@ class Git(drscm.SCM):
 class GitStaged(Git):
     def __init__(self, options):
         super().__init__(options)
+        self.rel_dir_sha_  = os.path.basename(options.review_sha_dir)
+        self.rel_dir_modi_ = os.path.basename(options.review_modi_dir)
+        self.ordered_      = [ self.get_revision_key(None) ]
+
+    def get_revision_key_(self, chg_id):
+        # Uncommitted changes are always 'in the client'.  There are
+        # no revisions like in a committed review.
+        return "CLIENT"
+
+    def get_dossier_mode_(self):
+        return "uncommitted"    # Uncommitted changes in the client.
 
     def get_unstaged_change_info(self):
         stdout = git_get_unstaged_numstat(self)
@@ -253,7 +409,8 @@ class GitStaged(Git):
         stdout = git_get_staged_numstat(self)
         return self.process_numstat_output(stdout)
 
-    def get_changed_info_(self):
+    def get_changed_info_(self, change_id):
+        assert(change_id is None)
         (files, added, deleted) = self.get_unstaged_change_info()
         staged = "unstaged [%s files, %s lines]  " % (files, added + deleted)
 
@@ -263,19 +420,48 @@ class GitStaged(Git):
 
     def parse_action(self, idx_ch, wrk_ch, rel_path):
         if (idx_ch == 'D') or (wrk_ch == 'D'):
-            modi_file = drscm.FileInfoEmpty(rel_path)
-            blob_sha  = git_get_most_recent_commit_blob(self, modi_file)
-            base_file = drscm.FileInfo(rel_path, blob_sha)
-            action    = ChangedFile(self, "delete", base_file, modi_file)
+            modi_file = drscm.FileInfoEmpty(rel_path, self.rel_dir_sha_)
+            cmtd_file = drscm.FileInfo(rel_path, self.rel_dir_modi_, rel_path)
+            blob_sha  = git_get_most_recent_commit_blob(self, cmtd_file)
+            base_file = drscm.FileInfoSha(rel_path, self.rel_dir_sha_,
+                                          blob_sha, blob_sha)
+            action    = ChangedFileDelete(self, base_file, modi_file)
 
         elif (idx_ch in (' ', 'A', 'M')) and (wrk_ch == 'M'):
             # Rename (idx_ch == 'R') is a special case that cannot be
             # processed by Unstaged.
             #
-            modi_file = drscm.FileInfo(rel_path, None)
-            blob_sha  = git_get_most_recent_commit_blob(self, modi_file)
-            base_file = drscm.FileInfo(rel_path, blob_sha)
-            action    = ChangedFile(self, "unstaged", base_file, modi_file)
+            staged_sha    = git_get_staged_file_blob_sha(self, rel_path)
+            unstaged_sha  = git_get_unstaged_file_blob_sha(self, rel_path)
+            if idx_ch == 'A':
+                # When adding a new file, there is no HEAD sha.
+                head_sha = None
+            else:
+                head_sha = git_get_head_file_blob_sha(self, rel_path)
+
+            no_chgs       = ((staged_sha == head_sha) and
+                             (staged_sha == unstaged_sha))
+            unstaged_chgs = ((staged_sha == head_sha) and
+                             (staged_sha != unstaged_sha))
+            staged_chgs   = ((staged_sha != head_sha) and
+                             (staged_sha == unstaged_sha))
+            both_chgs     = ((staged_sha != head_sha) and
+                             (staged_sha != unstaged_sha))
+            modi_file     = drscm.FileInfo(rel_path,
+                                           self.rel_dir_modi_, rel_path)
+            blob_sha      = git_get_most_recent_commit_blob(self, modi_file)
+            if head_sha is None:
+                # No base committed file, so make an empty one.
+                base_file = drscm.FileInfoEmpty(rel_path, self.rel_dir_sha_)
+            else:
+                base_file = drscm.FileInfoSha(rel_path, self.rel_dir_sha_,
+                                              blob_sha, blob_sha)
+            staged_file   = None
+            if staged_chgs or both_chgs:
+                staged_file = drscm.FileInfoSha(rel_path, self.rel_dir_sha_,
+                                                staged_sha, staged_sha)
+            action = ChangedFileUnstaged(self, base_file,
+                                         staged_file, modi_file)
 
         elif (idx_ch == 'R') and (wrk_ch in (' ', 'M')):
             # The file has been renamed.
@@ -286,27 +472,37 @@ class GitStaged(Git):
             parts         =  rel_path.split(' ')
             base_rel_path = parts[0]
             modi_rel_path = parts[2]
-            modi_file     = drscm.FileInfo(modi_rel_path, None)
-            base_file     = drscm.FileInfo(base_rel_path, None)
-            blob_sha      = git_get_most_recent_commit_blob(self, base_file)
-            base_file     = drscm.FileInfo(base_rel_path, blob_sha)
-            action        = ChangedFile(self, "rename", base_file, modi_file)
+            modi_file     = drscm.FileInfo(rel_path,
+                                           self.rel_dir_modi_, modi_rel_path)
+            base_tmp      = drscm.FileInfo(rel_path,
+                                           None, base_rel_path)
+            base_sha      = git_get_most_recent_commit_blob(self, base_tmp)
+            base_file     = drscm.FileInfoSha(rel_path, self.rel_dir_sha_,
+                                              base_sha, base_sha)
+            action        = ChangedFileRename(self, base_file, modi_file)
 
         elif (idx_ch == 'A') and (wrk_ch == ' '):
-            modi_file = drscm.FileInfo(rel_path, None)
-            base_file = drscm.FileInfoEmpty(rel_path)
-            action    = ChangedFile(self, "add", base_file, modi_file)
+            modi_file = drscm.FileInfo(rel_path,
+                                       self.rel_dir_modi_, rel_path)
+            base_file = drscm.FileInfoEmpty(rel_path, self.rel_dir_sha_)
+            action    = ChangedFileAdd(self, base_file, modi_file)
 
         elif (idx_ch == 'M') and wrk_ch == ' ':
-            modi_file = drscm.FileInfo(rel_path, None)
-            blob_sha  = git_get_most_recent_commit_blob(self, modi_file)
-            base_file = drscm.FileInfo(rel_path, blob_sha)
-            action    = ChangedFile(self, "staged", base_file, modi_file)
+            temp_file = drscm.FileInfo(rel_path,
+                                       self.rel_dir_modi_, rel_path)
+            base_sha  = git_get_most_recent_commit_blob(self, temp_file)
+            base_file = drscm.FileInfoSha(rel_path, self.rel_dir_sha_,
+                                          base_sha, base_sha)
+            stag_sha  = git_get_staged_file_blob_sha(self, rel_path)
+            modi_file = drscm.FileInfoSha(rel_path, self.rel_dir_sha_,
+                                          stag_sha, stag_sha)
+            action    = ChangedFileStaged(self, base_file, modi_file)
 
         elif (idx_ch == '?') or (wrk_ch == '?'):
-            modi_file = drscm.FileInfo(rel_path, None)
-            base_file = drscm.FileInfoEmpty(rel_path)
-            action    = ChangedFile(self, "untracked", base_file, modi_file)
+            modi_file = drscm.FileInfo(rel_path,
+                                       self.rel_dir_modi_, rel_path)
+            base_file = drscm.FileInfoEmpty(rel_path, self.rel_dir_sha_)
+            action    = ChangedFileUntracked(self, base_file, modi_file)
 
         else:
             raise NotImplementedError("Unknown action: '%s' '%s'  '%s'" %
@@ -314,13 +510,14 @@ class GitStaged(Git):
 
         return action;
 
-    def generate_dossier_(self):
+    def generate_dossier_(self, change_id):
         # See the 'man git-status' for the meaning of the first two
         # characters for each line of output.
         #
         # The first character refers to the index (staged changes).
         # The second character refers to the working tree (unstaged changes).
         #
+        assert(change_id is None)
         result = [ ]
         stdout = git_get_status_short(self, self.git_untracked_)
         for l in stdout:
@@ -339,14 +536,27 @@ class GitStaged(Git):
 class GitCommitted(Git):
     def __init__(self, options):
         super().__init__(options)
+        self.rel_sha_dir_  = os.path.basename(self.review_sha_dir_)
+        self.rel_modi_dir_ = os.path.basename(self.review_modi_dir_)
+        self.ordered_      = [ ]
+
+    def get_dossier_mode_(self):
+        return "committed"    # Uncommitted changes in the client.
+
+    def get_revision_key_(self, chg_id):
+        # Uncommitted changes are always 'in the client'.  There are
+        # no revisions like in a committed review.
+        if chg_id not in self.ordered_:
+            self.ordered_.append(chg_id)
+        return chg_id           # SHA of change being reviewed.
 
     # Returns a range that covers a single SHA, or a range of SHA values.
-    def get_change_range(self):
-        assert(isinstance(self.change_id_, str))
-        stdout = git_rev_parse(self, self.change_id_)
+    def get_change_range(self, change_id):
+        assert(isinstance(change_id, str))
+        stdout = git_rev_parse(self, change_id)
         if len(stdout) == 1:
             # Single SHA specified; double it to get a full range.
-            chg_id = "%s^..%s" % (self.change_id_, self.change_id_)
+            chg_id = "%s^..%s" % (change_id, change_id)
             stdout = git_rev_parse(self, chg_id)
 
         assert(len(stdout) == 2)
@@ -362,8 +572,9 @@ class GitCommitted(Git):
         if action == 'A':       # Add.
             assert(base_file_sha == "0000000000000000000000000000000000000000")
             modi_rel_path = tail[0]
-            modi_file     = drscm.FileInfo(modi_rel_path, modi_file_sha)
-            base_file     = drscm.FileInfoEmpty(modi_rel_path)
+            modi_file     = drscm.FileInfoSha(modi_rel_path, self.rel_sha_dir_,
+                                              modi_file_sha, modi_file_sha)
+            base_file     = drscm.FileInfoEmpty(modi_rel_path, self.rel_sha_dir_)
             action        = ChangedFile(self, "add", base_file, modi_file)
 
         elif action == 'B':     # Pairing broken.
@@ -377,21 +588,26 @@ class GitCommitted(Git):
         elif action == 'D':     # Delete.
             assert(modi_file_sha == "0000000000000000000000000000000000000000")
             base_rel_path = tail[0]
-            modi_file     = drscm.FileInfoEmpty(base_rel_path)
-            base_file     = drscm.FileInfo(base_rel_path, base_file_sha)
+            modi_file     = drscm.FileInfoEmpty(base_rel_path, self.rel_sha_dir_)
+            base_file     = drscm.FileInfoSha(base_rel_path, self.rel_sha_dir_,
+                                              base_file_sha, base_file_sha)
             action        = ChangedFile(self, "delete", base_file, modi_file)
 
         elif action == 'M':     # Modify.
             base_rel_path = tail[0]
-            modi_file     = drscm.FileInfo(base_rel_path, modi_file_sha)
-            base_file     = drscm.FileInfo(base_rel_path, base_file_sha)
+            modi_file     = drscm.FileInfoSha(base_rel_path, self.rel_sha_dir_,
+                                              modi_file_sha, modi_file_sha)
+            base_file     = drscm.FileInfoSha(base_rel_path, self.rel_sha_dir_,
+                                              base_file_sha, base_file_sha)
             action        = ChangedFile(self, "modify", base_file, modi_file)
 
         elif action == 'R':    # Rename.
             base_rel_path = tail[0]
             modi_rel_path = tail[1]
-            modi_file     = drscm.FileInfo(modi_rel_path, modi_file_sha)
-            base_file     = drscm.FileInfo(base_rel_path, base_file_sha)
+            modi_file     = drscm.FileInfoSha(modi_rel_path, self.rel_sha_dir_,
+                                              modi_file_sha, modi_file_sha)
+            base_file     = drscm.FileInfoSha(base_rel_path, self.rel_sha_dir_,
+                                              base_file_sha, base_file_sha)
             action        = ChangedFile(self, "rename", base_file, modi_file)
 
         elif action == 'T':    # Type change.
@@ -411,17 +627,19 @@ class GitCommitted(Git):
 
         return action;
 
-    def get_changed_info_(self):
-        (base_sha, modi_sha) = self.get_change_range()
+    def get_changed_info_(self, change_id):
+        assert(change_id is not None)
+        (base_sha, modi_sha) = self.get_change_range(change_id)
         stdout = git_get_numstat(self, base_sha, modi_sha)
         (files, added, deleted) = self.process_numstat_output(stdout)
         msg = ("committed [%s files, %s lines]  " % (files, added + deleted))
         return msg
 
-    def generate_dossier_(self):
-        (beg_sha, end_sha) = self.get_change_range()
+    def generate_dossier_(self, change_id):
+        (beg_sha, end_sha) = self.get_change_range(change_id)
 
         self.commit_msg_ = git_get_commit_msg(self, beg_sha, end_sha)
+        self.commit_summary_ = self.commit_msg_[0]
         diff = git_diff_tree(self, beg_sha, end_sha)
         result = [ ]
         for l in diff:
