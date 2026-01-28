@@ -785,7 +785,6 @@ class DiffViewerTabWidget(QMainWindow):
             if current_widget:
                 current_widget.focus_content()
             self.update_focus_tinting()
-            self.update_status_focus_indicator()
 
     def _make_tab_key(self, file_class):
         """Create a key for file_to_tab_index.
@@ -1598,7 +1597,6 @@ class DiffViewerTabWidget(QMainWindow):
                 self.focus_mode = 'sidebar'
                 self.sidebar_widget.tree.setFocus()
                 self.update_focus_tinting()
-                self.update_status_focus_indicator()
 
             # If no tabs remain, ensure sidebar is visible
             if self.tab_widget.count() == 0 and not self.sidebar_visible:
@@ -1681,7 +1679,6 @@ class DiffViewerTabWidget(QMainWindow):
                 if current_widget:
                     current_widget.focus_content()
                 self.update_focus_tinting()
-                self.update_status_focus_indicator()
 
             # Save current splitter sizes before hiding
             self.saved_splitter_sizes = self.splitter.sizes()
@@ -2262,9 +2259,14 @@ class DiffViewerTabWidget(QMainWindow):
             widget = obj
             in_sidebar = False
             in_content = False
-            is_tree_widget = (obj == self.sidebar_widget.tree)
+            in_tree_widget = False
+            in_commit_list = False
 
             while widget is not None:
+                if widget == self.sidebar_widget.tree:
+                    in_tree_widget = True
+                if isinstance(widget, file_tree_sidebar.CommitListWidget):
+                    in_commit_list = True
                 if widget == self.sidebar_widget:
                     in_sidebar = True
                     break
@@ -2274,15 +2276,22 @@ class DiffViewerTabWidget(QMainWindow):
                 widget = widget.parent()
 
             # Switch focus based on which area was clicked
-            # Don't update focus_mode for tree clicks - let on_item_clicked handle it
-            if in_sidebar and self.focus_mode != 'sidebar' and not is_tree_widget:
-                self.focus_mode = 'sidebar'
-                self.update_focus_tinting()
-                self.update_status_focus_indicator()
+            # Don't update focus_mode for tree/commit list clicks - let their handlers manage focus
+            if (in_sidebar and
+                self.focus_mode != 'sidebar' and
+                not in_tree_widget and
+                not in_commit_list):
+                # Defer focus switch until after all mouse events are processed
+                # This allows child widget handlers (like CommitListWidget) to
+                # set focus_mode first, and we only switch to sidebar if they didn't
+                def deferred_sidebar_focus():
+                    if self.focus_mode != 'content':
+                        self.focus_mode = 'sidebar'
+                        self.update_focus_tinting()
+                QTimer.singleShot(0, deferred_sidebar_focus)
             elif in_content and self.focus_mode != 'content' and self.tab_widget.count() > 0:
                 self.focus_mode = 'content'
                 self.update_focus_tinting()
-                self.update_status_focus_indicator()
                 self.update_commit_highlighting()
 
         if event.type() == event.Type.KeyPress:
@@ -2300,8 +2309,8 @@ class DiffViewerTabWidget(QMainWindow):
                 if isinstance(widget.parent() if widget.parent() else None, CommitMessageTab):
                     is_our_widget = True
                     break
-                # Check if this is a sidebar widget
-                if widget == self.sidebar_widget or (widget.parent() and widget.parent() == self.sidebar_widget):
+                # Check if this is a sidebar widget (or any descendant)
+                if widget == self.sidebar_widget:
                     is_our_widget = True
                     break
                 # Check if this is a terminal widget
@@ -2515,7 +2524,6 @@ class DiffViewerTabWidget(QMainWindow):
             return
 
         self.update_focus_tinting()
-        self.update_status_focus_indicator()
 
     def update_focus_tinting(self):
         """Apply background tinting based on current focus mode"""
@@ -2529,18 +2537,6 @@ class DiffViewerTabWidget(QMainWindow):
             self.tab_overlay.hide()
             self.sidebar_overlay.raise_()
             self.sidebar_overlay.show()
-
-    def update_status_focus_indicator(self):
-        """Update status bar in current tab to show focus mode"""
-        current_widget = self.tab_widget.currentWidget()
-        if not current_widget:
-            return
-
-        # Check if it's a DiffViewer with a region_label
-        if isinstance(current_widget, DiffViewer):
-            focus_text = f"Focus: {'Sidebar' if self.focus_mode == 'sidebar' else 'Content'}"
-            # The region_label is directly accessible on the DiffViewer
-            # We'll update it to include focus mode, or add a separate label
 
     def run(self):
         """Show the window and start the application event loop"""

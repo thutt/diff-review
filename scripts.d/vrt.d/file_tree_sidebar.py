@@ -549,6 +549,14 @@ class CommitListWidget(QWidget):
     def _on_label_clicked(self, sha):
         """Handle click on a commit label."""
         self.tab_widget.on_commit_msg_clicked(sha)
+        # Focus the text widget in the commit message tab (same as keyboard activation)
+        current_widget = self.tab_widget.tab_widget.currentWidget()
+        if current_widget:
+            current_widget.focus_content()
+            if self.tab_widget.focus_mode != 'content':
+                self.tab_widget.focus_mode = 'content'
+                self.tab_widget.last_content_tab_index = self.tab_widget.tab_widget.currentIndex()
+                self.tab_widget.update_focus_tinting()
 
     def _on_item_activated(self, sha):
         """Handle keyboard activation of a commit."""
@@ -561,7 +569,6 @@ class CommitListWidget(QWidget):
                 self.tab_widget.focus_mode = 'content'
                 self.tab_widget.last_content_tab_index = self.tab_widget.tab_widget.currentIndex()
                 self.tab_widget.update_focus_tinting()
-                self.tab_widget.update_status_focus_indicator()
 
     def _on_range_changed(self, low_idx, high_idx):
         """Handle range slider change."""
@@ -937,7 +944,7 @@ class FileTreeSidebar(QWidget):
         modi_idx = self.tab_widget.revision_modi_idx_
         if base_idx is not None and modi_idx is not None:
             self.commit_list_widget.set_range(base_idx, modi_idx)
-    
+
     def add_notes_button(self, button):
         """Add review notes button as tree item"""
         item = QTreeWidgetItem(self.tree)
@@ -1094,7 +1101,6 @@ class FileTreeSidebar(QWidget):
                 self.tab_widget.focus_mode = 'content'
                 self.tab_widget.last_content_tab_index = self.tab_widget.tab_widget.currentIndex()
                 self.tab_widget.update_focus_tinting()
-                self.tab_widget.update_status_focus_indicator()
 
     def _focus_current_tab_widget(self):
         """Set focus to the current tab's main widget (commit msg or review notes)"""
@@ -1110,7 +1116,6 @@ class FileTreeSidebar(QWidget):
                 self.tab_widget.focus_mode = 'content'
                 self.tab_widget.last_content_tab_index = self.tab_widget.tab_widget.currentIndex()
                 self.tab_widget.update_focus_tinting()
-                self.tab_widget.update_status_focus_indicator()
     
     def update_file_state(self, file_class, is_open, is_active):
         """Update visual state of a file item"""
