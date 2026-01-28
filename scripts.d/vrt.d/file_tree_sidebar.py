@@ -1050,6 +1050,10 @@ class FileTreeSidebar(QWidget):
     def on_tree_right_click(self, pos):
         """Handle right-click on tree - gives focus to tree for keyboard navigation"""
         self.tree.setFocus()
+        # Set focus mode to sidebar and update overlay tinting
+        if self.tab_widget.focus_mode != 'sidebar':
+            self.tab_widget.focus_mode = 'sidebar'
+            self.tab_widget.update_focus_tinting()
     
     def on_item_clicked(self, item, column):
         """Handle tree item click"""
