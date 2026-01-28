@@ -313,6 +313,8 @@ class DiffViewerTabWidget(QMainWindow):
         # Focus mode: 'sidebar' or 'content'
         self.focus_mode = 'sidebar'  # Start with sidebar focused (files must be selected first)
         self.last_content_tab_index = None  # Track last focused content tab for restoring focus
+        self.last_sidebar_focus = 'file_tree'  # Track last focused sidebar widget: 'commit_list' or 'file_tree'
+        self.last_commit_list_index = -1  # Track last selected index in commit list
         self.sidebar_base_stylesheet = ""  # Will be set after sidebar is created
         self.tab_widget_base_stylesheet = ""  # Will be set after tab_widget is created
         self.focus_mode_label = None  # Label for showing focus mode in status bar
@@ -2509,9 +2511,11 @@ class DiffViewerTabWidget(QMainWindow):
             # Ensure sidebar is visible when switching to sidebar context
             if not self.sidebar_visible:
                 self.toggle_sidebar()
-            # Give Qt focus to the tree widget
-            self.sidebar_widget.tree.setFocus()
+            # Restore focus to last focused sidebar widget
+            self._restore_sidebar_focus()
         elif self.tab_widget.count() > 0: # Only switch if there are tabs open.
+            # Save current sidebar focus state before switching away
+            self._save_sidebar_focus()
             self.focus_mode = 'content'
             # Give Qt focus to the current content widget
             current_widget = self.tab_widget.currentWidget()
@@ -2524,6 +2528,32 @@ class DiffViewerTabWidget(QMainWindow):
             return
 
         self.update_focus_tinting()
+
+    def _save_sidebar_focus(self):
+        """Save which sidebar widget has focus and its state."""
+        commit_list = self.sidebar_widget.commit_list_widget
+        if commit_list and commit_list.isVisible():
+            container = commit_list.list_container
+            if container.hasFocus():
+                self.last_sidebar_focus = 'commit_list'
+                self.last_commit_list_index = container._selected_index
+                return
+        # Default to file tree
+        self.last_sidebar_focus = 'file_tree'
+
+    def _restore_sidebar_focus(self):
+        """Restore focus to the last focused sidebar widget."""
+        if self.last_sidebar_focus == 'commit_list':
+            commit_list = self.sidebar_widget.commit_list_widget
+            if commit_list and commit_list.isVisible():
+                container = commit_list.list_container
+                container.setFocus()
+                # Restore the selected index if valid
+                if self.last_commit_list_index >= 0:
+                    container.select_index(self.last_commit_list_index)
+                return
+        # Default to file tree
+        self.sidebar_widget.tree.setFocus()
 
     def update_focus_tinting(self):
         """Apply background tinting based on current focus mode"""
@@ -2560,12 +2590,14 @@ class DiffViewerTabWidget(QMainWindow):
         self.update_focus_tinting()
 
         # Set initial Qt focus to appropriate sidebar widget
-        if (self.review_mode_ == "committed" and 
-            self.sidebar_widget.commit_list_widget and 
+        if (self.review_mode_ == "committed" and
+            self.sidebar_widget.commit_list_widget and
             self.sidebar_widget.commit_list_widget.isVisible()):
             self.sidebar_widget.commit_list_widget.list_container.setFocus()
+            self.last_sidebar_focus = 'commit_list'
         else:
             self.sidebar_widget.tree.setFocus()
+            self.last_sidebar_focus = 'file_tree'
 
         self.show()
         return sys.exit(self._app.exec())

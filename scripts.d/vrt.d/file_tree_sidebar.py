@@ -897,10 +897,12 @@ class FileTreeSidebar(QWidget):
         """Switch keyboard focus from file tree to commit list."""
         if self.commit_list_widget and self.commit_list_widget.isVisible():
             self.commit_list_widget.list_container.setFocus()
+            self.tab_widget.last_sidebar_focus = 'commit_list'
 
     def switch_focus_to_file_tree(self):
         """Switch keyboard focus from commit list to file tree."""
         self.tree.setFocus()
+        self.tab_widget.last_sidebar_focus = 'file_tree'
 
     def add_commit_msg_button(self, button):
         """Legacy method - adds single commit message as tree item (for uncommitted mode)"""
