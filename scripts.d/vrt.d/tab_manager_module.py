@@ -23,7 +23,8 @@ from help_dialog import (HelpDialog, HELP_SECTION_OVERVIEW, HELP_SECTION_TABS,
                          HELP_SECTION_NAVIGATION, HELP_SECTION_COLORS,
                          HELP_SECTION_SEARCH, HELP_SECTION_NOTES,
                          HELP_SECTION_BOOKMARKS, HELP_SECTION_DIFFMAP,
-                         HELP_SECTION_ALL)
+                         HELP_SECTION_FILE_TREE, HELP_SECTION_UNCOMMITTED,
+                         HELP_SECTION_COMMIT_LIST, HELP_SECTION_ALL)
 from shortcuts_dialog import ShortcutsDialog
 from search_dialogs import SearchDialog, SearchResultDialog
 import color_palettes
@@ -596,6 +597,18 @@ class DiffViewerTabWidget(QMainWindow):
         diffmap_action = QAction("Diff Map", self)
         diffmap_action.triggered.connect(lambda: self.show_help(HELP_SECTION_DIFFMAP))
         help_menu.addAction(diffmap_action)
+
+        file_tree_action = QAction("File Tree Selection", self)
+        file_tree_action.triggered.connect(lambda: self.show_help(HELP_SECTION_FILE_TREE))
+        help_menu.addAction(file_tree_action)
+
+        uncommitted_action = QAction("Uncommitted Comparison", self)
+        uncommitted_action.triggered.connect(lambda: self.show_help(HELP_SECTION_UNCOMMITTED))
+        help_menu.addAction(uncommitted_action)
+
+        commit_list_action = QAction("Commit List", self)
+        commit_list_action.triggered.connect(lambda: self.show_help(HELP_SECTION_COMMIT_LIST))
+        help_menu.addAction(commit_list_action)
 
         # Calculate window size based on display parameters
         # Use Courier 12 Bold to match the text widget font

@@ -25,6 +25,9 @@ HELP_SECTION_SEARCH = "search"
 HELP_SECTION_NOTES = "notes"
 HELP_SECTION_BOOKMARKS = "bookmarks"
 HELP_SECTION_DIFFMAP = "diffmap"
+HELP_SECTION_FILE_TREE = "file_tree"
+HELP_SECTION_UNCOMMITTED = "uncommitted"
+HELP_SECTION_COMMIT_LIST = "commit_list"
 HELP_SECTION_ALL = "all"
 
 
@@ -448,6 +451,161 @@ def get_help_advanced():
     """
 
 
+def get_help_file_tree():
+    """Return HTML for File Tree Selection."""
+    mod_key = _get_mod_key()
+
+    return f"""
+    <h2>File Tree Selection</h2>
+
+    <h3>Overview</h3>
+    <p>The file tree in the sidebar organizes files by their directory structure.
+    Files are grouped under collapsible directory nodes, making it easy to navigate
+    large sets of changes.</p>
+
+    <h3>Tree Structure</h3>
+    <ul>
+        <li><b>Directory Nodes:</b> Shown as expandable/collapsible items with folder-style presentation</li>
+        <li><b>File Items:</b> Shown as leaf nodes under their parent directory</li>
+        <li><b>Nesting:</b> Directories are nested according to the file path hierarchy</li>
+        <li><b>Open Count:</b> Collapsed directories show a count of open files (e.g., "src (3)")</li>
+    </ul>
+
+    <h3>Mouse Interaction</h3>
+    <ul>
+        <li><b>Left-click file:</b> Opens the file in a new tab (or switches to existing tab) and focuses the diff viewer</li>
+        <li><b>Left-click directory:</b> Expands or collapses the directory node</li>
+        <li><b>Right-click anywhere:</b> Gives keyboard focus to the tree for navigation</li>
+    </ul>
+
+    <h3>Keyboard Navigation (when tree is focused)</h3>
+    <ul>
+        <li><b>Up/Down arrows:</b> Move selection through the tree</li>
+        <li><b>Left arrow:</b> Collapse current directory, or move to parent</li>
+        <li><b>Right arrow:</b> Expand current directory, or move to first child</li>
+        <li><b>Space:</b> Open selected file and return focus to diff viewer</li>
+        <li><b>Enter:</b> Open selected file (focus stays on tree)</li>
+        <li><b>{mod_key}+\\:</b> Switch focus back to content area</li>
+    </ul>
+
+    <h3>Visual Indicators</h3>
+    <ul>
+        <li><b>Blue text:</b> File has an open tab</li>
+        <li><b>Bold blue text:</b> File's tab is currently active</li>
+        <li><b>Orange background:</b> File has changed on disk (with file watcher active)</li>
+        <li><b>Normal text:</b> File is not currently open</li>
+    </ul>
+
+    <h3>Special Items</h3>
+    <ul>
+        <li><b>Commit Message:</b> Opens the commit message in a separate tab (shown in dark red)</li>
+        <li><b>Review Notes:</b> Opens your review notes file (shown in blue, appears after first note)</li>
+        <li><b>Open All button:</b> Opens all files at once; shows total file count</li>
+    </ul>
+    """
+
+
+def get_help_uncommitted():
+    """Return HTML for Uncommitted Comparison."""
+    return """
+    <h2>Uncommitted Comparison</h2>
+
+    <h3>Overview</h3>
+    <p>Uncommitted comparison mode lets you review changes that have not yet been
+    committed to your repository. This is useful for reviewing your work before
+    committing, or for understanding staged vs unstaged changes.</p>
+
+    <h3>Comparison Modes</h3>
+    <p>When viewing uncommitted changes, you can compare different versions of your files:</p>
+    <ul>
+        <li><b>HEAD vs Working (default):</b> Compare the last committed version against your current working directory. Shows all uncommitted changes, both staged and unstaged.</li>
+        <li><b>HEAD vs Staged:</b> Compare the last committed version against the staging area (index). Shows only changes that have been staged with "git add".</li>
+        <li><b>Staged vs Working:</b> Compare the staging area against the working directory. Shows changes that exist in your working directory but have not been staged.</li>
+    </ul>
+
+    <h3>File Visibility by Mode</h3>
+    <ul>
+        <li><b>HEAD vs Working:</b> All modified files are shown</li>
+        <li><b>HEAD vs Staged:</b> Only files with staged content are shown</li>
+        <li><b>Staged vs Working:</b> Only files with both staged and unstaged changes are shown</li>
+    </ul>
+
+    <h3>Staged vs Unstaged Files</h3>
+    <ul>
+        <li><b>Staged-only files:</b> Files where all changes have been staged (appear in HEAD vs Staged)</li>
+        <li><b>Unstaged files:</b> Files with changes in working directory that may or may not have staged portions</li>
+        <li><b>Mixed files:</b> Files with both staged and unstaged changes (visible in all three modes)</li>
+    </ul>
+
+    <h3>Usage</h3>
+    <ul>
+        <li>Use the View menu or toolbar to switch between comparison modes</li>
+        <li>The sidebar updates automatically to show only relevant files for each mode</li>
+        <li>Open tabs may close if their file is not applicable to the new mode</li>
+    </ul>
+    """
+
+
+def get_help_commit_list():
+    """Return HTML for Commit List (Committed Changes)."""
+    return """
+    <h2>Commit List for Committed Changes</h2>
+
+    <h3>Overview</h3>
+    <p>When reviewing committed changes (a dossier with multiple revisions), the sidebar
+    displays a list of commits that you can use to select revision ranges for comparison.</p>
+
+    <h3>Commit List Structure</h3>
+    <ul>
+        <li><b>Header:</b> "Commits" label at the top of the list</li>
+        <li><b>Committed (index 0):</b> Represents the repository state before the first commit in the range</li>
+        <li><b>Commit entries:</b> Each commit shows its SHA prefix and commit message summary</li>
+        <li><b>Order:</b> Commits are listed chronologically (oldest to newest, top to bottom)</li>
+    </ul>
+
+    <h3>Range Slider</h3>
+    <p>A vertical range slider on the left side of the commit list allows you to select
+    a revision range for comparison:</p>
+    <ul>
+        <li><b>Top handle:</b> Selects the base revision (what you're comparing FROM)</li>
+        <li><b>Bottom handle:</b> Selects the modified revision (what you're comparing TO)</li>
+        <li><b>Blue highlight:</b> Commits within the selected range are highlighted</li>
+        <li><b>Drag handles:</b> Click and drag either handle to adjust the range</li>
+        <li><b>Minimum range:</b> At least one commit must be between the handles</li>
+    </ul>
+
+    <h3>Keyboard Navigation</h3>
+    <ul>
+        <li><b>Up/Down arrows:</b> Move selection through commits</li>
+        <li><b>Left/Right arrows:</b> Scroll the commit list horizontally (for long messages)</li>
+        <li><b>Enter/Space:</b> Open the selected commit's message in a tab</li>
+        <li><b>Tab:</b> Switch focus to the file tree</li>
+    </ul>
+
+    <h3>Mouse Interaction</h3>
+    <ul>
+        <li><b>Click commit:</b> Opens that commit's message in a new tab</li>
+        <li><b>Hover:</b> Commits highlight on hover to indicate clickability</li>
+    </ul>
+
+    <h3>Visual Indicators</h3>
+    <ul>
+        <li><b>Blue selection:</b> Currently keyboard-selected commit</li>
+        <li><b>Light blue background:</b> Commits within the selected revision range</li>
+        <li><b>Italic "Committed":</b> The special entry representing pre-first-commit state</li>
+        <li><b>Bold text:</b> Commit whose tab is currently active</li>
+    </ul>
+
+    <h3>File List Updates</h3>
+    <p>When you change the revision range using the slider:</p>
+    <ul>
+        <li>The file tree updates to show files modified within that range</li>
+        <li>Files are compared between the base and modified revision endpoints</li>
+        <li>Selecting "Committed" as the base compares against the pre-first-commit state</li>
+    </ul>
+    """
+
+
 def get_help_all():
     """Return HTML for all help sections combined."""
     return (get_help_overview() +
@@ -460,6 +618,9 @@ def get_help_all():
             get_help_notes() +
             get_help_bookmarks() +
             get_help_diffmap() +
+            get_help_file_tree() +
+            get_help_uncommitted() +
+            get_help_commit_list() +
             get_help_advanced())
 
 
@@ -475,6 +636,9 @@ HELP_SECTIONS = {
     HELP_SECTION_NOTES: (get_help_notes, "Note Taking"),
     HELP_SECTION_BOOKMARKS: (get_help_bookmarks, "Bookmarks"),
     HELP_SECTION_DIFFMAP: (get_help_diffmap, "Diff Map"),
+    HELP_SECTION_FILE_TREE: (get_help_file_tree, "File Tree Selection"),
+    HELP_SECTION_UNCOMMITTED: (get_help_uncommitted, "Uncommitted Comparison"),
+    HELP_SECTION_COMMIT_LIST: (get_help_commit_list, "Commit List"),
     HELP_SECTION_ALL: (get_help_all, "Complete Guide"),
 }
 
