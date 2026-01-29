@@ -1648,9 +1648,55 @@ class DiffViewerTabWidget(QMainWindow):
             return True
         return False
 
+    def _sidebar_has_focus(self):
+        """Check if any widget in the sidebar currently has focus."""
+        focus_widget = QApplication.focusWidget()
+        widget = focus_widget
+        while widget is not None:
+            if widget == self.sidebar_widget:
+                return True
+            widget = widget.parent()
+        return False
+
+    def _sidebar_cycle_focus(self, forward):
+        """Cycle focus between file tree and commit list in sidebar.
+
+        Args:
+            forward: If True, file_tree -> commit_list. If False, commit_list -> file_tree.
+        """
+        # Determine current focus
+        focus_widget = QApplication.focusWidget()
+        widget = focus_widget
+        in_commit_list = False
+        in_file_tree = False
+        while widget is not None:
+            if widget == self.sidebar_widget.tree:
+                in_file_tree = True
+                break
+            if isinstance(widget, file_tree_sidebar.CommitListWidget):
+                in_commit_list = True
+                break
+            widget = widget.parent()
+
+        if forward:
+            # next: file_tree -> commit_list, commit_list -> file_tree
+            if in_file_tree:
+                self.sidebar_widget.switch_focus_to_commit_list()
+            else:
+                self.sidebar_widget.switch_focus_to_file_tree()
+        else:
+            # prev: commit_list -> file_tree, file_tree -> commit_list
+            if in_commit_list:
+                self.sidebar_widget.switch_focus_to_file_tree()
+            else:
+                self.sidebar_widget.switch_focus_to_commit_list()
+
     def next_tab(self):
-        """Navigate to next tab (left-to-right, wraps around)"""
+        """Navigate to next tab (left-to-right, wraps around), or cycle sidebar focus"""
         if self._should_block_shortcut_for_terminal():
+            return
+        if self._sidebar_has_focus():
+            self._sidebar_cycle_focus(forward=True)
             return
         if self.tab_widget.count() > 0:
             current = self.tab_widget.currentIndex()
@@ -1662,8 +1708,11 @@ class DiffViewerTabWidget(QMainWindow):
                 current_widget.focus_content()
 
     def prev_tab(self):
-        """Navigate to previous tab (right-to-left, wraps around)"""
+        """Navigate to previous tab (right-to-left, wraps around), or cycle sidebar focus"""
         if self._should_block_shortcut_for_terminal():
+            return
+        if self._sidebar_has_focus():
+            self._sidebar_cycle_focus(forward=False)
             return
         if self.tab_widget.count() > 0:
             current = self.tab_widget.currentIndex()

@@ -176,6 +176,7 @@ class ClickableCommitLabel(QLabel):
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self._in_range = False
         self._selected = False
+        self._focused = True  # Whether parent container has focus
         self._update_style()
 
     def mousePressEvent(self, event):
@@ -193,16 +194,30 @@ class ClickableCommitLabel(QLabel):
         self._selected = selected
         self._update_style()
 
+    def set_focused(self, focused):
+        """Update selection color based on whether container has focus."""
+        self._focused = focused
+        self._update_style()
+
     def _update_style(self):
         """Update stylesheet based on current state."""
         if self._selected:
-            self.setStyleSheet("""
-                QLabel {
-                    padding: 4px 8px;
-                    background-color: #0078d4;
-                    color: white;
-                }
-            """)
+            if self._focused:
+                self.setStyleSheet("""
+                    QLabel {
+                        padding: 4px 8px;
+                        background-color: #0078d4;
+                        color: white;
+                    }
+                """)
+            else:
+                self.setStyleSheet("""
+                    QLabel {
+                        padding: 4px 8px;
+                        background-color: #a0a0a0;
+                        color: white;
+                    }
+                """)
         elif self._in_range:
             self.setStyleSheet("""
                 QLabel {
@@ -253,14 +268,12 @@ class CommitListContainer(QWidget):
         self._scroll_area = scroll_area
 
     def set_sidebar(self, sidebar):
-        """Set reference to parent sidebar for Tab focus switching."""
+        """Set reference to parent sidebar."""
         self._sidebar = sidebar
 
     def focusNextPrevChild(self, next):
-        """Override to handle Tab/Shift+Tab for switching to file tree."""
-        if self._sidebar:
-            self._sidebar.switch_focus_to_file_tree()
-        return True  # Indicate we handled the focus change
+        """Block Tab/Shift+Tab from changing focus (use Ctrl+Tab instead)."""
+        return True
 
     def add_label(self, label):
         """Add a label to the container."""
@@ -370,17 +383,22 @@ class CommitListContainer(QWidget):
         super().keyPressEvent(event)
 
     def focusInEvent(self, event):
-        """Restore selection when gaining focus."""
+        """Restore selection and update label styling when gaining focus."""
         super().focusInEvent(event)
         if self._selected_index == -1 and self._labels:
             # First time focus - select first item
             self._selected_index = 0
         self._restore_visual_selection()
+        # Notify all labels of focus state
+        for label in self._labels:
+            label.set_focused(True)
 
     def focusOutEvent(self, event):
-        """Clear visual selection when losing focus, but retain index."""
+        """Update label styling when losing focus."""
         super().focusOutEvent(event)
-        self._clear_visual_selection()
+        # Notify all labels of focus state
+        for label in self._labels:
+            label.set_focused(False)
 
 
 class CommittedLabel(QLabel):
@@ -391,6 +409,7 @@ class CommittedLabel(QLabel):
         self.sha = None  # No SHA for Committed
         self._in_range = False
         self._selected = False
+        self._focused = True  # Whether parent container has focus
         self._update_style()
         font = self.font()
         font.setFamily("Courier")
@@ -404,16 +423,31 @@ class CommittedLabel(QLabel):
         self._selected = selected
         self._update_style()
 
+    def set_focused(self, focused):
+        """Update selection color based on whether container has focus."""
+        self._focused = focused
+        self._update_style()
+
     def _update_style(self):
         if self._selected:
-            self.setStyleSheet("""
-                QLabel {
-                    padding: 4px 8px;
-                    background-color: #0078d4;
-                    color: white;
-                    font-style: italic;
-                }
-            """)
+            if self._focused:
+                self.setStyleSheet("""
+                    QLabel {
+                        padding: 4px 8px;
+                        background-color: #0078d4;
+                        color: white;
+                        font-style: italic;
+                    }
+                """)
+            else:
+                self.setStyleSheet("""
+                    QLabel {
+                        padding: 4px 8px;
+                        background-color: #a0a0a0;
+                        color: white;
+                        font-style: italic;
+                    }
+                """)
         elif self._in_range:
             self.setStyleSheet("""
                 QLabel {
@@ -484,6 +518,10 @@ class CommitListWidget(QWidget):
 
         scroll_area.setWidget(content_widget)
         layout.addWidget(scroll_area)
+
+    def focusNextPrevChild(self, next):
+        """Block Tab/Shift+Tab from changing focus (use Ctrl+Tab instead)."""
+        return True
 
     def set_commits(self, commit_msgs_by_sha, commit_summaries_by_sha=None):
         """Populate the list with commits.
@@ -777,19 +815,41 @@ class CompareListWidget(QWidget):
 class FileTreeWidget(QTreeWidget):
     """Custom tree widget that handles Space key like Enter"""
 
+    FOCUSED_STYLE = """
+        QTreeWidget::item:selected {
+            background-color: #0078d4;
+            color: white;
+        }
+    """
+    UNFOCUSED_STYLE = """
+        QTreeWidget::item:selected {
+            background-color: #a0a0a0;
+            color: white;
+        }
+    """
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self._sidebar = None  # Set by FileTreeSidebar
+        self.setStyleSheet(self.FOCUSED_STYLE)
 
     def set_sidebar(self, sidebar):
-        """Set reference to parent sidebar for Tab focus switching."""
+        """Set reference to parent sidebar."""
         self._sidebar = sidebar
 
     def focusNextPrevChild(self, next):
-        """Override to handle Tab/Shift+Tab for switching to commit list."""
-        if self._sidebar:
-            self._sidebar.switch_focus_to_commit_list()
-        return True  # Indicate we handled the focus change
+        """Block Tab/Shift+Tab from changing focus (use Ctrl+Tab instead)."""
+        return True
+
+    def focusInEvent(self, event):
+        """Show focused selection color when gaining focus."""
+        super().focusInEvent(event)
+        self.setStyleSheet(self.FOCUSED_STYLE)
+
+    def focusOutEvent(self, event):
+        """Show unfocused selection color when losing focus."""
+        super().focusOutEvent(event)
+        self.setStyleSheet(self.UNFOCUSED_STYLE)
 
     def keyPressEvent(self, event):
         """Handle Space and Enter keys to activate current item"""
