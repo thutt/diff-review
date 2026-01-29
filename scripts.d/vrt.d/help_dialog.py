@@ -485,11 +485,15 @@ def get_help_file_tree():
         <li><b>Right arrow:</b> Expand current directory, or move to first child</li>
         <li><b>Space:</b> Open selected file and return focus to diff viewer</li>
         <li><b>Enter:</b> Open selected file (focus stays on tree)</li>
+        <li><b>{mod_key}+Tab:</b> Switch focus to the commit list (when available)</li>
+        <li><b>{mod_key}+Shift+Tab:</b> Switch focus to the commit list (when available)</li>
         <li><b>{mod_key}+\\:</b> Switch focus back to content area</li>
     </ul>
 
     <h3>Visual Indicators</h3>
     <ul>
+        <li><b>Blue selection:</b> Currently selected item when tree has keyboard focus</li>
+        <li><b>Grey selection:</b> Currently selected item when tree does not have focus</li>
         <li><b>Blue text:</b> File has an open tab</li>
         <li><b>Bold blue text:</b> File's tab is currently active</li>
         <li><b>Orange background:</b> File has changed on disk (with file watcher active)</li>
@@ -548,7 +552,8 @@ def get_help_uncommitted():
 
 def get_help_commit_list():
     """Return HTML for Commit List (Committed Changes)."""
-    return """
+    mod_key = _get_mod_key()
+    return f"""
     <h2>Commit List for Committed Changes</h2>
 
     <h3>Overview</h3>
@@ -579,7 +584,8 @@ def get_help_commit_list():
         <li><b>Up/Down arrows:</b> Move selection through commits</li>
         <li><b>Left/Right arrows:</b> Scroll the commit list horizontally (for long messages)</li>
         <li><b>Enter/Space:</b> Open the selected commit's message in a tab</li>
-        <li><b>Tab:</b> Switch focus to the file tree</li>
+        <li><b>{mod_key}+Tab:</b> Switch focus to the file tree</li>
+        <li><b>{mod_key}+Shift+Tab:</b> Switch focus to the file tree</li>
     </ul>
 
     <h3>Mouse Interaction</h3>
@@ -590,7 +596,8 @@ def get_help_commit_list():
 
     <h3>Visual Indicators</h3>
     <ul>
-        <li><b>Blue selection:</b> Currently keyboard-selected commit</li>
+        <li><b>Blue selection:</b> Currently keyboard-selected commit when list has focus</li>
+        <li><b>Grey selection:</b> Currently keyboard-selected commit when list does not have focus</li>
         <li><b>Light blue background:</b> Commits within the selected revision range</li>
         <li><b>Italic "Committed":</b> The special entry representing pre-first-commit state</li>
         <li><b>Bold text:</b> Commit whose tab is currently active</li>
