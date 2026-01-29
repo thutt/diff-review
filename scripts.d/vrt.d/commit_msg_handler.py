@@ -102,6 +102,9 @@ class CommitMessageTab(QWidget, TabContentBase):
 
         self.text_widget.keyPressEvent = keyPressEvent_with_cursor_show
 
+        # Override focusNextPrevChild to ignore Tab key (prevent focus from leaving)
+        self.text_widget.focusNextPrevChild = lambda next: True
+
         # Style commit message with subtle sepia tone
         self.text_widget.setStyleSheet("""
             QPlainTextEdit {
