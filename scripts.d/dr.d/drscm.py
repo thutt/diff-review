@@ -463,10 +463,11 @@ class SCM(object):
 
         if dossier is not None:
             if dossier["version"] != 2:
-                drutil.fatal("Existing dossier is not version 2.")
-                
+                # Version doesn't match required version; start new dossier.
+                return (None, None, None)
+
             if dossier["mode"] != "committed":
-                return (None, None, None) # No information.  Start new dossier.
+                return (None, None, None) # No information; start new dossier.
             return (dossier["order"], dossier["revisions"], dossier["cache"])
         else:
             return (None, None, None)
@@ -476,7 +477,7 @@ class SCM(object):
          revisions,
          cache) = self.load_existing_dossier()
         dossier = self.create_json_dictionary(chg_id)
- 
+
         if (order is not None and
             revisions is not None and
             cache is not None):
