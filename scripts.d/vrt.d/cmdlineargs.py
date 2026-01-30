@@ -35,18 +35,6 @@ def get_keybinding_dir():
     return os.path.join(get_script_dir(), "keybindings.d")
 
 
-def rsync_and_rerun(options):
-    # This rsync system is not supported on Windows.
-    parent_dir = os.path.abspath(os.path.join(os.path.dirname(sys.argv[0]),
-                                              "..", ".."))
-
-    rsyncer = os.path.join(parent_dir, "rsyncer")
-    cmd     = [ rsyncer,
-                "--fqdn", options.arg_fqdn,
-                "--diff-dir", options.arg_dossier_path ]
-    os.execv(rsyncer, cmd)
-
-
 def process_extended_help_request(options, opt_extended):
     # If any extended help was requested, display its file and exit.
     for ext in opt_extended:
@@ -164,14 +152,6 @@ def configure_parser(ext_options):
                                  "store credentials"),
                      action   = "store_false",
                      dest     = "arg_keyring")
-
-    dso.add_argument("--fqdn",
-                     help     = regular_help(ext, ext_options, "fqdn"),
-                     action   = "store",
-                     default  = None,
-                     metavar  = "<FQDN>",
-                     required = False,
-                     dest     = "arg_fqdn")
 
 
     # Diff Rendering Options
@@ -451,54 +431,51 @@ def process_command_line():
     if options.arg_palette is not None:
         options.selected_palette_ = color_palettes_dict[options.arg_palette]
 
-    if options.arg_fqdn is not None:
-        rsync_and_rerun(options)
+    dossier = options.afr_.read("dossier.json")
+    if options.arg_dossier_url is not None:
+        try:
+            # Reading breaks the lines into an array of non-'\n'
+            # terminated strings.
+            #
+            options.dossier_ = json.loads('\n'.join(dossier))
+
+        except Exception as exc:
+            options.dossier_ = None
+
+        if options.dossier_ is None:
+            print("")
+            for l in dossier:
+                print(l)
+            print("")
+            utils.fatal("Unable to retrieve dossier from:\n  '%s'" %
+                        (options.arg_dossier_url))
     else:
-        dossier = options.afr_.read("dossier.json")
-        if options.arg_dossier_url is not None:
-            try:
-                # Reading breaks the lines into an array of non-'\n'
-                # terminated strings.
-                #
-                options.dossier_ = json.loads('\n'.join(dossier))
+        # The dossier is now an array of lines with no linefeeds.  Put
+        # it back together for json.loads() to parse.
+        try:
+            options.dossier_ = json.loads('\n'.join(dossier))
+        except Exception as exc:
+            print("")
+            for l in dossier:
+                print(l)
+            print("")
+            utils.fatal("Unable to load dossier from:\n  '%s'" %
+                        (options.arg_dossier_path))
 
-            except Exception as exc:
-                options.dossier_ = None
+    if "version" not in options.dossier_:
+        print("Dossier is obsolete; it does not have a version field.")
+        utils.fatal("dr / vrt mismatch; regenerate diffs.")
+    else:
+        expected_dossier_version = 2 # Must match
+                                     # 'version' field in
+                                     # drscm.py.
+        version = options.dossier_["version"]
+        if version != expected_dossier_version:
+            print("Dossier version : '%s'\n"
+                  "Required version: '%s'\n" %
+                  (version, expected_dossier_version))
 
-            if options.dossier_ is None:
-                print("")
-                for l in dossier:
-                    print(l)
-                print("")
-                utils.fatal("Unable to retrieve dossier from:\n  '%s'" %
-                            (options.arg_dossier_url))
-        else:
-            # The dossier is now an array of lines with no linefeeds.  Put
-            # it back together for json.loads() to parse.
-            try:
-                options.dossier_ = json.loads('\n'.join(dossier))
-            except Exception as exc:
-                print("")
-                for l in dossier:
-                    print(l)
-                print("")
-                utils.fatal("Unable to load dossier from:\n  '%s'" %
-                            (options.arg_dossier_path))
-
-        if "version" not in options.dossier_:
-            print("Dossier is obsolete; it does not have a version field.")
             utils.fatal("dr / vrt mismatch; regenerate diffs.")
-        else:
-            expected_dossier_version = 2 # Must match
-                                         # 'version' field in
-                                         # drscm.py.
-            version = options.dossier_["version"]
-            if version != expected_dossier_version:
-                print("Dossier version : '%s'\n"
-                      "Required version: '%s'\n" %
-                      (version, expected_dossier_version))
-
-                utils.fatal("dr / vrt mismatch; regenerate diffs.")
 
     if options.arg_note_editor == "emacs":
         try:

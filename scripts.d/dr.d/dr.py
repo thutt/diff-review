@@ -78,10 +78,6 @@ def report(options, changed_info, elapsed_time):
             # present.
             url_dossier_dir = "/" + url_dossier_dir
 
-        fqdn = ""
-        if options.arg_fqdn is not None:
-            fqdn = "--fqdn '%s' " % (options.arg_fqdn)
-
         if options.arg_url_https:
             protocol = "https"
         else:
@@ -89,12 +85,10 @@ def report(options, changed_info, elapsed_time):
 
         print("\n"
               "Changes:  %s" % (changed_info))
-        print("Viewer :  vrt %s--diff-dir '%s'" % (fqdn, dossier_dir))
+        print("Viewer :  vrt --diff-dir '%s'" % (dossier_dir))
         print("Viewer :  vrt --diff-url %s://%s:%s%s" %
               (protocol, options.arg_url_server,
                options.arg_url_port, url_dossier_dir))
-        print("Viewer :  vr -R '%s' -r '%s'" %
-              (options.arg_review_dir, options.arg_review_name))
         print("Elapsed:  %s" % (elapsed_time))
     else:
         if uncommitted_review(options):
