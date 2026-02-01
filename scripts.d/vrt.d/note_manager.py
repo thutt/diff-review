@@ -642,7 +642,7 @@ class NoteManager:
             line_numbers: List of line numbers, or (start, end) tuple for commit message
             line_texts: List of line text content
             is_commit_msg: True if this is from commit message
-            sha: Commit SHA (7 chars) for the header prefix, or None
+            sha: Commit SHA (shortened for display) for the header prefix, or None
 
         Returns:
             True if note was taken, False if cancelled

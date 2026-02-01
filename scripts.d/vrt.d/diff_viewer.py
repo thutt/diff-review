@@ -22,6 +22,7 @@ from ui_components import LineNumberArea, DiffMapWidget, SyncedPlainTextEdit
 import color_palettes
 import generate_viewer
 from tab_content_base import TabContentBase
+from utils import shorten_sha
 
 
 class DiffViewer(QWidget, TabContentBase):
@@ -271,19 +272,20 @@ class DiffViewer(QWidget, TabContentBase):
         display_idx = revision_idx + 1
         self.revision_range_label.setText(f"Revision: [{display_idx}]")
 
-    def set_commit_shas(self, base_sha, modi_sha):
+    def set_commit_shas(self, base_sha, modi_sha, sha_display_length=7):
         """Set the commit SHAs for display in the top labels.
 
         Args:
             base_sha: SHA of the base commit (None for "Committed")
             modi_sha: SHA of the modified commit
+            sha_display_length: Length to truncate SHAs for display
         """
         if base_sha is None:
             self.base_type_label.setText("Base (Committed)")
         else:
-            self.base_type_label.setText(f"Base ({base_sha[:7]})")
+            self.base_type_label.setText(f"Base ({shorten_sha(base_sha, sha_display_length)})")
         if modi_sha:
-            self.modified_type_label.setText(f"Modified ({modi_sha[:7]})")
+            self.modified_type_label.setText(f"Modified ({shorten_sha(modi_sha, sha_display_length)})")
 
     def add_line(self, base, modi):
         base_text = base.line_.rstrip('\n') if hasattr(base, 'line_') else ''
@@ -819,7 +821,8 @@ class DiffViewer(QWidget, TabContentBase):
             else:
                 sha = getattr(self.file_class, 'modi_commit_sha_', None)
             if sha:
-                sha = sha[:7]
+                sha_len = self.tab_manager.sha_display_length_
+                sha = shorten_sha(sha, sha_len)
             else:
                 sha = 'uncommitted'
 
@@ -878,7 +881,8 @@ class DiffViewer(QWidget, TabContentBase):
             else:
                 sha = getattr(self.file_class, 'modi_commit_sha_', None)
             if sha:
-                sha = sha[:7]
+                sha_len = self.tab_manager.sha_display_length_
+                sha = shorten_sha(sha, sha_len)
             else:
                 sha = 'uncommitted'
 

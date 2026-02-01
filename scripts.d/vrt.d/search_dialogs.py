@@ -14,6 +14,7 @@ from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
                               QListWidget, QListWidgetItem, QMessageBox, QStyledItemDelegate, QStyle)
 from PyQt6.QtCore import Qt, QRectF
 from PyQt6.QtGui import QColor, QTextDocument, QPalette
+from utils import shorten_sha
 
 
 class HTMLDelegate(QStyledItemDelegate):
@@ -419,7 +420,8 @@ class SearchResultDialog(QDialog):
             if isinstance(tab_widget, CommitMessageTab):
                 # Commit message tab - include SHA if available
                 if tab_widget.sha:
-                    display_path = f"({tab_widget.sha[:7]}, commit_msg): Commit Message"
+                    sha_len = self.parent_tab_widget.sha_display_length_
+                    display_path = f"({shorten_sha(tab_widget.sha, sha_len)}, commit_msg): Commit Message"
                 else:
                     display_path = "(commit_msg): Commit Message"
             elif isinstance(tab_widget, ReviewNotesTab):
@@ -442,7 +444,8 @@ class SearchResultDialog(QDialog):
                         sha = file_class.modi_commit_sha_
 
                     if sha:
-                        display_path = f"({sha[:7]}, {side_label}): {file_path}"
+                        sha_len = self.parent_tab_widget.sha_display_length_
+                        display_path = f"({shorten_sha(sha, sha_len)}, {side_label}): {file_path}"
                     else:
                         display_path = f"(committed, {side_label}): {file_path}"
                 else:

@@ -45,6 +45,35 @@ def install_message_handler():
     qInstallMessageHandler(qt_message_handler)
 
 
+def compute_sha_display_length(revisions):
+    """
+    Compute the display length for revision keys.
+
+    Args:
+        revisions: The revisions dictionary from the dossier
+
+    Returns:
+        The length of the longest key.
+    """
+    return max(len(k) for k in revisions)
+
+
+def shorten_sha(sha, length):
+    """
+    Shorten a SHA or ref to the specified length.
+
+    Args:
+        sha: The SHA string or ref to shorten
+        length: The length to truncate to
+
+    Returns:
+        The shortened string
+    """
+    if sha is None:
+        return None
+    return sha[:length]
+
+
 def extract_display_path(filepath):
     """
     Extract the display path starting after base.d/ or modi.d/

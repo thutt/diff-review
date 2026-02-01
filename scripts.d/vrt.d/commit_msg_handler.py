@@ -15,6 +15,7 @@ from PyQt6.QtWidgets import QPlainTextEdit, QMenu, QMessageBox, QWidget, QVBoxLa
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont, QTextCharFormat, QColor, QPainter
 from tab_content_base import TabContentBase
+from utils import shorten_sha
 
 
 class CommitMessageTab(QWidget, TabContentBase):
@@ -202,7 +203,8 @@ class CommitMessageTab(QWidget, TabContentBase):
         line_range = (start_line, end_line + 1)
 
         # Get short SHA for note header
-        sha = self.sha[:7] if self.sha else None
+        sha_len = tab_widget.sha_display_length_
+        sha = shorten_sha(self.sha, sha_len)
 
         if note_mgr.take_note(None, "commit_msg", line_range, selected_texts, is_commit_msg=True, sha=sha):
             pass
@@ -453,7 +455,8 @@ class CommitMsgHandler:
 
         # Determine tab title and key
         if sha:
-            tab_title = f"Commit ({sha[:7]})"
+            sha_len = self.tab_widget.sha_display_length_
+            tab_title = f"Commit ({shorten_sha(sha, sha_len)})"
             tab_key = f'commit_msg_{sha}'
         else:
             tab_title = "Commit Message"
@@ -541,7 +544,8 @@ class CommitMsgHandler:
         line_texts = selected_text.split('\n')
 
         # Get short SHA for note header
-        short_sha = sha[:7] if sha else None
+        sha_len = self.tab_widget.sha_display_length_
+        short_sha = shorten_sha(sha, sha_len)
 
         # Take note using NoteManager with line range
         if note_mgr.take_note(None, "commit_msg", (start_line, end_line), line_texts, is_commit_msg=True, sha=short_sha):

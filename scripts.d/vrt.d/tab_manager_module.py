@@ -40,6 +40,7 @@ from commit_msg_handler import CommitMessageTab
 from note_manager import ReviewNotesTab, ReviewNotesTabBase
 from tab_content_base import TabContentBase
 from diff_viewer import DiffViewer
+from utils import compute_sha_display_length
 
 
 class OverlayWidget(QWidget):
@@ -219,6 +220,12 @@ class DiffViewerTabWidget(QMainWindow):
 
         self.review_mode_ = review_mode
         self.dossier_ = dossier
+
+        # Compute the display length needed to uniquely identify revision keys
+        if dossier is not None:
+            self.sha_display_length_ = compute_sha_display_length(dossier["revisions"])
+        else:
+            self.sha_display_length_ = 7  # Default fallback
 
         self.afr_ = afr
         self.display_lines = display_lines
@@ -910,7 +917,8 @@ class DiffViewerTabWidget(QMainWindow):
                 and file_class is not None
                 and isinstance(file_class, generate_viewer.FileButton)):
             diff_viewer.set_commit_shas(file_class.base_commit_sha_,
-                                        file_class.modi_commit_sha_)
+                                        file_class.modi_commit_sha_,
+                                        self.sha_display_length_)
             if file_class.modi_revision_idx_ is not None:
                 diff_viewer.set_revision_index(file_class.modi_revision_idx_)
 

@@ -557,7 +557,8 @@ class CommitListWidget(QWidget):
         for idx, (sha, rel_path) in enumerate(commit_msgs_by_sha.items(), start=1):
             summary = commit_summaries_by_sha.get(sha, "")
             idx_str = f"{idx:3d}"
-            sha_str = sha[:7]
+            sha_len = self.tab_widget.sha_display_length_
+            sha_str = f"{sha:<{sha_len}}"
             if summary:
                 display_text = f"{idx_str}: {sha_str}: {summary}"
             else:
