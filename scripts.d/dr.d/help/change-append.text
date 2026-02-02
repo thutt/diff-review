@@ -1,0 +1,2 @@
+Appends changes to an existing dossier, or starts a new dossier if
+dossier doesn't exist.

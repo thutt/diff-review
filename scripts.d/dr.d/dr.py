@@ -11,39 +11,6 @@ import drgit
 import dropts
 import drutil
 
-def uncommitted_review(options):
-    return (options.arg_change_id is None and
-            len(options.arg_change_append_id) == 0)
-
-
-def process_command_line():
-    parser  = dropts.configure_parser()
-    options = parser.parse_args()
-
-    options.review_dir = os.path.join(options.arg_review_dir,
-                                      options.arg_review_name)
-    options.review_sha_dir  = os.path.join(options.review_dir, "sha.d")
-    options.review_modi_dir = os.path.join(options.review_dir, "modi.d")
-
-    if options.arg_scm == "git":
-        if uncommitted_review(options):
-            options.scm = drgit.GitStaged(options)
-        else:
-            options.scm = drgit.GitCommitted(options)
-    else:
-        drutil.fatal("Uhandled SCM instantiation.")
-
-    if options.arg_url_port is None:
-        # Set the URL port to the default only if it wasn't set on command line.
-        options.arg_url_port = "80";
-        if options.arg_url_https:
-            options.arg_url_port = "443";
-
-    drutil.mktree(options.review_dir)
-    drutil.mktree(options.review_modi_dir) # XXX REMOVE. mktree used on copy file.
-
-    return options
-
 
 def report(options, changed_info, elapsed_time):
     if options.scm.dossier_ is not None:
@@ -91,7 +58,7 @@ def report(options, changed_info, elapsed_time):
                options.arg_url_port, url_dossier_dir))
         print("Elapsed:  %s" % (elapsed_time))
     else:
-        if uncommitted_review(options):
+        if dropts.uncommitted_review(options):
             print("No uncommitted changes in client to review.")
         else:
             print("No files found in provided change ID.")
@@ -114,10 +81,10 @@ def append_changes_to_dossier(options):
 
 def main():
     try:
-        options = process_command_line()
+        options = dropts.process_command_line()
         scm     = options.scm
 
-        if uncommitted_review(options):
+        if dropts.uncommitted_review(options):
             beg = datetime.datetime.now()
             scm.generate(options, None)
             if scm.dossier_ is not None:

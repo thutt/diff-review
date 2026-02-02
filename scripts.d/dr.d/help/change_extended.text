@@ -1,0 +1,8 @@
+This option allows the generation of diffs for one change (or range of
+changes, for Git) that can be viewed by view-review-tabs (vrt).
+
+It will always create a new dossier, overwriting any existing dossier
+of the same name.
+
+If no change is specified, changed but uncommitted files in the source
+client will be reviewed.

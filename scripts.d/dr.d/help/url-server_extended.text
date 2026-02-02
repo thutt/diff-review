@@ -1,0 +1,4 @@
+Since the default value used for the webserver in the URL produced on
+the console is the FQDN of the machine on which 'dr' is run, it may be
+necessary to change the value if the diffs are stored on some type of
+shared storage.  For example, an NFS-mounted NAS.

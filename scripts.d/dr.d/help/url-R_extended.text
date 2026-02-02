@@ -1,0 +1,20 @@
+The directory to which your diffs are written must be accesible via
+the webserver running on the machine where the diffs are stored.
+
+It must be the path from the actual server root to the directory where
+the diffs are written.  If the server root directory is:
+
+   /home
+
+and the reviews are at:
+
+  /home/${USER}/review
+
+this argument must be:
+
+  ${USER}
+
+You can determine this path by using your browser navigate to your
+'review' directory, and then extracting it from the full URL.
+
+If not provided, the value of '-R' will be used.

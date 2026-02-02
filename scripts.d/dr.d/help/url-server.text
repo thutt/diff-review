@@ -1,0 +1,2 @@
+FQDN of the webserver that will server generated diffs [default:
+%(default)s].

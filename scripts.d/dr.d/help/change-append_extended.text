@@ -1,0 +1,11 @@
+This option facilitates viewing intra-revision changes by allowing
+multiple changes to be included in a single dossier.
+
+The 'view-review-tabs' will present a different UI that allows
+selecting different changes in the set contained in the dossier,
+allowing the reviewer to see the changes made at every step.
+
+This option can be specified more than once.
+
+If no change is specified, changed but uncommitted files in the source
+client will be reviewed.
