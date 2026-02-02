@@ -313,6 +313,7 @@ class SCM(object):
         self.commit_summary_   = None # First line of commit message.
         self.dossier_mode_     = self.get_dossier_mode()
         self.scm_name_         = self.get_name()
+        self.extend_dossier_   = len(options.arg_change_append_id) > 0
 
         if options.arg_scm == "git":
             self.scm_path_ = options.arg_git_path
@@ -444,7 +445,7 @@ class SCM(object):
         if key not in info["revisions"]:
             info["revisions"][key] = revision
         else:
-            drutil.fatal("What does this failure mean?  Change re-added?")
+            drutil.fatal("internal error: change already in revisions.")
 
         self.create_dossier_files(info)
         return info
@@ -474,9 +475,15 @@ class SCM(object):
             return (None, None, None)
 
     def write_dossier(self, chg_id):
-        (order,
-         revisions,
-         cache) = self.load_existing_dossier()
+        order     = None
+        revisions = None
+        cache     = None
+        if self.extend_dossier_:
+            # Load existing dossier to extend with additional changes.
+            (order,
+             revisions,
+             cache) = self.load_existing_dossier()
+
         dossier = self.create_json_dictionary(chg_id)
 
         if (order is not None and
@@ -491,6 +498,10 @@ class SCM(object):
             for key in cache.keys():
                 if key not in dossier["cache"]:
                     dossier["cache"][key] = cache[key]
+
+        if order is not None:
+            # Add on-disk dossier['order'] with this review's 'order'.
+            dossier['order'] = order + dossier['order']
 
         dossier_name = self.get_dossier_pathname()
         with open(dossier_name, "w") as fp:
