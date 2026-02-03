@@ -241,6 +241,17 @@ def configure_parser(ext_options):
                         nargs = "*")
     return parser
 
+
+def instantiate_scm(options):
+    if options.arg_scm == "git":
+        if uncommitted_review(options):
+            options.scm = drgit.GitStaged(options)
+        else:
+            options.scm = drgit.GitCommitted(options)
+    else:
+        drutil.fatal("Uhandled SCM instantiation.")
+
+
 def process_command_line():
     opt_extended = [ ]
     parser       = configure_parser(opt_extended)
@@ -253,13 +264,7 @@ def process_command_line():
     options.review_sha_dir  = os.path.join(options.review_dir, "sha.d")
     options.review_modi_dir = os.path.join(options.review_dir, "modi.d")
 
-    if options.arg_scm == "git":
-        if uncommitted_review(options):
-            options.scm = drgit.GitStaged(options)
-        else:
-            options.scm = drgit.GitCommitted(options)
-    else:
-        drutil.fatal("Uhandled SCM instantiation.")
+    instantiate_scm(options)
 
     if options.arg_url_port is None:
         # Set the URL port to the default only if it wasn't set on command line.

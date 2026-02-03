@@ -544,8 +544,7 @@ class GitCommitted(Git):
         return "committed"    # Uncommitted changes in the client.
 
     def get_revision_key_(self, chg_id):
-        # Uncommitted changes are always 'in the client'.  There are
-        # no revisions like in a committed review.
+        # Committed changes  always have a change id.
         if chg_id not in self.ordered_:
             self.ordered_.append(chg_id)
         return chg_id           # SHA of change being reviewed.

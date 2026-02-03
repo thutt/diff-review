@@ -499,8 +499,8 @@ class SCM(object):
                 if key not in dossier["cache"]:
                     dossier["cache"][key] = cache[key]
 
-        if order is not None:
-            # Add on-disk dossier['order'] with this review's 'order'.
+        if order is not None:   # Dossier exists?
+            # Add on-disk 'order' with this review's dossier['order'].
             dossier['order'] = order + dossier['order']
 
         dossier_name = self.get_dossier_pathname()

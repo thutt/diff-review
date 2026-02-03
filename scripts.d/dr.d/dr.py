@@ -66,10 +66,11 @@ def report(options, changed_info, elapsed_time):
 
 
 def append_changes_to_dossier(options):
-    scm     = options.scm
-    dossier = scm.get_dossier_pathname()
+    dossier = options.scm.get_dossier_pathname()
 
     for chg_id in options.arg_change_append_id:
+        dropts.instantiate_scm(options)
+        scm     = options.scm
         beg = datetime.datetime.now()
         scm.generate(options, chg_id)
         scm.write_dossier(chg_id)
