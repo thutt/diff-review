@@ -172,6 +172,7 @@ class ClickableCommitLabel(QLabel):
 
     def __init__(self, text, sha, parent=None):
         super().__init__(text, parent)
+        self.setTextFormat(Qt.TextFormat.PlainText)
         self.sha = sha
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self._in_range = False
