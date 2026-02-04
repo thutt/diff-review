@@ -1353,11 +1353,10 @@ class DiffViewerTabWidget(QMainWindow):
         # We need to track: display_path -> (action, base_key, modi_key, revision_idx)
         files_in_range = {}  # display_path -> file info dict
 
-        # Handle base_idx of -1 (Committed = before first commit)
-        # Start collecting from revision 0 in that case
-        start_idx = max(0, self.revision_base_idx_ + 1) if self.revision_base_idx_ == -1 else self.revision_base_idx_
-        # Actually simpler: if base is -1, start from 0; otherwise start from base
-        start_idx = 0 if self.revision_base_idx_ < 0 else self.revision_base_idx_
+        # Start collecting from revision after the base
+        # base_idx of -1 means "before revision 0", so start_idx = 0
+        # base_idx of N means "after revision N", so start_idx = N + 1
+        start_idx = self.revision_base_idx_ + 1
 
         for idx in range(start_idx, self.revision_modi_idx_ + 1):
             rev_sha = order[idx]
