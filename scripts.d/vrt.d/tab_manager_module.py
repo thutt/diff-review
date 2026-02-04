@@ -1428,6 +1428,14 @@ class DiffViewerTabWidget(QMainWindow):
         # Restore commit highlighting after rebuild (the current tab's commit should stay bold)
         self.update_commit_highlighting()
 
+        # Restore focus after tree rebuild
+        if self.focus_mode == 'sidebar':
+            self._restore_sidebar_focus()
+        elif self.focus_mode == 'content':
+            current_widget = self.tab_widget.currentWidget()
+            if current_widget:
+                current_widget.focus_content()
+
     def _create_file_button_options(self):
         """Create an options-like object for FileButton construction."""
         class Options:
