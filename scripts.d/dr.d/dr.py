@@ -1,4 +1,4 @@
-# Copyright (c) 2025  Logic Magicians Software (Taylor Hutt).
+# Copyright (c) 2025, 2026  Logic Magicians Software (Taylor Hutt).
 # All Rights Reserved.
 # Licensed under Gnu GPL V3.
 #
@@ -11,35 +11,6 @@ import drgit
 import dropts
 import drutil
 
-def process_command_line():
-    parser  = dropts.configure_parser()
-    options = parser.parse_args()
-
-    options.review_dir = os.path.join(options.arg_review_dir,
-                                      options.arg_review_name)
-    options.review_base_dir = os.path.join(options.review_dir, "base.d")
-    options.review_modi_dir = os.path.join(options.review_dir, "modi.d")
-
-    if options.arg_scm == "git":
-        if options.arg_change_id is None:
-            options.scm = drgit.GitStaged(options)
-        else:
-            options.scm = drgit.GitCommitted(options)
-    else:
-        drutil.fatal("Uhandled SCM instantiation.")
-
-    if options.arg_url_port is None:
-        # Set the URL port to the default only if it wasn't set on command line.
-        options.arg_url_port = "80";
-        if options.arg_url_https:
-            options.arg_url_port = "443";
-
-    drutil.mktree(options.review_dir)
-    drutil.mktree(options.review_base_dir)
-    drutil.mktree(options.review_modi_dir)
-
-    return options
-
 
 def report(options, changed_info, elapsed_time):
     if options.scm.dossier_ is not None:
@@ -51,12 +22,18 @@ def report(options, changed_info, elapsed_time):
             action_width = max(action_width, len(f.action()))
 
         for f in options.scm.dossier_:
-            print("  %*s   %s" % (action_width, f.action(),
-                                  f.modi_file_info_.rel_path_))
+            action       = f.action()
+            display_path = f.modi_file_info_.display_path()
+            if action == "delete":
+                # Modified file info references the 'empty_file', and
+                # that's not the right name to display.
+                #
+                display_path = f.base_file_info_.display_path()
 
-        dossier = os.path.join(options.arg_review_dir,
-                               options.arg_review_name,
-                               "dossier.json")
+            print("  %*s   %s" % (action_width, action, display_path))
+
+        dossier = options.scm.get_dossier_pathname()
+        dossier_dir = os.path.dirname(dossier)
         if options.arg_url_review_directory is not None:
             url_dossier_dir = os.path.join(options.arg_url_review_directory,
                                            options.arg_review_name)
@@ -68,10 +45,6 @@ def report(options, changed_info, elapsed_time):
             # present.
             url_dossier_dir = "/" + url_dossier_dir
 
-        fqdn = ""
-        if options.arg_fqdn is not None:
-            fqdn = "--fqdn '%s' " % (options.arg_fqdn)
-
         if options.arg_url_https:
             protocol = "https"
         else:
@@ -79,31 +52,59 @@ def report(options, changed_info, elapsed_time):
 
         print("\n"
               "Changes:  %s" % (changed_info))
-        print("Viewer :  vrt %s--diff-dir '%s'" % (fqdn, os.path.dirname(dossier)))
+        print("Viewer :  vrt --diff-dir '%s'" % (dossier_dir))
         print("Viewer :  vrt --diff-url %s://%s:%s%s" %
               (protocol, options.arg_url_server,
                options.arg_url_port, url_dossier_dir))
-        print("Viewer :  vr -R '%s' -r '%s'" %
-              (options.arg_review_dir, options.arg_review_name))
         print("Elapsed:  %s" % (elapsed_time))
     else:
-        if options.arg_change_id is None:
+        if dropts.uncommitted_review(options):
             print("No uncommitted changes in client to review.")
         else:
             print("No files found in provided change ID.")
     print("\n")
 
 
+def append_changes_to_dossier(options):
+    dossier = options.scm.get_dossier_pathname()
+
+    for chg_id in options.arg_change_append_id:
+        dropts.instantiate_scm(options)
+        scm     = options.scm
+        beg = datetime.datetime.now()
+        scm.generate(options, chg_id)
+        scm.write_dossier(chg_id)
+        end          = datetime.datetime.now()
+        changed_info = scm.get_changed_info(chg_id)
+        elapsed      = end - beg
+        report(options, changed_info, elapsed)
+
+
 def main():
     try:
-        beg     = datetime.datetime.now()
-        options = process_command_line()
-        options.scm.generate(options)
-        changed_info = options.scm.get_changed_info()
-        end     = datetime.datetime.now()
-        elapsed = end - beg
+        options = dropts.process_command_line()
+        scm     = options.scm
 
-        report(options, changed_info, elapsed)
+        if dropts.uncommitted_review(options):
+            beg = datetime.datetime.now()
+            scm.generate(options, None)
+            if scm.dossier_ is not None:
+                scm.write_dossier(None)
+            end          = datetime.datetime.now()
+            changed_info = scm.get_changed_info(None)
+            elapsed      = end - beg
+            report(options, changed_info, elapsed)
+        else:
+            if options.arg_change_id is not None:
+                beg = datetime.datetime.now()
+                scm.generate(options, options.arg_change_id)
+                scm.write_dossier(options.arg_change_id)
+                end          = datetime.datetime.now()
+                changed_info = scm.get_changed_info(options.arg_change_id)
+                elapsed      = end - beg
+                report(options, changed_info, elapsed)
+            else:
+                append_changes_to_dossier(options)
 
     except KeyboardInterrupt:
         return 0

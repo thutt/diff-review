@@ -47,12 +47,13 @@ the diff.
 |---------------------------------|--------------------------|---------------------------------------------|
 | Review uncommitted changes      | Yes                      | No                                          |
 | Review committed changes        | Yes                      | Only pre-merge, or already in review system |
+| Review whole-file history       | Yes                      | No                                          |
 | Share review without committing | Yes                      | Via patches                                 |
 | Solo / self-review              | Yes                      | Via uploaded, unpublished, commits          |
 | Take note on commit message     | Yes                      | No                                          |
 | Over-length line marker         | Yes                      | No                                          |
 | Requires central server?        | No                       | Yes                                         |
-| Supported editors               | PyQt, emacs, vim         | Web editor                                  |
+| Supported comment editors       | PyQt, emacs, vim         | Web editor                                  |
 
 **Terminology**:
 
@@ -281,6 +282,69 @@ changes</em>, and <em>committed changes</em>.
    On Windows cmd.exe, replace 'dr' with a a full path to
    'diff-review.cmd', and 'view-review-tabs.cmd', which both reside in
    the root directory of the repository.
+
+# Review Whole-File History
+
+Unlike traditional review tools that are limited to a single pull
+request or change, diff-review can assemble an arbitrary set of
+commits into a single reviewable dossier. This enables reviewing the
+complete history of a file across multiple commits.
+
+## Workflow
+
+1. Find all commits that modified the file:
+
+   ```
+   git log --oneline -- src/parser.c
+   ```
+
+   This produces output like:
+
+   ```
+   a1b2c3d Fix null pointer dereference in parse_expr
+   e4f5g6h Add support for ternary operator
+   i7j8k9l Refactor token handling
+   m0n1o2p Initial parser implementation
+   ```
+
+2. Generate a dossier containing these commits:
+
+   ```
+   dr -c m0n1o2p
+   dr --ca i7j8k9l
+   dr --ca e4f5g6h
+   dr --ca a1b2c3d
+   ```
+
+   Each `--ca` (change append) adds the commit to the existing dossier.
+
+3. View the dossier:
+
+   ```
+   vrt
+   ```
+
+4. Use the revision range slider in the Commits panel to select which
+commits to compare. Drag the top handle to set the base revision and
+the bottom handle to set the modified revision. The file list and
+diffs update to show changes within the selected range.
+
+This workflow lets you trace how a file evolved over time, compare any
+two points in its history, and review changes in context -
+capabilities not available in pull-request-based review systems.
+
+## Reviewing Pull Request Updates
+
+A common specialization of whole-file history review is comparing
+successive updates to a pull request. When a PR author pushes new
+commits in response to review feedback, you often want to see only
+what changed since your last review, not the entire PR diff again.
+
+Assemble a dossier with each PR update as a separate commit, then use
+the range slider to compare any two updates - for example, comparing
+rounds 1 and 2 of feedback to see only what changed in response to the
+latest review comments.
+
 
 # Examples
 

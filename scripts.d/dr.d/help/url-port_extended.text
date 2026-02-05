@@ -1,0 +1,9 @@
+This option sets the port that will be contained in the URL produced
+in the console output.
+
+The default value of this option implies port 80.
+
+If --url-https is specified, port 443 is used.
+
+If you are running a web server on a port different than 80 or 443,
+you set this argument to your port number.
