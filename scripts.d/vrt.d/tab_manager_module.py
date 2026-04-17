@@ -9,6 +9,7 @@ This module contains the tab widget that manages multiple DiffViewer instances
 with a sidebar for file selection.
 """
 import os
+import posixpath
 import sys
 import signal
 from PyQt6.QtWidgets import (QApplication, QTabWidget, QMainWindow, QHBoxLayout,
@@ -210,7 +211,8 @@ class DiffViewerTabWidget(QMainWindow):
                  editor_theme,
                  keybindings_file,
                  note_file,
-                 review_mode       : str):  # "committed" or "uncommitted"
+                 review_mode       : str,   # "committed" or "uncommitted"
+                 is_http_served    : bool):
         if QApplication.instance() is None:
             self._app = QApplication(sys.argv)
         else:
@@ -218,8 +220,9 @@ class DiffViewerTabWidget(QMainWindow):
 
         super().__init__()
 
-        self.review_mode_ = review_mode
-        self.dossier_ = dossier
+        self.review_mode_    = review_mode
+        self.is_http_served_ = is_http_served
+        self.dossier_        = dossier
 
         # Compute the display length needed to uniquely identify revision keys
         if dossier is not None:
@@ -1398,7 +1401,8 @@ class DiffViewerTabWidget(QMainWindow):
                 base_path,
                 modi_disp_path,
                 modi_rel_dir,
-                modi_path)
+                modi_path,
+                self.is_http_served_)
 
             # Store the original base key for range resolution
             file_inst.original_base_key_ = base_key
@@ -1443,7 +1447,6 @@ class DiffViewerTabWidget(QMainWindow):
         opts = Options()
         opts.arg_tab_label_stats = self.tab_label_stats
         opts.arg_file_label_stats = self.file_label_stats
-        opts.arg_dossier_url = None  # Local mode
         opts.afr_ = self.afr_
         opts.arg_verbose = False
         opts.intraline_percent_ = self.intraline_percent
@@ -1490,8 +1493,10 @@ class DiffViewerTabWidget(QMainWindow):
         base_path = cache[current_base_key]["pathname"]
         base_disp_path = cache[current_base_key]["display_path"]
 
-        import posixpath
-        full_base_path = posixpath.join(root, base_rel_dir, base_path)
+        if self.is_http_served_:
+            full_base_path = posixpath.join(base_rel_dir, base_path)
+        else:
+            full_base_path = posixpath.join(root, base_rel_dir, base_path)
 
         return (full_base_path, base_disp_path)
 
