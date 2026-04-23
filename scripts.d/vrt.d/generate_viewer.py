@@ -15,7 +15,7 @@ DIFF_MODE_BASE_STAGE = 1  # HEAD vs Staged
 DIFF_MODE_STAGE_MODI = 2  # Staged vs Working
 
 class FileButtonBase(object):
-    def __init__(self, options, action, root_path):
+    def __init__(self, options, action, root_path, is_http_served):
         self.options_            = options
         self.action_             = action
         self.root_path_          = root_path
@@ -23,6 +23,7 @@ class FileButtonBase(object):
         self.desc_               = None
         self.stats_tab_          = options.arg_tab_label_stats
         self.stats_file_         = options.arg_file_label_stats
+        self.is_http_served_    = is_http_served
 
     def set_stats_tab(self, state):
         assert(isinstance(state, bool))
@@ -61,8 +62,10 @@ class FileButtonBase(object):
             result = self.desc_.chg_line_count()
         return result
 
-    def is_url(self):
-        return self.options_.arg_dossier_url is not None
+    def is_http_served(self):
+        # Files are served from HTTP(S) server.
+        # The pathnames are # constructed differently.
+        return self.is_http_served_
 
 
 class FileButton(FileButtonBase): # Committed & not-unstaged uncommited.
@@ -75,8 +78,9 @@ class FileButton(FileButtonBase): # Committed & not-unstaged uncommited.
                  base_path,     # relative path
                  modi_disp_path,
                  modi_rel_dir,  # "sha.d"
-                 modi_path):    # relative path
-        super().__init__(options, action, root_path)
+                 modi_path,     # relative path
+                 is_http_served):
+        super().__init__(options, action, root_path, is_http_served)
 
 
         self.base_disp_path_    = base_disp_path # XXX Need display path for each arg
@@ -148,14 +152,14 @@ class FileButton(FileButtonBase): # Committed & not-unstaged uncommited.
         return viewer
 
     def get_base_chg_id_path(self):
-        if self.is_url():
+        if self.is_http_served():
             return posixpath.join(self.sha_dir_rel_path_, self.base_chg_id_)
         else:
             return posixpath.join(self.root_path_, self.sha_dir_rel_path_,
                                   self.base_chg_id_)
 
     def get_modi_chg_id_path(self):
-        if self.is_url():
+        if self.is_http_served():
             return posixpath.join(self.modi_rel_dir_, self.modi_chg_path_)
         else:
             return posixpath.join(self.root_path_,
@@ -195,8 +199,9 @@ class FileButtonUnstaged(FileButtonBase):
 
                  modi_disp_path,
                  modi_rel_dir,  # "modi.d"
-                 modi_path):    # relative-pathname
-        super().__init__(options, action, root_path)
+                 modi_path,     # relative-pathname
+                 is_http_served):
+        super().__init__(options, action, root_path, is_http_served)
 
         self.base_disp_path_     = base_disp_path
         self.base_rel_path_      = base_rel_dir
@@ -211,21 +216,21 @@ class FileButtonUnstaged(FileButtonBase):
         self.modi_path_          = modi_path
 
     def get_base_chg_id_path(self):
-        if self.is_url():
+        if self.is_http_served():
             return posixpath.join(self.base_rel_path_, self.base_chg_id_)
         else:
             return posixpath.join(self.root_path_,
                                   self.base_rel_path_, self.base_chg_id_)
 
     def get_stag_chg_id_path(self):
-        if self.is_url():
+        if self.is_http_served():
             return posixpath.join(self.stag_rel_path_, self.stag_chg_id_)
         else:
             return posixpath.join(self.root_path_,
                                   self.stag_rel_path_, self.stag_chg_id_)
 
     def get_modi_path(self):
-        if self.is_url():
+        if self.is_http_served():
             return posixpath.join(self.modi_rel_dir_, self.modi_path_)
         else:
             return posixpath.join(self.root_path_,
@@ -341,6 +346,7 @@ def add_diff_to_viewer(desc, viewer):
 
 
 def generate(options, mode, note):
+    is_http_served = options.arg_dossier_url is not None
     tab_widget = tab_manager_module.DiffViewerTabWidget(options.afr_,
                                                         options.dossier_,
                                                         options.arg_display_n_lines,
@@ -360,7 +366,8 @@ def generate(options, mode, note):
                                                         options.editor_theme_,
                                                         options.arg_keybindings,
                                                         note,
-                                                        mode)
+                                                        mode,
+                                                        is_http_served)
 
     cache = options.dossier_["cache"]
     root  = options.dossier_["root"]
@@ -405,7 +412,8 @@ def generate(options, mode, note):
                                        base_path,
                                        modi_disp_path,
                                        modi_rel_dir,
-                                       modi_path)
+                                       modi_path,
+                                       is_http_served)
             else:
                 assert(mode == "uncommitted" and f["action"] == "unstaged")
                 stag_key       = f["stag"] # Can be 'null'.
@@ -428,7 +436,8 @@ def generate(options, mode, note):
                                                stag_path,
                                                modi_disp_path,
                                                modi_rel_dir,
-                                               modi_path)
+                                               modi_path,
+                                               is_http_served)
 
             tab_widget.add_file(file_inst)
 
