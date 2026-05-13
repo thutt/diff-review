@@ -645,6 +645,17 @@ class DiffViewerTabWidget(QMainWindow):
 
         self.resize(total_width, total_height)
 
+    def update_title_from_commit_msg(self, sha=None):
+        """Set window title from first line of commit message (up to 32 chars)."""
+        try:
+            text = self.commit_msg_mgr.load_commit_msg_text(sha)
+            first_line = text.splitlines()[0] if text else ""
+            title = first_line[:80] if len(first_line) > 80 else first_line
+            if title:
+                self.setWindowTitle(title)
+        except Exception:
+            pass
+
     def add_commit_msg(self, commit_msg_rel_path):
         """Add commit message to the sidebar as the first item (legacy, for uncommitted mode)"""
         self.commit_msg_mgr.add_commit_msg(commit_msg_rel_path)
@@ -652,12 +663,17 @@ class DiffViewerTabWidget(QMainWindow):
         self.commit_msg_rel_path_ = self.commit_msg_mgr.commit_msg_rel_path
         self.commit_msg_button = self.commit_msg_mgr.commit_msg_button
 
+        self.update_title_from_commit_msg(sha=None)
+
         # Update "Open All Files" count to include commit message
         self.update_open_all_button_text()
 
     def add_commit_messages_from_dossier(self):
         """Add commit messages folder from dossier (for committed mode)"""
         self.commit_msg_mgr.add_commit_messages_from_dossier(self.dossier_)
+        order = self.dossier_.get("order", [])
+        first_sha = order[0] if order else None
+        self.update_title_from_commit_msg(sha=first_sha)
 
     def on_commit_msg_clicked(self, sha=None):
         """Handle commit message button click
