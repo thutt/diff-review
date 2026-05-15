@@ -84,7 +84,16 @@ STANDARD_PALETTE = ColorPalette('Standard', {
     'focused_border_active': QColor(0, 100, 255),  # Blue
     'focused_border_inactive': QColor(80, 80, 80), # Gray
     'region_highlight': QColor(0, 0, 255, 128),    # Blue with transparency
-    
+
+    # Sidebar colors
+    'sidebar_selected_bg': QColor(0, 120, 212),              # Focused selection highlight
+    'sidebar_selected_unfocused_bg': QColor(160, 160, 160),  # Unfocused selection
+    'sidebar_in_range_bg': QColor(220, 235, 255),            # Range highlight background
+    'sidebar_header_bg': QColor(240, 240, 240),              # Header label background
+    'sidebar_muted_fg': QColor(102, 102, 102),               # Muted/italic text
+    'sidebar_special_commit_fg': QColor(139, 0, 0),          # Commit message item
+    'sidebar_changed_file_fg': QColor(184, 134, 11),         # Changed file indicator
+
     # Diff map colors
     'diffmap_insert': QColor("green"),
     'diffmap_delete': QColor("red"),
@@ -125,7 +134,16 @@ COLORBLIND_PALETTE = ColorPalette('Colorblind Friendly', {
     'focused_border_active': QColor(0, 100, 255),  # Blue
     'focused_border_inactive': QColor(80, 80, 80), # Gray
     'region_highlight': QColor(0, 0, 255, 128),    # Blue with transparency
-    
+
+    # Sidebar colors
+    'sidebar_selected_bg': QColor(0, 120, 212),              # Focused selection highlight
+    'sidebar_selected_unfocused_bg': QColor(160, 160, 160),  # Unfocused selection
+    'sidebar_in_range_bg': QColor(220, 235, 255),            # Range highlight background
+    'sidebar_header_bg': QColor(240, 240, 240),              # Header label background
+    'sidebar_muted_fg': QColor(102, 102, 102),               # Muted/italic text
+    'sidebar_special_commit_fg': QColor(139, 0, 0),          # Commit message item
+    'sidebar_changed_file_fg': QColor(184, 134, 11),         # Changed file indicator
+
     # Diff map colors
     'diffmap_insert': QColor(70, 130, 180),        # Steel blue (instead of green)
     'diffmap_delete': QColor(255, 140, 0),         # Dark orange (instead of red)
@@ -165,7 +183,16 @@ DARK_MODE_STANDARD_PALETTE = ColorPalette('Dark Mode Standard', {
     'focused_border_active': QColor(100, 150, 255), # Bright blue
     'focused_border_inactive': QColor(100, 100, 100), # Medium gray
     'region_highlight': QColor(100, 100, 255, 128), # Blue with transparency
-    
+
+    # Sidebar colors
+    'sidebar_selected_bg': QColor(0, 120, 212),              # Focused selection highlight
+    'sidebar_selected_unfocused_bg': QColor(80, 80, 80),     # Unfocused selection
+    'sidebar_in_range_bg': QColor(26, 42, 58),               # Range highlight background
+    'sidebar_header_bg': QColor(42, 42, 42),                 # Header label background
+    'sidebar_muted_fg': QColor(136, 136, 136),               # Muted/italic text
+    'sidebar_special_commit_fg': QColor(204, 102, 102),      # Commit message item
+    'sidebar_changed_file_fg': QColor(204, 170, 68),         # Changed file indicator
+
     # Diff map colors
     'diffmap_insert': QColor(50, 150, 50),         # Medium green
     'diffmap_delete': QColor(200, 50, 50),         # Medium red
@@ -205,7 +232,16 @@ DARK_MODE_COLORBLIND_PALETTE = ColorPalette('Dark Mode Colorblind', {
     'focused_border_active': QColor(100, 150, 255), # Bright blue
     'focused_border_inactive': QColor(100, 100, 100), # Medium gray
     'region_highlight': QColor(100, 100, 255, 128), # Blue with transparency
-    
+
+    # Sidebar colors
+    'sidebar_selected_bg': QColor(0, 120, 212),              # Focused selection highlight
+    'sidebar_selected_unfocused_bg': QColor(80, 80, 80),     # Unfocused selection
+    'sidebar_in_range_bg': QColor(26, 42, 58),               # Range highlight background
+    'sidebar_header_bg': QColor(42, 42, 42),                 # Header label background
+    'sidebar_muted_fg': QColor(136, 136, 136),               # Muted/italic text
+    'sidebar_special_commit_fg': QColor(204, 102, 102),      # Commit message item
+    'sidebar_changed_file_fg': QColor(204, 170, 68),         # Changed file indicator
+
     # Diff map colors
     'diffmap_insert': QColor(70, 130, 200),        # Medium steel blue
     'diffmap_delete': QColor(255, 140, 60),        # Medium orange

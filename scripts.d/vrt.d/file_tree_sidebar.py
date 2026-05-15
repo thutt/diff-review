@@ -93,16 +93,18 @@ class VerticalRangeSlider(QWidget):
         track_x = width // 2 - 2
         track_width = 4
 
+        palette = color_palettes.get_current_palette()
+
         # Draw track background
         painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QBrush(QColor(200, 200, 200)))
+        painter.setBrush(QBrush(palette.get_color('focused_border_inactive')))
         painter.drawRect(track_x, self._track_margin,
                         track_width, self.height() - 2 * self._track_margin)
 
         # Draw selected range on track
         low_y = self._idx_to_y(self._low_idx)
         high_y = self._idx_to_y(self._high_idx)
-        painter.setBrush(QBrush(QColor(100, 150, 255)))
+        painter.setBrush(QBrush(palette.get_color('focused_border_active')))
         painter.drawRect(track_x, low_y + self._handle_height // 2,
                         track_width, high_y - low_y)
 
@@ -111,8 +113,8 @@ class VerticalRangeSlider(QWidget):
         handle_x = (width - handle_width) // 2
 
         # Low handle (top)
-        painter.setBrush(QBrush(QColor(70, 130, 220)))
-        painter.setPen(QPen(QColor(50, 100, 180), 1))
+        painter.setBrush(QBrush(palette.get_color('focused_border_active')))
+        painter.setPen(QPen(palette.get_color('focused_border_inactive'), 1))
         painter.drawRoundedRect(handle_x, low_y, handle_width, self._handle_height, 3, 3)
 
         # High handle (bottom)
@@ -202,40 +204,31 @@ class ClickableCommitLabel(QLabel):
 
     def _update_style(self):
         """Update stylesheet based on current state."""
+        palette = color_palettes.get_current_palette()
         if self._selected:
             if self._focused:
-                self.setStyleSheet("""
-                    QLabel {
-                        padding: 4px 8px;
-                        background-color: #0078d4;
-                        color: white;
-                    }
-                """)
+                bg = palette.get_color('sidebar_selected_bg').name()
             else:
-                self.setStyleSheet("""
-                    QLabel {
-                        padding: 4px 8px;
-                        background-color: #a0a0a0;
-                        color: white;
-                    }
-                """)
-        elif self._in_range:
+                bg = palette.get_color('sidebar_selected_unfocused_bg').name()
             self.setStyleSheet("""
                 QLabel {
                     padding: 4px 8px;
-                    background-color: #e6f0ff;
+                    background-color: %s;
+                    color: white;
                 }
-                QLabel:hover {
-                    background-color: #d0e0f0;
+            """ % bg)
+        elif self._in_range:
+            bg = palette.get_color('sidebar_in_range_bg').name()
+            self.setStyleSheet("""
+                QLabel {
+                    padding: 4px 8px;
+                    background-color: %s;
                 }
-            """)
+            """ % bg)
         else:
             self.setStyleSheet("""
                 QLabel {
                     padding: 4px 8px;
-                }
-                QLabel:hover {
-                    background-color: #e0e0e0;
                 }
             """)
 
@@ -430,42 +423,39 @@ class CommittedLabel(QLabel):
         self._update_style()
 
     def _update_style(self):
+        palette = color_palettes.get_current_palette()
+        muted = palette.get_color('sidebar_muted_fg').name()
         if self._selected:
             if self._focused:
-                self.setStyleSheet("""
-                    QLabel {
-                        padding: 4px 8px;
-                        background-color: #0078d4;
-                        color: white;
-                        font-style: italic;
-                    }
-                """)
+                bg = palette.get_color('sidebar_selected_bg').name()
             else:
-                self.setStyleSheet("""
-                    QLabel {
-                        padding: 4px 8px;
-                        background-color: #a0a0a0;
-                        color: white;
-                        font-style: italic;
-                    }
-                """)
-        elif self._in_range:
+                bg = palette.get_color('sidebar_selected_unfocused_bg').name()
             self.setStyleSheet("""
                 QLabel {
                     padding: 4px 8px;
-                    color: #666;
+                    background-color: %s;
+                    color: white;
                     font-style: italic;
-                    background-color: #e6f0ff;
                 }
-            """)
+            """ % bg)
+        elif self._in_range:
+            bg = palette.get_color('sidebar_in_range_bg').name()
+            self.setStyleSheet("""
+                QLabel {
+                    padding: 4px 8px;
+                    color: %s;
+                    font-style: italic;
+                    background-color: %s;
+                }
+            """ % (muted, bg))
         else:
             self.setStyleSheet("""
                 QLabel {
                     padding: 4px 8px;
-                    color: #666;
+                    color: %s;
                     font-style: italic;
                 }
-            """)
+            """ % muted)
 
 
 class CommitListWidget(QWidget):
@@ -484,14 +474,14 @@ class CommitListWidget(QWidget):
 
         # Header label
         self.header_label = QLabel("Commits")
+        _hdr = color_palettes.get_current_palette().get_color('sidebar_header_bg').name()
         self.header_label.setStyleSheet("""
             QLabel {
                 padding: 5px;
-                background-color: #f0f0f0;
+                background-color: %s;
                 font-weight: bold;
-                border-bottom: 1px solid #ccc;
             }
-        """)
+        """ % _hdr)
         layout.addWidget(self.header_label)
 
         # Horizontal layout for slider and list inside a scroll area
@@ -707,28 +697,27 @@ class CompareLabel(QLabel):
 
     def __init__(self, text, parent=None):
         super().__init__(text, parent)
-        self.setStyleSheet("""
-            QLabel {
-                padding: 4px 8px;
-                color: #333;
-            }
-        """)
+        self._in_range = False
+        self._update_style()
 
     def set_in_range(self, in_range):
         """Update background based on whether item is in selected range."""
-        if in_range:
+        self._in_range = in_range
+        self._update_style()
+
+    def _update_style(self):
+        if self._in_range:
+            bg = color_palettes.get_current_palette().get_color('sidebar_in_range_bg').name()
             self.setStyleSheet("""
                 QLabel {
                     padding: 4px 8px;
-                    color: #333;
-                    background-color: #e6f0ff;
+                    background-color: %s;
                 }
-            """)
+            """ % bg)
         else:
             self.setStyleSheet("""
                 QLabel {
                     padding: 4px 8px;
-                    color: #333;
                 }
             """)
 
@@ -750,14 +739,14 @@ class CompareListWidget(QWidget):
 
         # Header label
         self.header_label = QLabel("Compare")
+        _hdr = color_palettes.get_current_palette().get_color('sidebar_header_bg').name()
         self.header_label.setStyleSheet("""
             QLabel {
                 padding: 5px;
-                background-color: #f0f0f0;
+                background-color: %s;
                 font-weight: bold;
-                border-bottom: 1px solid #ccc;
             }
-        """)
+        """ % _hdr)
         layout.addWidget(self.header_label)
 
         # Horizontal layout for slider and list
@@ -817,23 +806,28 @@ class CompareListWidget(QWidget):
 class FileTreeWidget(QTreeWidget):
     """Custom tree widget that handles Space key like Enter"""
 
-    FOCUSED_STYLE = """
-        QTreeWidget::item:selected {
-            background-color: #0078d4;
-            color: white;
-        }
-    """
-    UNFOCUSED_STYLE = """
-        QTreeWidget::item:selected {
-            background-color: #a0a0a0;
-            color: white;
-        }
-    """
-
     def __init__(self, parent=None):
         super().__init__(parent)
         self._sidebar = None  # Set by FileTreeSidebar
-        self.setStyleSheet(self.FOCUSED_STYLE)
+        self._apply_focused_style()
+
+    def _apply_focused_style(self):
+        bg = color_palettes.get_current_palette().get_color('sidebar_selected_bg').name()
+        self.setStyleSheet("""
+            QTreeWidget::item:selected {
+                background-color: %s;
+                color: white;
+            }
+        """ % bg)
+
+    def _apply_unfocused_style(self):
+        bg = color_palettes.get_current_palette().get_color('sidebar_selected_unfocused_bg').name()
+        self.setStyleSheet("""
+            QTreeWidget::item:selected {
+                background-color: %s;
+                color: white;
+            }
+        """ % bg)
 
     def set_sidebar(self, sidebar):
         """Set reference to parent sidebar."""
@@ -846,12 +840,12 @@ class FileTreeWidget(QTreeWidget):
     def focusInEvent(self, event):
         """Show focused selection color when gaining focus."""
         super().focusInEvent(event)
-        self.setStyleSheet(self.FOCUSED_STYLE)
+        self._apply_focused_style()
 
     def focusOutEvent(self, event):
         """Show unfocused selection color when losing focus."""
         super().focusOutEvent(event)
-        self.setStyleSheet(self.UNFOCUSED_STYLE)
+        self._apply_unfocused_style()
 
     def keyPressEvent(self, event):
         """Handle Space and Enter keys to activate current item"""
@@ -910,19 +904,6 @@ class FileTreeSidebar(QWidget):
         self.open_all_button = QPushButton("Open All Files")
         self.open_all_button.clicked.connect(self.tab_widget.open_all_files)
         self.open_all_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        self.open_all_button.setStyleSheet("""
-            QPushButton {
-                text-align: left;
-                padding: 10px;
-                border: none;
-                background-color: #e8f4f8;
-                font-weight: bold;
-                color: #0066cc;
-            }
-            QPushButton:hover {
-                background-color: #d0e8f0;
-            }
-        """)
         tree_layout.addWidget(self.open_all_button)
 
         # Tree widget (custom class handles Space key)
@@ -976,7 +957,7 @@ class FileTreeSidebar(QWidget):
         font = QFont()
         font.setBold(True)
         item.setFont(0, font)
-        item.setForeground(0, Qt.GlobalColor.darkRed)
+        item.setForeground(0, color_palettes.get_current_palette().get_color('sidebar_special_commit_fg'))
 
         self.special_items.append(('commit_msg', item))
         self.tree.insertTopLevelItem(0, item)
@@ -1019,8 +1000,8 @@ class FileTreeSidebar(QWidget):
         font = QFont()
         font.setBold(True)
         item.setFont(0, font)
-        item.setForeground(0, Qt.GlobalColor.blue)
-        
+        item.setForeground(0, color_palettes.get_current_palette().get_color('focused_border_active'))
+
         self.special_items.append(('review_notes', item))
         # Insert after commit msg if it exists
         insert_pos = 1 if any(t[0] == 'commit_msg' for t in self.special_items) else 0
@@ -1189,31 +1170,30 @@ class FileTreeSidebar(QWidget):
         """Update visual state of a file item"""
         if file_class not in self.file_items:
             return
-        
+
         item = self.file_items[file_class]
         parent = item.parent()
-        
-        # Track previous open state to update directory counter (check color instead of prefix)
+        palette = color_palettes.get_current_palette()
+        open_color = palette.get_color('focused_border_active')
+
+        # Track previous open state to update directory counter
         current_color = item.foreground(0).color()
-        was_open = current_color == Qt.GlobalColor.blue or current_color == QColor(0, 0, 255)
-        
+        was_open = current_color == open_color
+
         # Update visual indicator - use color only, no prefix
         if is_active:
-            # Currently selected - bold with blue color
             font = QFont()
             font.setBold(True)
             item.setFont(0, font)
-            item.setForeground(0, Qt.GlobalColor.blue)
+            item.setForeground(0, open_color)
         elif is_open:
-            # Open but not active - normal with blue color
             font = QFont()
             item.setFont(0, font)
-            item.setForeground(0, Qt.GlobalColor.blue)
+            item.setForeground(0, open_color)
         else:
-            # Closed - normal black text
             font = QFont()
             item.setFont(0, font)
-            item.setForeground(0, Qt.GlobalColor.black)
+            item.setForeground(0, palette.get_color('focused_border_inactive'))
         
         # Update directory counters for ALL ancestor directories
         if parent and (is_open != was_open):
@@ -1262,13 +1242,7 @@ class FileTreeSidebar(QWidget):
                 font = QFont()
                 font.setBold(True)
                 item.setFont(0, font)
-
-                if is_active:
-                    item.setForeground(0, Qt.GlobalColor.darkRed)
-                elif is_open:
-                    item.setForeground(0, Qt.GlobalColor.darkRed)
-                else:
-                    item.setForeground(0, Qt.GlobalColor.darkRed)
+                item.setForeground(0, color_palettes.get_current_palette().get_color('sidebar_special_commit_fg'))
                 break
     
     def update_notes_state(self, is_open, is_active):
@@ -1278,13 +1252,7 @@ class FileTreeSidebar(QWidget):
                 font = QFont()
                 font.setBold(True)
                 item.setFont(0, font)
-                
-                if is_active:
-                    item.setForeground(0, Qt.GlobalColor.blue)
-                elif is_open:
-                    item.setForeground(0, Qt.GlobalColor.blue)
-                else:
-                    item.setForeground(0, Qt.GlobalColor.blue)
+                item.setForeground(0, color_palettes.get_current_palette().get_color('focused_border_active'))
                 break
 
     def highlight_commits_for_range(self, base_idx, modi_idx):
@@ -1352,15 +1320,11 @@ class FileTreeSidebar(QWidget):
         
         item = self.file_items[file_class]
         palette = color_palettes.get_current_palette()
-        
+
         if changed:
-            # Use orange color for changed files
-            item.setForeground(0, Qt.GlobalColor.darkYellow)
+            item.setForeground(0, palette.get_color('sidebar_changed_file_fg'))
         else:
-            # Restore normal state based on open/active
-            # We'll need to call update_file_state with current state
-            # For now, just reset to black
-            item.setForeground(0, Qt.GlobalColor.black)
+            item.setForeground(0, palette.get_color('focused_border_inactive'))
     
     def update_open_all_text(self, total_files):
         """Update the Open All button text"""
